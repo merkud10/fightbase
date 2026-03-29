@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AdSlot } from "@/components/ad-slot";
 import { PageHero } from "@/components/page-hero";
 import { getArticlePageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
@@ -34,6 +35,8 @@ export default async function ArticlePage({
             </div>
           </div>
 
+          <AdSlot placement="articleInline" locale={locale} />
+
           <div className="policy-card">
             {article.sections.map((section) => (
               <div key={section.id} style={{ marginBottom: 22 }}>
@@ -45,6 +48,8 @@ export default async function ArticlePage({
         </article>
 
         <aside className="stack">
+          <AdSlot placement="articleSidebar" locale={locale} />
+
           <div className="policy-card">
             <h3>{locale === "ru" ? "Источники" : "Sources"}</h3>
             <ul>

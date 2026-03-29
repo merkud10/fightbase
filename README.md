@@ -68,6 +68,7 @@ Current Prisma-backed additions:
 - `npm run ingest:feed` worker for batch JSON ingestion into draft articles
 - `npm run ingest:fetch` worker with parser registry for source pages and fixtures
 - `npm run ingest:cron` client for hitting the protected cron endpoint
+- centralized ad-slot architecture for homepage, news, and article monetization zones
 
 ## Routes included
 
@@ -167,6 +168,36 @@ Windows Task Scheduler helper:
 ```powershell
 .\ops\register-ingestion-task.ps1
 ```
+
+## Monetization architecture
+
+The project now includes a centralized ad-layer:
+
+- `lib/ads.ts`: placement registry and enable/disable switches
+- `components/ad-slot.tsx`: reusable sponsored slot component
+- homepage, news feed, and article templates already expose controlled ad placements
+
+Current placement keys:
+
+- `homeHero`
+- `homeFeed`
+- `newsSidebar`
+- `newsInline`
+- `articleInline`
+- `articleSidebar`
+
+Ads can be toggled globally through:
+
+```bash
+NEXT_PUBLIC_ADS_ENABLED="1"
+```
+
+This layer is intentionally provider-agnostic, so it can later connect to:
+
+- Google AdSense
+- direct advertisers
+- affiliate widgets
+- sponsored editorial placements
 
 ## Recommended next step
 

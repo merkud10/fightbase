@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AdSlot } from "@/components/ad-slot";
 import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
 import { getHomePageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
@@ -96,6 +97,9 @@ export default async function HomePage() {
               <ArticleCard key={article.id} article={article} locale={locale} />
             ))}
           </div>
+          <div style={{ marginTop: 24 }}>
+            <AdSlot placement="homeFeed" locale={locale} />
+          </div>
         </div>
       </section>
 
@@ -135,6 +139,7 @@ export default async function HomePage() {
 
       <section className="section" id="subscribe">
         <div className="container feature-grid">
+          <AdSlot placement="homeHero" locale={locale} className="feature-card" />
           <article className="feature-card">
             <p className="eyebrow">{locale === "ru" ? "Дистрибуция" : "Distribution"}</p>
             <h3>{locale === "ru" ? "Telegram, рассылка и push" : "Telegram, newsletter, and push"}</h3>

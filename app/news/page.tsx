@@ -1,3 +1,4 @@
+import { AdSlot } from "@/components/ad-slot";
 import { ArticleCard } from "@/components/cards";
 import { PageHero } from "@/components/page-hero";
 import { getNewsPageData } from "@/lib/db";
@@ -40,11 +41,15 @@ export default async function NewsPage() {
             <span>{locale === "ru" ? "Что это значит" : "What this means"}</span>
             <span>{locale === "ru" ? "Связанные сущности" : "Related entities"}</span>
           </div>
+          <AdSlot placement="newsSidebar" locale={locale} />
         </aside>
 
         <div className="story-grid">
-          {articles.map((article) => (
-            <ArticleCard key={article.id} article={article} locale={locale} />
+          {articles.map((article, index) => (
+            <div key={article.id} className="story-stack">
+              <ArticleCard article={article} locale={locale} />
+              {index === 2 ? <AdSlot placement="newsInline" locale={locale} className="story-card ad-slot-inline" /> : null}
+            </div>
           ))}
         </div>
       </section>
