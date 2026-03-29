@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
 
@@ -87,10 +88,10 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
       <div className="fighter-avatar" />
       <h3>{fighter.name}</h3>
       <p className="copy">
-        {fighter.record} - {fighter.weightClass}
+        {fighter.record} - {formatWeightClass(fighter.weightClass, locale)}
       </p>
       <p className="copy">{fighter.promotion?.shortName ?? "MMA"}</p>
-      <span className="status-pill">{fighter.status}</span>
+      <span className="status-pill">{formatFighterStatus(fighter.status, locale)}</span>
       <div style={{ marginTop: 16 }}>
         <Link href={`/fighters/${fighter.slug}`} className="button-secondary">
           {t.common.profile}

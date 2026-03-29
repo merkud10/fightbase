@@ -44,7 +44,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Главный анонс" : "Lead announcement"}</p>
               <h3>
                 {locale === "ru"
-                  ? "Превью турнира, stakes и влияние на рейтинг в одном сценарии"
+                  ? "Превью турнира, ставки и влияние на рейтинг в одном материале"
                   : "Event preview, stakes, and ranking consequences in one flow"}
               </h3>
               {leadEvent ? (
@@ -75,7 +75,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Аналитика" : "Analysis"}</p>
               <h3>
                 {locale === "ru"
-                  ? "Каждый большой бой может порождать тактический разбор и материал формата что дальше"
+                  ? "Каждый большой бой может порождать тактический разбор и материал формата «что дальше?»"
                   : "Every major fight can spawn tactical and what-next coverage"}
               </h3>
               <Link href="/analysis">{locale === "ru" ? "Читать разборы" : "Read breakdowns"}</Link>

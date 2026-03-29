@@ -3,6 +3,7 @@ import { getLocale } from "@/lib/i18n";
 
 export default async function DisclaimerPage() {
   const locale = await getLocale();
+
   return (
     <main className="container">
       <PageHero

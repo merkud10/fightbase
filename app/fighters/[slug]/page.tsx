@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHero } from "@/components/page-hero";
 import { getFighterPageData } from "@/lib/db";
+import { formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 
 export default async function FighterPage({
@@ -25,7 +26,7 @@ export default async function FighterPage({
       <PageHero
         eyebrow={`/fighters/${fighter.slug}`}
         title={fighter.name}
-        description={`${fighter.record} - ${fighter.weightClass} - ${fighter.style} - ${fighter.team}`}
+        description={`${fighter.record} - ${formatWeightClass(fighter.weightClass, locale)} - ${fighter.style} - ${fighter.team}`}
       />
 
       <section className="detail-grid">
@@ -50,8 +51,8 @@ export default async function FighterPage({
                   {recentFights.map((fight) => (
                     <tr key={fight.id}>
                       <td>{fight.event.name}</td>
-                      <td>{fight.weightClass}</td>
-                      <td>{fight.status}</td>
+                      <td>{formatWeightClass(fight.weightClass, locale)}</td>
+                      <td>{formatFightStatus(fight.status, locale)}</td>
                       <td>
                         {fight.method && fight.resultRound
                           ? `${fight.method} R${fight.resultRound}`

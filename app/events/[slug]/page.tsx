@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHero } from "@/components/page-hero";
 import { getEventPageData } from "@/lib/db";
+import { formatFightStage, formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 
 export default async function EventPage({
@@ -44,13 +45,13 @@ export default async function EventPage({
               <tbody>
                 {event.fights.map((fight) => (
                   <tr key={fight.id}>
-                    <td>{fight.stage}</td>
+                    <td>{formatFightStage(fight.stage, locale)}</td>
                     <td>
                       <Link href={`/fighters/${fight.fighterA.slug}`}>{fight.fighterA.name}</Link> vs{" "}
                       <Link href={`/fighters/${fight.fighterB.slug}`}>{fight.fighterB.name}</Link>
                     </td>
-                    <td>{fight.weightClass}</td>
-                    <td>{fight.status}</td>
+                    <td>{formatWeightClass(fight.weightClass, locale)}</td>
+                    <td>{formatFightStatus(fight.status, locale)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -63,7 +64,7 @@ export default async function EventPage({
             <h3>{locale === "ru" ? "Углы превью" : "Preview angles"}</h3>
             <p className="copy">
               {locale === "ru"
-                ? "Используй этот блок для stakes, букмекерского контекста, ключевых тактических вопросов и влияния на дивизион."
+                ? "Используй этот блок для ставок, букмекерского контекста, ключевых тактических вопросов и влияния на дивизион."
                 : "Use this block for stakes, betting context, key tactical questions, and divisional implications."}
             </p>
           </div>

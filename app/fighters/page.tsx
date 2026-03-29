@@ -27,8 +27,8 @@ export default async function FightersPage() {
             <span>{locale === "ru" ? "Чемпионы" : "Champion"}</span>
             <span>{locale === "ru" ? "Завершили карьеру" : "Retired"}</span>
             <span>{locale === "ru" ? "Проспекты" : "Prospect"}</span>
-            <span>Lightweight</span>
-            <span>Welterweight</span>
+            <span>{locale === "ru" ? "Лёгкий вес" : "Lightweight"}</span>
+            <span>{locale === "ru" ? "Полусредний вес" : "Welterweight"}</span>
           </div>
         </aside>
 

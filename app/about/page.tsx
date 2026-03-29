@@ -11,7 +11,7 @@ export default async function AboutPage() {
         title={locale === "ru" ? "О FightBase" : "About FightBase"}
         description={
           locale === "ru"
-            ? "FightBase это MMA-медиа платформа, построенная вокруг сущностей, перелинковки и AI-assisted редакционных процессов."
+            ? "FightBase — это MMA-медиа платформа, построенная вокруг сущностей, перелинковки и редакционных AI-процессов."
             : "FightBase is an MMA media platform designed around entities, internal linking, and AI-assisted editorial workflows."
         }
       />

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
 import { getRankingsPageData } from "@/lib/db";
+import { formatFighterStatus } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 
 export default async function RankingsPage() {
@@ -39,7 +40,7 @@ export default async function RankingsPage() {
                   <td>{index + 1}</td>
                   <td>{fighter.name}</td>
                   <td>{fighter.record}</td>
-                  <td>{fighter.status}</td>
+                  <td>{formatFighterStatus(fighter.status, locale)}</td>
                   <td>
                     <Link href={`/fighters/${fighter.slug}`}>{locale === "ru" ? "Открыть" : "Open"}</Link>
                   </td>

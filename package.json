@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
+    "content:localize": "node scripts/localize-existing-content.js",
     "ingest:feed": "node scripts/ingest-feed.js",
     "ingest:fetch": "node scripts/fetch-source-feed.js",
     "ingest:cron": "node scripts/trigger-ingest-cron.js"

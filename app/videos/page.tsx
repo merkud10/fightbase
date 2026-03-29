@@ -20,17 +20,29 @@ export default async function VideosPage() {
         <article className="feature-card">
           <p className="eyebrow">{locale === "ru" ? "Хайлайты" : "Highlights"}</p>
           <h3>{locale === "ru" ? "Лучшие финиши месяца" : "Best finishes of the month"}</h3>
-          <p className="copy">{locale === "ru" ? "Кураторские официальные клипы, заметки редакции и ссылки на бойцов и турниры." : "Curated official clips plus editorial notes and internal links to fighters and event pages."}</p>
+          <p className="copy">
+            {locale === "ru"
+              ? "Кураторские официальные клипы, заметки редакции и ссылки на бойцов и турниры."
+              : "Curated official clips plus editorial notes and internal links to fighters and event pages."}
+          </p>
         </article>
         <article className="feature-card">
           <p className="eyebrow">{locale === "ru" ? "Пресс-конференции" : "Pressers"}</p>
           <h3>{locale === "ru" ? "Пресс-конференции с выжимкой" : "Press conferences with takeaways"}</h3>
-          <p className="copy">{locale === "ru" ? "Встраивай источник и кратко пересказывай моменты, которые реально двигают дивизион." : "Embed the source and summarize the moments that actually move the division."}</p>
+          <p className="copy">
+            {locale === "ru"
+              ? "Встраивай источник и кратко пересказывай моменты, которые реально двигают дивизион."
+              : "Embed the source and summarize the moments that actually move the division."}
+          </p>
         </article>
         <article className="feature-card">
           <p className="eyebrow">Social</p>
           <h3>{locale === "ru" ? "Face-off и реакционные клипы" : "Face-offs and reaction clips"}</h3>
-          <p className="copy">{locale === "ru" ? "Короткие форматы, которые напрямую подпитывают новости и таймлайны бойцов." : "Short-form moments that feed directly into news stories and fighter timelines."}</p>
+          <p className="copy">
+            {locale === "ru"
+              ? "Короткие форматы, которые напрямую подпитывают новости и таймлайны бойцов."
+              : "Short-form moments that feed directly into news stories and fighter timelines."}
+          </p>
         </article>
       </section>
     </main>

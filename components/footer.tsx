@@ -13,7 +13,7 @@ export async function Footer() {
           <strong>FightBase Media</strong>
           <p className="muted">
             {locale === "ru"
-              ? "Новости, турниры, бойцы, аналитика и AI-assisted редакционный workflow."
+              ? "Новости, турниры, бойцы, аналитика и редакционный workflow с AI-поддержкой."
               : "News, events, fighters, analysis, and an AI-assisted editorial workflow."}
           </p>
         </div>
@@ -22,8 +22,8 @@ export async function Footer() {
           <Link href="/sources-policy">{locale === "ru" ? "Политика источников" : "Sources policy"}</Link>
           <Link href="/editorial-policy">{locale === "ru" ? "Редакционная политика" : "Editorial policy"}</Link>
           <Link href="/privacy-policy">{locale === "ru" ? "Приватность" : "Privacy"}</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/disclaimer">Disclaimer</Link>
+          <Link href="/terms">{locale === "ru" ? "Условия" : "Terms"}</Link>
+          <Link href="/disclaimer">{locale === "ru" ? "Дисклеймер" : "Disclaimer"}</Link>
         </div>
       </div>
     </footer>
