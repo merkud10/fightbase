@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/locale-config";
 
 const weightClassMap: Record<string, { ru: string; en: string }> = {
+  strawweight: { ru: "Минимальный вес", en: "Strawweight" },
   flyweight: { ru: "Наилегчайший вес", en: "Flyweight" },
   bantamweight: { ru: "Легчайший вес", en: "Bantamweight" },
   featherweight: { ru: "Полулегкий вес", en: "Featherweight" },
@@ -9,7 +10,9 @@ const weightClassMap: Record<string, { ru: string; en: string }> = {
   middleweight: { ru: "Средний вес", en: "Middleweight" },
   light_heavyweight: { ru: "Полутяжелый вес", en: "Light heavyweight" },
   "light heavyweight": { ru: "Полутяжелый вес", en: "Light heavyweight" },
-  heavyweight: { ru: "Тяжелый вес", en: "Heavyweight" }
+  heavyweight: { ru: "Тяжелый вес", en: "Heavyweight" },
+  catchweight: { ru: "Договорной вес", en: "Catchweight" },
+  openweight: { ru: "Открытый вес", en: "Openweight" }
 };
 
 const fighterStatusMap: Record<string, { ru: string; en: string }> = {

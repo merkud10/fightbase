@@ -1,9 +1,23 @@
 import type { Metadata } from "next";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
+
 import "./globals.css";
 
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { getLocale } from "@/lib/i18n";
+
+const bodyFont = Manrope({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-body",
+  weight: ["400", "500", "600", "700", "800"]
+});
+
+const displayFont = Cormorant_Garamond({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-display",
+  weight: ["500", "600", "700"]
+});
 
 export const metadata: Metadata = {
   title: {
@@ -25,7 +39,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
-      <body>
+      <body className={`${bodyFont.variable} ${displayFont.variable}`}>
         <div className="page-shell">
           <Header />
           {children}

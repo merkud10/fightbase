@@ -1,0 +1,50 @@
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="1024" fill="#091015"/>
+  <rect width="1440" height="92" fill="#060A0E"/>
+  <rect x="0" y="92" width="1440" height="6" fill="#FF6138"/>
+  <text x="60" y="58" fill="#F5F8FB" font-size="28" font-family="Arial" font-weight="900">FIGHTBASE // LIVE</text>
+  <text x="1210" y="58" fill="#8FE6FF" font-size="15" font-family="Arial" font-weight="700">RU / EN</text>
+  <text x="1288" y="58" fill="#F5F8FB" font-size="15" font-family="Arial" font-weight="700">Подписка</text>
+
+  <rect x="58" y="130" width="1324" height="128" rx="24" fill="#101923" stroke="#223140"/>
+  <text x="86" y="174" fill="#8FE6FF" font-size="14" font-family="Arial" font-weight="700">LIVE DESK</text>
+  <text x="86" y="222" fill="white" font-size="52" font-family="Arial" font-weight="900">МЕДИА-ПЛАТФОРМА В СТИЛЕ ТВ-ГРАФИКИ И АРЕНЫ</text>
+
+  <rect x="58" y="286" width="854" height="326" rx="26" fill="#111A24" stroke="#223140"/>
+  <rect x="74" y="302" width="822" height="132" rx="18" fill="#FF6138"/>
+  <text x="102" y="343" fill="#1C0E09" font-size="18" font-family="Arial" font-weight="900">MAIN EVENT</text>
+  <text x="102" y="394" fill="#0E141C" font-size="62" font-family="Arial" font-weight="900">PEREIRA VS ANKALAEV</text>
+  <text x="102" y="544" fill="#F5F8FB" font-size="22" font-family="Arial" font-weight="700">Крупные агрессивные плашки, live-ощущение и визуал как у fight broadcast package.</text>
+
+  <rect x="944" y="286" width="438" height="156" rx="24" fill="#101923" stroke="#223140"/>
+  <text x="974" y="330" fill="#91A1B1" font-size="14" font-family="Arial" font-weight="700">STATUS</text>
+  <text x="974" y="382" fill="#F5F8FB" font-size="36" font-family="Arial" font-weight="900">Идет подготовка к турниру</text>
+
+  <rect x="944" y="456" width="438" height="156" rx="24" fill="#101923" stroke="#223140"/>
+  <text x="974" y="500" fill="#91A1B1" font-size="14" font-family="Arial" font-weight="700">TACTICAL DESK</text>
+  <text x="974" y="552" fill="#F5F8FB" font-size="36" font-family="Arial" font-weight="900">Что значит новость для дивизиона</text>
+
+  <text x="58" y="680" fill="#F5F8FB" font-size="34" font-family="Arial" font-weight="900">НОВОСТНАЯ ЛЕНТА</text>
+
+  <g>
+    <rect x="58" y="710" width="420" height="254" rx="24" fill="#101923" stroke="#223140"/>
+    <rect x="84" y="736" width="130" height="36" rx="18" fill="#8FE6FF"/>
+    <text x="116" y="760" fill="#081116" font-size="15" font-family="Arial" font-weight="900">UFC</text>
+    <text x="84" y="836" fill="#F5F8FB" font-size="34" font-family="Arial" font-weight="900">Турнирная сетка обновлена</text>
+    <text x="84" y="888" fill="#93A1B1" font-size="18" font-family="Arial">Карточки выглядят как live scoreboard и быстро считываются.</text>
+  </g>
+  <g>
+    <rect x="510" y="710" width="420" height="254" rx="24" fill="#101923" stroke="#223140"/>
+    <rect x="536" y="736" width="130" height="36" rx="18" fill="#FF6138"/>
+    <text x="573" y="760" fill="#160A07" font-size="15" font-family="Arial" font-weight="900">PFL</text>
+    <text x="536" y="836" fill="#F5F8FB" font-size="34" font-family="Arial" font-weight="900">Разбор тактики и сценариев</text>
+    <text x="536" y="888" fill="#93A1B1" font-size="18" font-family="Arial">Сильный язык для турниров, рейтингов и превью боёв.</text>
+  </g>
+  <g>
+    <rect x="962" y="710" width="420" height="254" rx="24" fill="#101923" stroke="#223140"/>
+    <rect x="988" y="736" width="130" height="36" rx="18" fill="#E5F25C"/>
+    <text x="1024" y="760" fill="#121605" font-size="15" font-family="Arial" font-weight="900">ONE</text>
+    <text x="988" y="836" fill="#F5F8FB" font-size="34" font-family="Arial" font-weight="900">Профили бойцов как табло</text>
+    <text x="988" y="888" fill="#93A1B1" font-size="18" font-family="Arial">Остро, динамично и очень по-MMA.</text>
+  </g>
+</svg>

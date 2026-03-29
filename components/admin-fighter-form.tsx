@@ -13,7 +13,9 @@ type FighterDraft = {
   id: string;
   slug: string;
   name: string;
+  nameRu: string | null;
   nickname: string | null;
+  photoUrl: string | null;
   country: string;
   weightClass: string;
   status: string;
@@ -50,14 +52,26 @@ export function AdminFighterForm({
           </label>
 
           <label className="admin-field">
+            <span>{locale === "ru" ? "Имя (RU)" : "Name (RU)"}</span>
+            <input name="nameRu" defaultValue={fighter?.nameRu ?? ""} />
+          </label>
+        </div>
+
+        <div className="admin-grid">
+          <label className="admin-field">
             <span>{locale === "ru" ? "Никнейм" : "Nickname"}</span>
             <input name="nickname" defaultValue={fighter?.nickname ?? ""} />
+          </label>
+
+          <label className="admin-field">
+            <span>Slug</span>
+            <input name="slug" defaultValue={fighter?.slug ?? ""} placeholder="auto-from-name" />
           </label>
         </div>
 
         <label className="admin-field">
-          <span>Slug</span>
-          <input name="slug" defaultValue={fighter?.slug ?? ""} placeholder="auto-from-name" />
+          <span>{locale === "ru" ? "URL фото" : "Photo URL"}</span>
+          <input name="photoUrl" defaultValue={fighter?.photoUrl ?? ""} placeholder="https://..." />
         </label>
 
         <div className="admin-grid">

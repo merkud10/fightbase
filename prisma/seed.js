@@ -15,10 +15,9 @@ async function main() {
   await prisma.tag.deleteMany();
   await prisma.promotion.deleteMany();
 
-  const [ufc, pfl, bellator, one] = await Promise.all([
+  const [ufc, pfl, one] = await Promise.all([
     prisma.promotion.create({ data: { slug: "ufc", name: "Ultimate Fighting Championship", shortName: "UFC" } }),
     prisma.promotion.create({ data: { slug: "pfl", name: "Professional Fighters League", shortName: "PFL" } }),
-    prisma.promotion.create({ data: { slug: "bellator", name: "Bellator", shortName: "Bellator" } }),
     prisma.promotion.create({ data: { slug: "one", name: "ONE Championship", shortName: "ONE" } })
   ]);
 

@@ -18,7 +18,7 @@ type AdPlacement = {
   enabled: boolean;
 };
 
-const adsEnabled = process.env.NEXT_PUBLIC_ADS_ENABLED !== "0";
+const adsEnabled = process.env.NEXT_PUBLIC_ADS_ENABLED === "1";
 
 export const adPlacements: Record<AdPlacementKey, AdPlacement> = {
   homeHero: {

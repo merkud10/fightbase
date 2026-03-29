@@ -1,0 +1,60 @@
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="1024" fill="#F2F4F7"/>
+  <rect x="24" y="24" width="1392" height="976" rx="34" fill="#FBFCFE" stroke="#D9E0E7"/>
+  <rect x="48" y="48" width="1344" height="88" rx="24" fill="#FFFFFF" stroke="#E3E8EE"/>
+  <text x="78" y="83" fill="#112033" font-size="28" font-family="Arial" font-weight="900">FightBase Intelligence</text>
+  <text x="78" y="108" fill="#738196" font-size="14" font-family="Arial">Новости, профили и аналитика как data-driven платформа</text>
+  <text x="600" y="88" fill="#2E3E53" font-size="16" font-family="Arial">Новости</text>
+  <text x="710" y="88" fill="#2E3E53" font-size="16" font-family="Arial">Турниры</text>
+  <text x="824" y="88" fill="#2E3E53" font-size="16" font-family="Arial">Бойцы</text>
+  <text x="920" y="88" fill="#2E3E53" font-size="16" font-family="Arial">Рейтинги</text>
+  <text x="1040" y="88" fill="#2E3E53" font-size="16" font-family="Arial">Аналитика</text>
+
+  <rect x="48" y="164" width="296" height="788" rx="28" fill="#F8FAFC" stroke="#E3E8EE"/>
+  <text x="78" y="208" fill="#112033" font-size="18" font-family="Arial" font-weight="900">Фильтры и сигналы</text>
+  <rect x="78" y="236" width="236" height="42" rx="21" fill="#E9F1FF"/>
+  <text x="116" y="263" fill="#2456A6" font-size="14" font-family="Arial" font-weight="700">UFC</text>
+  <rect x="78" y="292" width="236" height="42" rx="21" fill="#F0F3F7"/>
+  <text x="116" y="319" fill="#506275" font-size="14" font-family="Arial" font-weight="700">PFL</text>
+  <rect x="78" y="348" width="236" height="42" rx="21" fill="#F0F3F7"/>
+  <text x="116" y="375" fill="#506275" font-size="14" font-family="Arial" font-weight="700">ONE Championship</text>
+  <rect x="78" y="430" width="236" height="146" rx="24" fill="#FFFFFF" stroke="#E3E8EE"/>
+  <text x="100" y="466" fill="#112033" font-size="16" font-family="Arial" font-weight="900">AI-выжимка</text>
+  <text x="100" y="500" fill="#6C7B90" font-size="15" font-family="Arial">Что это значит</text>
+  <text x="100" y="524" fill="#6C7B90" font-size="15" font-family="Arial">Следующий шаг</text>
+  <text x="100" y="548" fill="#6C7B90" font-size="15" font-family="Arial">Кто затронут</text>
+
+  <rect x="374" y="164" width="712" height="314" rx="28" fill="#FFFFFF" stroke="#E3E8EE"/>
+  <text x="412" y="208" fill="#2456A6" font-size="14" font-family="Arial" font-weight="700">LEAD STORY</text>
+  <text x="412" y="272" fill="#112033" font-size="56" font-family="Arial" font-weight="900">Новости и профили как аналитическая система</text>
+  <text x="412" y="332" fill="#6B7A90" font-size="20" font-family="Arial">Чистая, технологичная подача. Упор на сравнения, таймлайны, рейтинги и</text>
+  <text x="412" y="360" fill="#6B7A90" font-size="20" font-family="Arial">полезные блоки для возвращаемости и SEO.</text>
+
+  <rect x="1114" y="164" width="278" height="314" rx="28" fill="#112033"/>
+  <text x="1146" y="208" fill="#8DB6FF" font-size="14" font-family="Arial" font-weight="700">FIGHTER CARD</text>
+  <rect x="1146" y="236" width="214" height="118" rx="22" fill="#284B74"/>
+  <text x="1146" y="392" fill="#FFFFFF" font-size="28" font-family="Arial" font-weight="900">Ислам Махачев</text>
+  <text x="1146" y="424" fill="#ADC2DB" font-size="16" font-family="Arial">Стойка • борьба • сабмишены</text>
+
+  <g>
+    <rect x="374" y="506" width="492" height="188" rx="24" fill="#FFFFFF" stroke="#E3E8EE"/>
+    <text x="404" y="550" fill="#112033" font-size="18" font-family="Arial" font-weight="900">Последние новости</text>
+    <line x1="404" y1="580" x2="836" y2="580" stroke="#E7EBF0"/>
+    <text x="404" y="620" fill="#2A3C51" font-size="26" font-family="Arial" font-weight="700">Титульный бой на горизонте</text>
+    <text x="404" y="650" fill="#6B7A90" font-size="16" font-family="Arial">Лента выглядит легче, умнее и аккуратнее.</text>
+  </g>
+  <g>
+    <rect x="900" y="506" width="492" height="188" rx="24" fill="#FFFFFF" stroke="#E3E8EE"/>
+    <text x="930" y="550" fill="#112033" font-size="18" font-family="Arial" font-weight="900">Рейтинг / тренды</text>
+    <rect x="930" y="580" width="432" height="18" rx="9" fill="#EEF3F8"/>
+    <rect x="930" y="612" width="338" height="18" rx="9" fill="#D8E6FF"/>
+    <rect x="930" y="644" width="280" height="18" rx="9" fill="#EEF3F8"/>
+  </g>
+
+  <g>
+    <rect x="374" y="722" width="1018" height="230" rx="28" fill="#FFFFFF" stroke="#E3E8EE"/>
+    <text x="406" y="766" fill="#112033" font-size="20" font-family="Arial" font-weight="900">Преимущество концепции</text>
+    <text x="406" y="816" fill="#6B7A90" font-size="22" font-family="Arial">Такой дизайн особенно хорошо работает для профилей бойцов, аналитики,</text>
+    <text x="406" y="848" fill="#6B7A90" font-size="22" font-family="Arial">рейтингов, AI-карточек боёв и умного поиска.</text>
+  </g>
+</svg>

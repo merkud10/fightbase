@@ -1,4 +1,4 @@
-export type PromotionKey = "ufc" | "pfl" | "bellator" | "one";
+export type PromotionKey = "ufc" | "pfl" | "one";
 
 export type ArticleCategory =
   | "news"

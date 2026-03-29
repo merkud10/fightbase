@@ -34,7 +34,6 @@ export interface NormalizedPayload {
 const tagKeywordMap: Record<string, string[]> = {
   ufc: ["ufc", "fight night", "ultimate fighting championship"],
   pfl: ["pfl", "professional fighters league"],
-  bellator: ["bellator"],
   one: ["one championship", "one fc", "one"],
   results: ["results", "result", "wins", "defeats", "scores", "finishes"],
   rumors: ["rumor", "rumors", "reportedly", "targeting", "talks"],

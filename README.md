@@ -47,6 +47,12 @@ npm run prisma:generate
 npm run db:push
 npm run db:seed
 npm run db:studio
+npm run content:seed-fighters
+npm run content:enrich-fighters
+npm run content:refresh-fighters
+npm run content:sync-ufc-roster
+npm run content:sync-one-roster
+npm run content:refresh-fighters-full
 npm run ingest:feed -- --dry-run
 npm run ingest:fetch -- --dry-run
 npm run ingest:cron -- --dry-run --secret YOUR_SECRET
@@ -82,6 +88,10 @@ Current Prisma-backed additions:
 - RU-first ingestion localization via OpenAI Responses API when `OPENAI_API_KEY` is configured
 - local-first ingestion localization via Ollama when `OLLAMA_MODEL` is configured
 - centralized ad-slot architecture for homepage, news, and article monetization zones
+- expanded fighter roster seeding with Russian names and live photo resolution
+- fighter profile enrichment and normalization pipeline for biographies and recent fights
+- official UFC roster sync via sitemap-driven athlete import
+- official ONE MMA roster sync via athlete archive crawling
 
 ## Routes included
 
@@ -187,6 +197,20 @@ Health check:
 
 ```bash
 curl http://localhost:3000/api/health
+```
+
+Weekly fighter refresh helper:
+
+```powershell
+.\ops\update-fighters-weekly.ps1
+```
+
+The weekly helper now runs the full curated roster refresh plus official UFC and ONE sync.
+
+Full fighter refresh with official UFC and ONE roster sync:
+
+```bash
+npm run content:refresh-fighters-full
 ```
 
 ## Monetization architecture

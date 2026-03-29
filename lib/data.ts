@@ -3,7 +3,6 @@ import type { Article, Event, Fight, Fighter, Promotion, Source, Tag } from "@/l
 export const promotions: Promotion[] = [
   { id: "ufc", name: "Ultimate Fighting Championship", shortName: "UFC", slug: "ufc" },
   { id: "pfl", name: "Professional Fighters League", shortName: "PFL", slug: "pfl" },
-  { id: "bellator", name: "Bellator", shortName: "Bellator", slug: "bellator" },
   { id: "one", name: "ONE Championship", shortName: "ONE", slug: "one" }
 ];
 

@@ -97,7 +97,9 @@ model Fighter {
   id          String           @id @default(cuid())
   slug        String           @unique
   name        String
+  nameRu      String?
   nickname    String?
+  photoUrl    String?
   country     String
   weightClass String
   status      FighterStatus
@@ -105,16 +107,48 @@ model Fighter {
   age         Int
   heightCm    Int
   reachCm     Int
+  winsByKnockout Int?
+  winsBySubmission Int?
+  winsByDecision Int?
+  sigStrikesLandedPerMin Float?
+  strikeAccuracy Int?
+  sigStrikesAbsorbedPerMin Float?
+  strikeDefense Int?
+  takedownAveragePer15 Float?
+  takedownAccuracy Int?
+  takedownDefense Int?
+  submissionAveragePer15 Float?
+  averageFightTime String?
   team        String
   style       String
   bio         String
+  bioEn       String?
   promotionId String
   promotion   Promotion        @relation(fields: [promotionId], references: [id], onDelete: Restrict)
   articleMap  ArticleFighter[]
   fightsA     Fight[]          @relation("FightA")
   fightsB     Fight[]          @relation("FightB")
+  recentFights FighterRecentFight[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+}
+
+model FighterRecentFight {
+  id             String   @id @default(cuid())
+  fighterId      String
+  opponentName   String
+  opponentNameRu String?
+  eventName      String
+  result         String
+  method         String?
+  date           DateTime
+  round          Int?
+  time           String?
+  weightClass    String?
+  notes          String?
+  fighter        Fighter  @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Event {

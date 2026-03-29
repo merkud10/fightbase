@@ -1,4 +1,4 @@
-import type { ArticleStatus } from "@prisma/client";
+import type { ArticleStatus, EventStatus, FighterStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -11,6 +11,42 @@ type AdminDashboardFilters = {
   sort?: AdminModerationSort;
 };
 
+type FightersPageFilters = {
+  query?: string;
+  promotion?: string;
+  status?: string;
+  weightClass?: string;
+};
+
+type NewsPageFilters = {
+  promotion?: string;
+  tag?: string;
+};
+
+type EventsPageFilters = {
+  promotion?: string;
+  status?: string;
+};
+
+type RankingsPageFilters = {
+  promotion?: string;
+};
+
+type UfcOfficialRankingLink = {
+  localSlug?: string;
+  officialUrl: string;
+};
+
+type PromotionRankingLink = {
+  localSlug?: string;
+};
+
+type FighterListItem = Prisma.FighterGetPayload<{
+  include: {
+    promotion: true;
+  };
+}>;
+
 function getArticleOrderBy(sort: AdminModerationSort) {
   switch (sort) {
     case "aiDesc":
@@ -21,6 +57,127 @@ function getArticleOrderBy(sort: AdminModerationSort) {
     default:
       return [{ publishedAt: "desc" as const }];
   }
+}
+
+function normalizeProfileKey(value: string | null | undefined) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9]+/gi, " ")
+    .trim();
+}
+
+function hasUsablePhotoUrl(value: string | null | undefined) {
+  const url = String(value || "").trim();
+  if (!url) {
+    return false;
+  }
+
+  return !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(url);
+}
+
+function tokenizeProfileValue(value: string | null | undefined) {
+  return normalizeProfileKey(value)
+    .split(/\s+/)
+    .filter((token) => token.length > 1);
+}
+
+function looksLikeBrokenUfcProfile(fighter: FighterListItem) {
+  if (fighter.promotion?.slug !== "ufc") {
+    return false;
+  }
+
+  const slugTokens = tokenizeProfileValue(fighter.slug.replace(/-\d+$/g, "").replace(/-/g, " "));
+  const nameTokens = tokenizeProfileValue(fighter.name);
+  const overlap = slugTokens.filter((token) => nameTokens.includes(token)).length;
+  const lacksCoreData =
+    !fighter.photoUrl ||
+    (!fighter.age && !fighter.heightCm && !fighter.reachCm) ||
+    (!fighter.strikeAccuracy && !fighter.strikeDefense && !fighter.takedownAccuracy && !fighter.takedownDefense && !fighter.averageFightTime);
+  const articleLikeSlug = /i-am-still-here|wants-this|journey-continues|ufc-|vegas|edmonton|mexico-city/i.test(fighter.slug);
+
+  return articleLikeSlug || (slugTokens.length > 1 && nameTokens.length > 1 && overlap === 0 && lacksCoreData);
+}
+
+function getFighterQualityScore(fighter: FighterListItem) {
+  let score = 0;
+
+  if (hasUsablePhotoUrl(fighter.photoUrl)) score += 10;
+  if (fighter.nameRu) score += 2;
+  if (fighter.record && fighter.record !== "0-0" && fighter.record !== "0-0-0") score += 3;
+  if (fighter.age) score += 2;
+  if (fighter.heightCm) score += 2;
+  if (fighter.reachCm) score += 2;
+  if (fighter.strikeAccuracy != null) score += 2;
+  if (fighter.strikeDefense != null) score += 2;
+  if (fighter.takedownAccuracy != null) score += 2;
+  if (fighter.takedownDefense != null) score += 2;
+  if (fighter.averageFightTime) score += 1;
+  if (fighter.status === "champion") score += 3;
+  if (fighter.status === "active") score += 2;
+  if (fighter.status === "prospect") score += 1;
+  if (looksLikeBrokenUfcProfile(fighter)) score -= 20;
+
+  return score;
+}
+
+function hasMeaningfulFighterProfileData(fighter: FighterListItem & { _count?: { recentFights: number } }) {
+  const hasVitals = Boolean(fighter.age || fighter.heightCm || fighter.reachCm);
+  const hasStats = Boolean(
+    fighter.strikeAccuracy != null ||
+      fighter.strikeDefense != null ||
+      fighter.takedownAccuracy != null ||
+      fighter.takedownDefense != null ||
+      fighter.sigStrikesLandedPerMin != null ||
+      fighter.sigStrikesAbsorbedPerMin != null ||
+      fighter.takedownAveragePer15 != null ||
+      fighter.submissionAveragePer15 != null ||
+      fighter.averageFightTime
+  );
+  const hasHistory = Boolean(fighter._count?.recentFights);
+
+  return hasVitals || hasStats || hasHistory;
+}
+
+function dedupeFightersForPublicList(fighters: Array<FighterListItem & { _count?: { recentFights: number } }>) {
+  const grouped = new Map<string, FighterListItem[]>();
+
+  for (const fighter of fighters) {
+    if (looksLikeBrokenUfcProfile(fighter)) {
+      continue;
+    }
+
+    if (!hasUsablePhotoUrl(fighter.photoUrl)) {
+      continue;
+    }
+
+    if (fighter.promotion?.slug === "ufc" && !hasMeaningfulFighterProfileData(fighter)) {
+      continue;
+    }
+
+    const key = normalizeProfileKey(fighter.nameRu || fighter.name);
+    const collection = grouped.get(key) ?? [];
+    collection.push(fighter);
+    grouped.set(key, collection);
+  }
+
+  return Array.from(grouped.values())
+    .map((group) =>
+      [...group].sort((left, right) => {
+        const qualityDiff = getFighterQualityScore(right) - getFighterQualityScore(left);
+        if (qualityDiff !== 0) {
+          return qualityDiff;
+        }
+
+        return left.name.localeCompare(right.name);
+      })[0]
+    )
+    .sort((left, right) => {
+      if (left.status !== right.status) {
+        return left.status.localeCompare(right.status);
+      }
+
+      return left.name.localeCompare(right.name);
+    });
 }
 
 export async function getAdminDashboardData(filters: AdminDashboardFilters = {}) {
@@ -220,22 +377,46 @@ export async function getHomePageData() {
       take: 3
     }),
     prisma.fighter.findMany({
+      where: {
+        AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
+      },
       orderBy: [{ status: "asc" }, { name: "asc" }],
       include: {
-        promotion: true
+        promotion: true,
+        _count: {
+          select: {
+            recentFights: true
+          }
+        }
       },
       take: 4
     })
   ]);
 
-  return { articles, events, fighters };
+  return { articles, events, fighters: dedupeFightersForPublicList(fighters).slice(0, 4) };
 }
 
-export async function getNewsPageData() {
+export async function getNewsPageData(filters: NewsPageFilters = {}) {
+  const articleWhere: Prisma.ArticleWhereInput = {
+    status: "published",
+    ...(filters.promotion ? { promotion: { slug: filters.promotion } } : {}),
+    ...(filters.tag
+      ? {
+          tagMap: {
+            some: {
+              tag: {
+                slug: filters.tag
+              }
+            }
+          }
+        }
+      : {})
+  };
+
   const [{ promotions, tags }, articles] = await Promise.all([
     getSiteChromeData(),
     prisma.article.findMany({
-      where: { status: "published" },
+      where: articleWhere,
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
@@ -244,36 +425,114 @@ export async function getNewsPageData() {
     })
   ]);
 
-  return { promotions, tags, articles };
+  return {
+    promotions,
+    tags,
+    articles,
+    filters: {
+      promotion: filters.promotion ?? "",
+      tag: filters.tag ?? ""
+    }
+  };
 }
 
-export async function getEventsPageData() {
-  const events = await prisma.event.findMany({
-    orderBy: [{ status: "asc" }, { date: "asc" }],
-    include: {
-      promotion: true,
-      fights: {
-        include: {
-          fighterA: true,
-          fighterB: true
-        },
-        take: 1
+export async function getEventsPageData(filters: EventsPageFilters = {}) {
+  const validStatuses: EventStatus[] = ["upcoming", "live", "completed"];
+  const normalizedStatus = validStatuses.includes(filters.status as EventStatus) ? (filters.status as EventStatus) : undefined;
+
+  const [events, promotions] = await Promise.all([
+    prisma.event.findMany({
+      where: {
+        ...(filters.promotion ? { promotion: { slug: filters.promotion } } : {}),
+        ...(normalizedStatus ? { status: normalizedStatus } : {})
+      },
+      orderBy: [{ status: "asc" }, { date: "asc" }],
+      include: {
+        promotion: true,
+        fights: {
+          include: {
+            fighterA: true,
+            fighterB: true
+          },
+          take: 1
+        }
       }
-    }
-  });
+    }),
+    prisma.promotion.findMany({
+      orderBy: { shortName: "asc" },
+      select: { slug: true, shortName: true, name: true }
+    })
+  ]);
 
-  return { events };
+  return {
+    events,
+    filters: {
+      promotion: filters.promotion ?? "",
+      status: normalizedStatus ?? ""
+    },
+    options: {
+      promotions,
+      statuses: ["upcoming", "live", "completed"] as const
+    }
+  };
 }
 
-export async function getFightersPageData() {
-  const fighters = await prisma.fighter.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      promotion: true
-    }
-  });
+export async function getFightersPageData(filters: FightersPageFilters = {}) {
+  const query = filters.query?.trim();
+  const validStatuses: FighterStatus[] = ["active", "champion", "retired", "prospect"];
+  const normalizedStatus = validStatuses.includes(filters.status as FighterStatus)
+    ? (filters.status as FighterStatus)
+    : undefined;
+  const fightersWhere: Prisma.FighterWhereInput = {
+    AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
+    ...(query
+      ? {
+          OR: [{ name: { contains: query } }, { nameRu: { contains: query } }, { nickname: { contains: query } }]
+        }
+      : {}),
+    ...(filters.promotion ? { promotion: { slug: filters.promotion } } : {}),
+    ...(normalizedStatus ? { status: normalizedStatus } : {}),
+    ...(filters.weightClass ? { weightClass: filters.weightClass } : {})
+  };
 
-  return { fighters };
+  const [fighters, promotions, weightClasses] = await Promise.all([
+    prisma.fighter.findMany({
+      where: fightersWhere,
+      orderBy: [{ status: "asc" }, { photoUrl: "desc" }, { name: "asc" }],
+      include: {
+        promotion: true,
+        _count: {
+          select: {
+            recentFights: true
+          }
+        }
+      }
+    }),
+    prisma.promotion.findMany({
+      orderBy: { shortName: "asc" },
+      select: { slug: true, shortName: true, name: true }
+    }),
+    prisma.fighter.findMany({
+      distinct: ["weightClass"],
+      orderBy: { weightClass: "asc" },
+      select: { weightClass: true }
+    })
+  ]);
+
+  return {
+    fighters: dedupeFightersForPublicList(fighters),
+    filters: {
+      query: query ?? "",
+      promotion: filters.promotion ?? "",
+      status: filters.status ?? "",
+      weightClass: filters.weightClass ?? ""
+    },
+    options: {
+      promotions,
+      weightClasses: weightClasses.map((item) => item.weightClass),
+      statuses: ["active", "champion", "retired", "prospect"] as const
+    }
+  };
 }
 
 export async function getRankingsPageData() {
@@ -283,6 +542,195 @@ export async function getRankingsPageData() {
       promotion: true
     }
   });
+}
+
+function getWeightClassOrder(value: string) {
+  const order = [
+    "Strawweight",
+    "Flyweight",
+    "Bantamweight",
+    "Featherweight",
+    "Lightweight",
+    "Welterweight",
+    "Middleweight",
+    "Light Heavyweight",
+    "Heavyweight",
+    "Catchweight",
+    "Openweight"
+  ];
+
+  const index = order.findIndex((item) => item.toLowerCase() === value.toLowerCase());
+  return index === -1 ? order.length : index;
+}
+
+function parseRecordScore(record: string | null | undefined) {
+  const clean = String(record || "").trim();
+  const match = clean.match(/^(\d+)-(\d+)(?:-(\d+))?$/);
+
+  if (!match) {
+    return { wins: -1, losses: 99, draws: 99, total: -1 };
+  }
+
+  const wins = Number(match[1]);
+  const losses = Number(match[2]);
+  const draws = Number(match[3] || 0);
+
+  return {
+    wins,
+    losses,
+    draws,
+    total: wins + losses + draws
+  };
+}
+
+export async function getPromotionRankingsPageData(filters: RankingsPageFilters = {}) {
+  const promotions = await prisma.promotion.findMany({
+    where: {
+      slug: {
+        in: ["ufc", "pfl"]
+      }
+    },
+    orderBy: { shortName: "asc" },
+    select: { slug: true, shortName: true, name: true }
+  });
+
+  const selectedPromotion =
+    promotions.find((promotion) => promotion.slug === filters.promotion)?.slug ??
+    promotions.find((promotion) => promotion.slug === "ufc")?.slug ??
+    promotions[0]?.slug ??
+    "";
+
+  const fighters = await prisma.fighter.findMany({
+    where: {
+      promotion: { slug: selectedPromotion },
+      status: { in: ["active", "champion", "prospect"] }
+    },
+    include: {
+      promotion: true
+    }
+  });
+
+  const groupedMap = new Map<string, typeof fighters>();
+
+  for (const fighter of fighters) {
+    const key = fighter.weightClass || "Openweight";
+    const collection = groupedMap.get(key) ?? [];
+    collection.push(fighter);
+    groupedMap.set(key, collection);
+  }
+
+  const rankingsByWeight = Array.from(groupedMap.entries())
+    .map(([weightClass, weightFighters]) => {
+      const rankedFighters = [...weightFighters].sort((left, right) => {
+        const leftChampion = left.status === "champion" ? 1 : 0;
+        const rightChampion = right.status === "champion" ? 1 : 0;
+        if (leftChampion !== rightChampion) {
+          return rightChampion - leftChampion;
+        }
+
+        const leftRecord = parseRecordScore(left.record);
+        const rightRecord = parseRecordScore(right.record);
+        if (leftRecord.wins !== rightRecord.wins) {
+          return rightRecord.wins - leftRecord.wins;
+        }
+        if (leftRecord.losses !== rightRecord.losses) {
+          return leftRecord.losses - rightRecord.losses;
+        }
+        if (leftRecord.total !== rightRecord.total) {
+          return rightRecord.total - leftRecord.total;
+        }
+
+        return left.name.localeCompare(right.name);
+      });
+
+      return {
+        weightClass,
+        fighters: rankedFighters
+      };
+    })
+    .sort((left, right) => getWeightClassOrder(left.weightClass) - getWeightClassOrder(right.weightClass));
+
+  return {
+    promotions,
+    selectedPromotion,
+    rankingsByWeight
+  };
+}
+
+export async function getUfcOfficialRankingLinks() {
+  const fighters = await prisma.fighter.findMany({
+    select: {
+      slug: true,
+      name: true,
+      nameRu: true,
+      promotion: {
+        select: {
+          slug: true
+        }
+      }
+    }
+  });
+
+  const bySlug = new Map<string, UfcOfficialRankingLink>();
+  const byName = new Map<string, UfcOfficialRankingLink>();
+
+  for (const fighter of fighters) {
+    const link = {
+      localSlug: fighter.slug,
+      officialUrl: `https://www.ufc.com/athlete/${fighter.slug}`
+    };
+    const isUfcFighter = fighter.promotion?.slug === "ufc";
+    const existingBySlug = bySlug.get(fighter.slug.toLowerCase());
+    const existingByName = byName.get(fighter.name.toLowerCase());
+
+    if (!existingBySlug || isUfcFighter) {
+      bySlug.set(fighter.slug.toLowerCase(), link);
+    }
+    if (!existingByName || isUfcFighter) {
+      byName.set(fighter.name.toLowerCase(), link);
+    }
+    if (fighter.nameRu) {
+      const existingByRuName = byName.get(fighter.nameRu.toLowerCase());
+      if (!existingByRuName || isUfcFighter) {
+        byName.set(fighter.nameRu.toLowerCase(), link);
+      }
+    }
+  }
+
+  return { bySlug, byName };
+}
+
+export async function getPromotionRankingLinks(promotionSlug: string) {
+  const fighters = await prisma.fighter.findMany({
+    where: {
+      promotion: {
+        slug: promotionSlug
+      }
+    },
+    select: {
+      slug: true,
+      name: true,
+      nameRu: true
+    }
+  });
+
+  const bySlug = new Map<string, PromotionRankingLink>();
+  const byName = new Map<string, PromotionRankingLink>();
+
+  for (const fighter of fighters) {
+    const link = {
+      localSlug: fighter.slug
+    };
+
+    bySlug.set(fighter.slug.toLowerCase(), link);
+    byName.set(fighter.name.toLowerCase(), link);
+
+    if (fighter.nameRu) {
+      byName.set(fighter.nameRu.toLowerCase(), link);
+    }
+  }
+
+  return { bySlug, byName };
 }
 
 export async function getAnalysisPageData() {
@@ -372,7 +820,7 @@ export async function getFighterPageData(slug: string) {
     return null;
   }
 
-  const [recentFights, relatedArticles] = await Promise.all([
+  const [recentFights, profileRecentFights, relatedArticles] = await Promise.all([
     prisma.fight.findMany({
       where: {
         OR: [{ fighterAId: fighter.id }, { fighterBId: fighter.id }]
@@ -383,6 +831,10 @@ export async function getFighterPageData(slug: string) {
         fighterB: true
       },
       orderBy: { createdAt: "desc" }
+    }),
+    prisma.fighterRecentFight.findMany({
+      where: { fighterId: fighter.id },
+      orderBy: { date: "desc" },
     }),
     prisma.article.findMany({
       where: {
@@ -395,5 +847,18 @@ export async function getFighterPageData(slug: string) {
     })
   ]);
 
-  return { fighter, recentFights, relatedArticles };
+  const normalizedFighterName = fighter.name.trim().toLowerCase();
+  const normalizedFighterNameRu = fighter.nameRu?.trim().toLowerCase() ?? "";
+  const visibleProfileRecentFights = profileRecentFights.filter((fight) => {
+    const opponentName = fight.opponentName.trim().toLowerCase();
+    const opponentNameRu = fight.opponentNameRu?.trim().toLowerCase() ?? "";
+
+    if (opponentName === normalizedFighterName || (normalizedFighterNameRu && opponentNameRu === normalizedFighterNameRu)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  return { fighter, recentFights, profileRecentFights: visibleProfileRecentFights, relatedArticles };
 }

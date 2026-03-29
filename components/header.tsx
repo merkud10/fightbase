@@ -37,7 +37,7 @@ export async function Header() {
         </nav>
 
         <div className="header-actions">
-          <span className="button-ghost">{t.common.search}</span>
+          <span className="header-search-label">{t.common.search}</span>
           <LanguageSwitcher locale={locale} />
           <Link href="#subscribe" className="button">
             {t.common.subscribe}

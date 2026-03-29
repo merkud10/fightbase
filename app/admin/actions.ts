@@ -284,7 +284,9 @@ export async function deleteSourceAction(formData: FormData) {
 
 export async function createFighterAction(formData: FormData) {
   const name = asRequiredString(formData.get("name"), "name");
+  const nameRu = asOptionalString(formData.get("nameRu"));
   const nickname = asOptionalString(formData.get("nickname"));
+  const photoUrl = asOptionalString(formData.get("photoUrl"));
   const country = asRequiredString(formData.get("country"), "country");
   const weightClass = asRequiredString(formData.get("weightClass"), "weightClass");
   const status = asRequiredString(formData.get("status"), "status");
@@ -302,7 +304,9 @@ export async function createFighterAction(formData: FormData) {
     data: {
       slug,
       name,
+      nameRu,
       nickname,
+      photoUrl,
       country,
       weightClass,
       status: status as never,
@@ -324,7 +328,9 @@ export async function createFighterAction(formData: FormData) {
 
 export async function updateFighterAction(fighterId: string, formData: FormData) {
   const name = asRequiredString(formData.get("name"), "name");
+  const nameRu = asOptionalString(formData.get("nameRu"));
   const nickname = asOptionalString(formData.get("nickname"));
+  const photoUrl = asOptionalString(formData.get("photoUrl"));
   const country = asRequiredString(formData.get("country"), "country");
   const weightClass = asRequiredString(formData.get("weightClass"), "weightClass");
   const status = asRequiredString(formData.get("status"), "status");
@@ -343,7 +349,9 @@ export async function updateFighterAction(fighterId: string, formData: FormData)
     data: {
       slug,
       name,
+      nameRu,
       nickname,
+      photoUrl,
       country,
       weightClass,
       status: status as never,

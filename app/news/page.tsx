@@ -1,12 +1,86 @@
-import { AdSlot } from "@/components/ad-slot";
+import Link from "next/link";
+
 import { ArticleCard } from "@/components/cards";
 import { PageHero } from "@/components/page-hero";
 import { getNewsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
-export default async function NewsPage() {
+type NewsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function readParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function buildFilterHref(current: { promotion: string; tag: string }, next: Partial<{ promotion: string; tag: string }>) {
+  const params = new URLSearchParams();
+  const merged = { ...current, ...next };
+
+  if (merged.promotion) {
+    params.set("promotion", merged.promotion);
+  }
+
+  if (merged.tag) {
+    params.set("tag", merged.tag);
+  }
+
+  const query = params.toString();
+  return query ? `/news?${query}` : "/news";
+}
+
+function FilterSection({
+  title,
+  items,
+  activeValue,
+  current,
+  param
+}: {
+  title: string;
+  items: Array<{ label: string; value: string }>;
+  activeValue: string;
+  current: { promotion: string; tag: string };
+  param: "promotion" | "tag";
+}) {
+  return (
+    <div className="filter-block">
+      <h4>{title}</h4>
+      <div className="filter-chip-row">
+        <Link
+          href={buildFilterHref(current, { [param]: "" })}
+          className={`filter-chip ${activeValue === "" ? "active" : ""}`}
+        >
+          Все
+        </Link>
+        {items.map((item) => (
+          <Link
+            key={item.value}
+            href={buildFilterHref(current, { [param]: activeValue === item.value ? "" : item.value })}
+            className={`filter-chip ${activeValue === item.value ? "active" : ""}`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default async function NewsPage({ searchParams }: NewsPageProps) {
   const locale = await getLocale();
-  const { promotions, tags, articles } = await getNewsPageData();
+  const params = (await searchParams) ?? {};
+  const promotion = readParam(params.promotion);
+  const tag = readParam(params.tag);
+  const { promotions, tags, articles, filters } = await getNewsPageData({
+    promotion,
+    tag
+  });
+
+  const current = {
+    promotion: filters.promotion,
+    tag: filters.tag
+  };
+  const activeFiltersCount = [filters.promotion, filters.tag].filter(Boolean).length;
 
   return (
     <main className="container">
@@ -15,43 +89,67 @@ export default async function NewsPage() {
         title={locale === "ru" ? "Новости" : "News"}
         description={
           locale === "ru"
-            ? "Основной трафиковый раздел с фильтрами, привязкой сущностей, источниками и будущей infinite-scroll лентой."
-            : "The main traffic section with filters, entity linking, source transparency, and a future infinite-scroll feed."
+            ? "Главная новостная лента с быстрыми фильтрами по лигам и темам материалов."
+            : "The main news feed with quick filters for promotions and story categories."
         }
       />
 
       <section className="page-grid">
         <aside className="stack">
-          <div className="filter-group">
-            <h3>{locale === "ru" ? "Промоушены" : "Promotions"}</h3>
-            {promotions.map((promotion) => (
-              <span key={promotion.id}>{promotion.shortName}</span>
-            ))}
+          <div className="filter-group fighter-filters">
+            <div className="filter-head">
+              <h3>{locale === "ru" ? "Фильтры" : "Filters"}</h3>
+              {activeFiltersCount > 0 ? (
+                <Link href="/news" className="button-ghost filter-reset-link">
+                  {locale === "ru" ? "Сбросить" : "Reset"}
+                </Link>
+              ) : null}
+            </div>
+
+            <FilterSection
+              title={locale === "ru" ? "Лиги" : "Promotions"}
+              items={promotions.map((promotionItem) => ({
+                value: promotionItem.slug,
+                label: promotionItem.shortName
+              }))}
+              activeValue={filters.promotion}
+              current={current}
+              param="promotion"
+            />
+
+            <FilterSection
+              title={locale === "ru" ? "Категории" : "Categories"}
+              items={tags.map((tagItem) => ({
+                value: tagItem.slug,
+                label: tagItem.label
+              }))}
+              activeValue={filters.tag}
+              current={current}
+              param="tag"
+            />
+
+            <p className="filter-results-copy">
+              {locale === "ru" ? `Найдено новостей: ${articles.length}` : `Articles found: ${articles.length}`}
+            </p>
           </div>
-          <div className="filter-group">
-            <h3>{locale === "ru" ? "Категории" : "Categories"}</h3>
-            {tags.map((tag) => (
-              <span key={tag.id}>{tag.label}</span>
-            ))}
-          </div>
-          <div className="filter-group">
-            <h3>{locale === "ru" ? "Инструменты" : "Workflow"}</h3>
-            <span>{locale === "ru" ? "Поиск" : "Search"}</span>
-            <span>{locale === "ru" ? "Сортировка" : "Sort"}</span>
-            <span>{locale === "ru" ? "Что это значит" : "What this means"}</span>
-            <span>{locale === "ru" ? "Связанные сущности" : "Related entities"}</span>
-          </div>
-          <AdSlot placement="newsSidebar" locale={locale} />
         </aside>
 
-        <div className="story-grid">
-          {articles.map((article, index) => (
-            <div key={article.id} className="story-stack">
-              <ArticleCard article={article} locale={locale} />
-              {index === 2 ? <AdSlot placement="newsInline" locale={locale} className="story-card ad-slot-inline" /> : null}
-            </div>
-          ))}
-        </div>
+        {articles.length > 0 ? (
+          <div className="story-grid">
+            {articles.map((article) => (
+              <ArticleCard key={article.id} article={article} locale={locale} />
+            ))}
+          </div>
+        ) : (
+          <section className="filter-empty-state">
+            <h3>{locale === "ru" ? "По этим фильтрам ничего не найдено" : "No articles match these filters"}</h3>
+            <p className="copy">
+              {locale === "ru"
+                ? "Попробуй снять часть фильтров, чтобы расширить новостную выборку."
+                : "Try clearing some filters to broaden the news feed."}
+            </p>
+          </section>
+        )}
       </section>
     </main>
   );
