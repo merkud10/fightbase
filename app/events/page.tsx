@@ -1,10 +1,11 @@
 import { EventCard } from "@/components/cards";
 import { PageHero } from "@/components/page-hero";
-import { events } from "@/lib/data";
+import { getEventsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function EventsPage() {
   const locale = await getLocale();
+  const { events } = await getEventsPageData();
 
   return (
     <main className="container">

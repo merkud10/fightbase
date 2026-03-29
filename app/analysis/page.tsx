@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
-import { articles } from "@/lib/data";
+import { getAnalysisPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function AnalysisPage() {
   const locale = await getLocale();
-  const analysis = articles.filter((article) => article.category === "analysis");
+  const analysis = await getAnalysisPageData();
 
   return (
     <main className="container">

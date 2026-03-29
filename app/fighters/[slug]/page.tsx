@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHero } from "@/components/page-hero";
-import { events, fights, getArticlesForFighter, getFighterBySlug } from "@/lib/data";
+import { getFighterPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function FighterPage({
@@ -12,16 +12,13 @@ export default async function FighterPage({
 }) {
   const { slug } = await params;
   const locale = await getLocale();
-  const fighter = getFighterBySlug(slug);
+  const data = await getFighterPageData(slug);
 
-  if (!fighter) {
+  if (!data) {
     notFound();
   }
 
-  const recentFights = fights.filter(
-    (fight) => fight.fighterAId === fighter.id || fight.fighterBId === fighter.id
-  );
-  const relatedArticles = getArticlesForFighter(fighter.id);
+  const { fighter, recentFights, relatedArticles } = data;
 
   return (
     <main className="container">
@@ -52,10 +49,16 @@ export default async function FighterPage({
                 <tbody>
                   {recentFights.map((fight) => (
                     <tr key={fight.id}>
-                      <td>{events.find((event) => event.id === fight.eventId)?.name ?? fight.eventId}</td>
+                      <td>{fight.event.name}</td>
                       <td>{fight.weightClass}</td>
                       <td>{fight.status}</td>
-                      <td>{fight.result ? `${fight.result.method} R${fight.result.round}` : locale === "ru" ? "Назначен" : "Scheduled"}</td>
+                      <td>
+                        {fight.method && fight.resultRound
+                          ? `${fight.method} R${fight.resultRound}`
+                          : locale === "ru"
+                            ? "Назначен"
+                            : "Scheduled"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -68,7 +71,8 @@ export default async function FighterPage({
           <div className="policy-card">
             <h3>{locale === "ru" ? "Параметры" : "Vitals"}</h3>
             <p className="copy">
-              {locale === "ru" ? "Возраст" : "Age"} {fighter.age} - {fighter.heightCm} cm - {locale === "ru" ? `${fighter.reachCm} cm размах` : `${fighter.reachCm} cm reach`}
+              {locale === "ru" ? "Возраст" : "Age"} {fighter.age} - {fighter.heightCm} cm -{" "}
+              {locale === "ru" ? `${fighter.reachCm} cm размах` : `${fighter.reachCm} cm reach`}
             </p>
             <p className="copy">{fighter.country}</p>
           </div>

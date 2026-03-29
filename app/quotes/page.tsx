@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
-import { articles } from "@/lib/data";
+import { getQuotesPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function QuotesPage() {
   const locale = await getLocale();
-  const quotes = articles.filter((article) => article.category === "interview");
+  const quotes = await getQuotesPageData();
 
   return (
     <main className="container">

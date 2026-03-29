@@ -1,11 +1,14 @@
 import Link from "next/link";
 
 import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
-import { articles, events, fighters } from "@/lib/data";
+import { getHomePageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function HomePage() {
   const locale = await getLocale();
+  const { articles, events, fighters } = await getHomePageData();
+  const leadArticle = articles[0];
+  const leadEvent = events[0];
 
   return (
     <main>
@@ -20,13 +23,15 @@ export default async function HomePage() {
             </h1>
             <p>
               {locale === "ru"
-                ? "FightBase строится как медиа-платформа: главная тема, новостной поток, карточки турниров, профили бойцов, рейтинги и аналитика, связанные общими сущностями."
-                : "FightBase is structured as a media platform first: top story, rolling news, event cards, fighter profiles, rankings, and analysis tied together by shared entities."}
+                ? "FightBase строится как медиа-платформа: главная тема, новостной поток, карточки турниров, профили бойцов, рейтинги и аналитика связаны общей базой данных."
+                : "FightBase is structured as a media platform first: top story, rolling news, event cards, fighter profiles, rankings, and analysis connected by one shared data layer."}
             </p>
             <div className="header-actions">
-              <Link href={`/news/${articles[0].slug}`} className="button">
-                {locale === "ru" ? "Читать материал" : "Read feature"}
-              </Link>
+              {leadArticle ? (
+                <Link href={`/news/${leadArticle.slug}`} className="button">
+                  {locale === "ru" ? "Читать материал" : "Read feature"}
+                </Link>
+              ) : null}
               <Link href="/events" className="button-secondary">
                 {locale === "ru" ? "Смотреть турниры" : "View events"}
               </Link>
@@ -38,17 +43,21 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Главный анонс" : "Lead announcement"}</p>
               <h3>
                 {locale === "ru"
-                  ? "Превью турнира, ставки и влияние на рейтинг в одном сценарии"
-                  : "Event preview, stakes, and the ranking consequences in one flow"}
+                  ? "Превью турнира, stakes и влияние на рейтинг в одном сценарии"
+                  : "Event preview, stakes, and ranking consequences in one flow"}
               </h3>
-              <Link href={`/events/${events[0].slug}`}>{locale === "ru" ? "Открыть карточку турнира" : "Open event card"}</Link>
+              {leadEvent ? (
+                <Link href={`/events/${leadEvent.slug}`}>
+                  {locale === "ru" ? "Открыть карточку турнира" : "Open event card"}
+                </Link>
+              ) : null}
             </article>
             <article className="mini-card gold">
               <p className="eyebrow">{locale === "ru" ? "Срочно" : "Breaking"}</p>
               <h3>
                 {locale === "ru"
-                  ? "Травмы и замены соперников получают отдельный редакционный сценарий"
-                  : "Injury updates and replacement scenarios have a dedicated publishing path"}
+                  ? "Травмы, замены и анонсы боёв уже готовы к структурированной публикации"
+                  : "Injuries, replacements, and fight announcements already have a structured publishing path"}
               </h3>
               <Link href="/news">{locale === "ru" ? "Открыть ленту новостей" : "Open news desk"}</Link>
             </article>
@@ -80,14 +89,6 @@ export default async function HomePage() {
             <div>
               <p className="eyebrow">{locale === "ru" ? "Лента" : "News desk"}</p>
               <h2>{locale === "ru" ? "Свежие материалы" : "Latest stories"}</h2>
-            </div>
-            <div className="pill-row">
-              <span className="pill active">{locale === "ru" ? "Все" : "All"}</span>
-              <span className="pill">UFC</span>
-              <span className="pill">PFL</span>
-              <span className="pill">ONE</span>
-              <span className="pill">{locale === "ru" ? "Результаты" : "Results"}</span>
-              <span className="pill">{locale === "ru" ? "Слухи" : "Rumors"}</span>
             </div>
           </div>
           <div className="story-grid">
@@ -153,11 +154,11 @@ export default async function HomePage() {
             </p>
           </article>
           <article className="feature-card">
-            <p className="eyebrow">{locale === "ru" ? "AI workflow" : "AI workflow"}</p>
+            <p className="eyebrow">AI workflow</p>
             <h3>{locale === "ru" ? "Публикация от сущностей" : "Entity-first publishing"}</h3>
             <p className="copy">
               {locale === "ru"
-                ? "Одна и та же структура данных питает новости, турниры, бойцов, рейтинги и будущую автоматизацию."
+                ? "Одна структура данных питает новости, турниры, бойцов, рейтинги и будущую автоматизацию."
                 : "The same data powers stories, events, fighters, rankings, and future automation."}
             </p>
           </article>

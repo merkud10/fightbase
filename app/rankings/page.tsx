@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
-import { fighters } from "@/lib/data";
+import { getRankingsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function RankingsPage() {
   const locale = await getLocale();
-  const ranking = [...fighters].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 4);
+  const ranking = (await getRankingsPageData()).slice(0, 10);
 
   return (
     <main className="container">
@@ -21,7 +21,7 @@ export default async function RankingsPage() {
       />
 
       <section className="table-card">
-        <h3>{locale === "ru" ? "Pound-for-pound" : "Pound-for-pound"}</h3>
+        <h3>Pound-for-pound</h3>
         <div className="table-wrap">
           <table>
             <thead>

@@ -1,10 +1,11 @@
 import { ArticleCard } from "@/components/cards";
 import { PageHero } from "@/components/page-hero";
-import { articles, promotions, tags } from "@/lib/data";
+import { getNewsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function NewsPage() {
   const locale = await getLocale();
+  const { promotions, tags, articles } = await getNewsPageData();
 
   return (
     <main className="container">
@@ -13,7 +14,7 @@ export default async function NewsPage() {
         title={locale === "ru" ? "Новости" : "News"}
         description={
           locale === "ru"
-            ? "Основной трафиковый раздел с фильтрами, привязкой сущностей, прозрачными источниками и будущей infinite-scroll лентой."
+            ? "Основной трафиковый раздел с фильтрами, привязкой сущностей, источниками и будущей infinite-scroll лентой."
             : "The main traffic section with filters, entity linking, source transparency, and a future infinite-scroll feed."
         }
       />

@@ -1,0 +1,26 @@
+[
+  {
+    "parser": "ufc",
+    "fixturePath": "ingestion/fixtures/ufc-sample.html",
+    "url": "https://www.ufc.com/news/sample-light-heavyweight-update",
+    "publishedAt": "2026-03-29T15:00:00.000Z",
+    "sourceLabel": "UFC",
+    "sourceType": "official",
+    "category": "news",
+    "promotionSlug": "ufc",
+    "fighterSlugs": ["alex-pereira"],
+    "tagSlugs": ["announcements"]
+  },
+  {
+    "parser": "one",
+    "fixturePath": "ingestion/fixtures/one-sample.html",
+    "url": "https://www.onefc.com/news/sample-malykhin-update",
+    "publishedAt": "2026-03-29T16:00:00.000Z",
+    "sourceLabel": "ONE Championship",
+    "sourceType": "official",
+    "category": "interview",
+    "promotionSlug": "one",
+    "fighterSlugs": ["anatoly-malykhin"],
+    "tagSlugs": ["post-fight"]
+  }
+]

@@ -1,10 +1,11 @@
 import { FighterCard } from "@/components/cards";
 import { PageHero } from "@/components/page-hero";
-import { fighters } from "@/lib/data";
+import { getFightersPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export default async function FightersPage() {
   const locale = await getLocale();
+  const { fighters } = await getFightersPageData();
 
   return (
     <main className="container">
