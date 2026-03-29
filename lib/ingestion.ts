@@ -1,5 +1,6 @@
 import type { ArticleCategory, ArticleStatus, SourceType } from "@prisma/client";
 
+import { localizeIngestionInput } from "@/lib/ai-localization";
 import { slugify } from "@/lib/admin";
 import {
   buildMeaningBlock,
@@ -226,11 +227,13 @@ function buildIngestionNotes(
   input: IngestDraftInput,
   confidence: number,
   relations: Awaited<ReturnType<typeof inferRelations>>,
-  duplicateReason?: string
+  duplicateReason?: string,
+  localization?: { localized: boolean; model: string | null }
 ) {
   const notes = [
     "AI draft created from source ingestion.",
     `Confidence: ${confidence.toFixed(2)}.`,
+    localization?.localized ? `Localized to Russian with ${localization.model}.` : "Saved in source language.",
     relations.event ? "Event matched automatically." : "No event matched automatically.",
     relations.promotion ? `Promotion matched: ${relations.promotion.shortName}.` : "No promotion matched automatically.",
     relations.fighters.length > 0
@@ -364,9 +367,23 @@ function adjustConfidence(
 
 export async function createDraftFromIngestion(input: IngestDraftInput): Promise<IngestDraftResult> {
   const source = await ensureSource(input.sourceLabel.trim(), input.sourceUrl.trim(), input.sourceType ?? "official");
-  const normalized = normalizeIngestionItem({
+  const fallbackSourceSlug = slugify(input.headline.trim());
+  let localizedInput = {
     headline: input.headline,
     body: input.body,
+    localized: false,
+    model: null as string | null
+  };
+
+  try {
+    localizedInput = await localizeIngestionInput(input);
+  } catch (error) {
+    console.error("Failed to localize ingestion input", error);
+  }
+
+  const normalized = normalizeIngestionItem({
+    headline: localizedInput.headline,
+    body: localizedInput.body,
     publishedAt: input.publishedAt ?? new Date().toISOString(),
     source: {
       id: source.id,
@@ -379,6 +396,8 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const mergedTagSlugs = uniqueItems([...(input.tagSlugs ?? []), ...normalized.relatedTagSlugs]);
   const relations = await inferRelations({
     ...input,
+    headline: localizedInput.headline,
+    body: localizedInput.body,
     category: input.category ?? normalized.articleDraft.category,
     tagSlugs: mergedTagSlugs
   });
@@ -402,15 +421,15 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
 
   const article = await prisma.article.create({
     data: {
-      slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug),
+      slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
       title: normalized.articleDraft.title,
       excerpt: normalized.articleDraft.excerpt,
-      meaning: buildMeaningBlock(input.body),
+      meaning: buildMeaningBlock(localizedInput.body),
       category: input.category ?? normalized.articleDraft.category,
       status: input.status ?? "draft",
       aiConfidence: confidence,
       ingestionSourceSummary: buildIngestionSourceSummary(input, relations),
-      ingestionNotes: buildIngestionNotes(input, confidence, relations),
+      ingestionNotes: buildIngestionNotes(input, confidence, relations, undefined, localizedInput),
       publishedAt: new Date(normalized.articleDraft.publishedAt),
       promotionId: relations.promotion?.id ?? null,
       eventId: relations.event?.id ?? null,

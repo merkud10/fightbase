@@ -3,6 +3,13 @@
 const fs = require("fs");
 const path = require("path");
 
+const {
+  disconnectIngestionRunStore,
+  failIngestionRun,
+  finishIngestionRun,
+  startIngestionRun
+} = require("./ingestion-run-store");
+
 function parseArgs(argv) {
   const options = {
     file: "ingestion/sample-feed.json",
@@ -64,6 +71,8 @@ async function postDraft(baseUrl, item) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const feedPath = path.resolve(process.cwd(), options.file);
+  let run = null;
+  const startedAt = Date.now();
 
   if (!fs.existsSync(feedPath)) {
     throw new Error(`Feed file not found: ${feedPath}`);
@@ -77,6 +86,15 @@ async function main() {
   }
 
   items.forEach((item, index) => assertFeedItem(item, index));
+  run = await startIngestionRun({
+    sourceKind: "json_feed",
+    mode: options.dryRun ? "dry-run" : "write",
+    filePath: options.file,
+    baseUrl: options.baseUrl,
+    itemCount: items.length,
+    message: `Feed ingestion started for ${items.length} item(s).`
+  });
+  global.__INGEST_FEED_RUN_ID__ = run.id;
 
   console.log(`Feed items: ${items.length}`);
   console.log(`Target: ${options.baseUrl}`);
@@ -86,10 +104,17 @@ async function main() {
     items.forEach((item, index) => {
       console.log(`[DRY RUN ${index + 1}] ${item.headline}`);
     });
+    await finishIngestionRun(run.id, {
+      status: "dry_run",
+      durationMs: Date.now() - startedAt,
+      message: `Dry run completed for ${items.length} item(s).`
+    });
+    await disconnectIngestionRunStore();
     return;
   }
 
   const results = [];
+  let failedCount = 0;
 
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
@@ -103,20 +128,45 @@ async function main() {
       );
     } catch (error) {
       console.error(`[${index + 1}/${items.length}] failed: ${item.headline}`);
-      throw error;
+      console.error(error.message || error);
+      failedCount += 1;
     }
   }
 
   const createdCount = results.filter((item) => !item.duplicate).length;
   const duplicateCount = results.filter((item) => item.duplicate).length;
+  const status = failedCount > 0 ? (createdCount > 0 || duplicateCount > 0 ? "partial" : "failed") : "success";
 
   console.log("");
   console.log("Summary");
   console.log(`Created: ${createdCount}`);
   console.log(`Duplicates: ${duplicateCount}`);
+  console.log(`Failed: ${failedCount}`);
+
+  await finishIngestionRun(run.id, {
+    status,
+    createdCount,
+    duplicateCount,
+    failedCount,
+    durationMs: Date.now() - startedAt,
+    message: `Feed ingestion ${status}.`
+  });
+  await disconnectIngestionRunStore();
 }
 
 main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
+  Promise.resolve()
+    .then(async () => {
+      if (global.__INGEST_FEED_RUN_ID__) {
+        await failIngestionRun(global.__INGEST_FEED_RUN_ID__, {
+          durationMs: 0,
+          message: error.message || String(error)
+        });
+      }
+    })
+    .finally(async () => {
+      console.error(error.message || error);
+      await disconnectIngestionRunStore().catch(() => {});
+      process.exit(1);
+    });
 });

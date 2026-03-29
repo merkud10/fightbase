@@ -42,6 +42,7 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     events,
     fighters,
     sources,
+    ingestionRuns,
     articleCount,
     eventCount,
     fighterCount,
@@ -82,6 +83,10 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
       orderBy: { label: "asc" },
       take: 10
     }),
+    prisma.ingestionRun.findMany({
+      orderBy: { startedAt: "desc" },
+      take: 6
+    }),
     prisma.article.count(),
     prisma.event.count(),
     prisma.fighter.count(),
@@ -117,8 +122,15 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     articles,
     events,
     fighters,
-    sources
+    sources,
+    ingestionRuns
   };
+}
+
+export async function getLatestIngestionRun() {
+  return prisma.ingestionRun.findFirst({
+    orderBy: { startedAt: "desc" }
+  });
 }
 
 export async function getAdminEditorOptions() {

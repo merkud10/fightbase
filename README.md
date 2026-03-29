@@ -52,6 +52,15 @@ npm run ingest:fetch -- --dry-run
 npm run ingest:cron -- --dry-run --secret YOUR_SECRET
 ```
 
+Optional AI localization env vars:
+
+```bash
+OPENAI_API_KEY="your-key"
+OPENAI_INGEST_MODEL="gpt-4o-mini"
+OLLAMA_URL="http://127.0.0.1:11434/api/generate"
+OLLAMA_MODEL="aya:8b-23"
+```
+
 Current local database is seeded with:
 
 - 3 articles
@@ -64,10 +73,14 @@ Current Prisma-backed additions:
 - `/api/ingest/preview` POST endpoint for AI ingestion preview
 - `/api/ingest/draft` POST endpoint that stores AI drafts in the database
 - `/api/cron/ingest` protected cron endpoint for scheduled ingestion runs
+- `/api/health` health endpoint for deployment checks
+- ingestion run tracking with status, counts, duration, and last-run visibility
 - article workflow with `draft`, `review`, and `published` states
 - `npm run ingest:feed` worker for batch JSON ingestion into draft articles
 - `npm run ingest:fetch` worker with parser registry for source pages and fixtures
 - `npm run ingest:cron` client for hitting the protected cron endpoint
+- RU-first ingestion localization via OpenAI Responses API when `OPENAI_API_KEY` is configured
+- local-first ingestion localization via Ollama when `OLLAMA_MODEL` is configured
 - centralized ad-slot architecture for homepage, news, and article monetization zones
 
 ## Routes included
@@ -82,6 +95,7 @@ Current Prisma-backed additions:
 - `/rankings`
 - `/analysis`
 - `/admin`
+- `/api/health`
 - `/quotes`
 - `/videos`
 - `/about`
@@ -169,6 +183,12 @@ Windows Task Scheduler helper:
 .\ops\register-ingestion-task.ps1
 ```
 
+Health check:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
 ## Monetization architecture
 
 The project now includes a centralized ad-layer:
@@ -199,10 +219,21 @@ This layer is intentionally provider-agnostic, so it can later connect to:
 - affiliate widgets
 - sponsored editorial placements
 
+## Deployment readiness
+
+For public deployment, configure:
+
+- production database URL
+- `INGEST_CRON_SECRET`
+- optional `OPENAI_API_KEY`
+- optional `OLLAMA_URL` and `OLLAMA_MODEL` if self-hosted translation is used
+- health probe at `/api/health`
+- ingestion run visibility in `/admin` and `/api/health`
+
 ## Recommended next step
 
-Build on the ingestion workflow by adding:
+Build on the deployment-ready ingestion workflow by adding:
 
 - more source-specific fetchers/parsers before JSON normalization
-- confidence scoring and moderation queues in `/admin`
-- feed health reporting and ingestion logs
+- GitHub remote and production hosting setup
+- production Postgres instead of local SQLite

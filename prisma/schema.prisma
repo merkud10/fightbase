@@ -53,6 +53,14 @@ enum SourceType {
   stats
 }
 
+enum IngestionRunStatus {
+  running
+  success
+  partial
+  failed
+  dry_run
+}
+
 model Promotion {
   id        String    @id @default(cuid())
   slug      String    @unique
@@ -205,4 +213,23 @@ model ArticleSource {
   source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@id([articleId, sourceId])
+}
+
+model IngestionRun {
+  id             String             @id @default(cuid())
+  sourceKind     String
+  mode           String
+  status         IngestionRunStatus
+  filePath       String?
+  baseUrl        String?
+  itemCount      Int                @default(0)
+  createdCount   Int                @default(0)
+  duplicateCount Int                @default(0)
+  failedCount    Int                @default(0)
+  durationMs     Int?
+  message        String?
+  startedAt      DateTime           @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 }

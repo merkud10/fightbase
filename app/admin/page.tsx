@@ -188,6 +188,36 @@ function getScoreTone(score: number | null) {
   return "low";
 }
 
+function formatRunStatus(locale: "ru" | "en", status: "running" | "success" | "partial" | "failed" | "dry_run") {
+  if (locale === "ru") {
+    switch (status) {
+      case "running":
+        return "Выполняется";
+      case "success":
+        return "Успешно";
+      case "partial":
+        return "Частично";
+      case "failed":
+        return "Ошибка";
+      case "dry_run":
+        return "Dry run";
+    }
+  }
+
+  switch (status) {
+    case "running":
+      return "Running";
+    case "success":
+      return "Success";
+    case "partial":
+      return "Partial";
+    case "failed":
+      return "Failed";
+    case "dry_run":
+      return "Dry run";
+  }
+}
+
 function formatDate(date: Date | string, locale: "ru" | "en") {
   return new Date(date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US");
 }
@@ -575,6 +605,21 @@ export default async function AdminPage({
         </div>
 
         <aside className="stack">
+          <article className="policy-card">
+            <h3>{locale === "ru" ? "Последние ingestion-запуски" : "Recent ingestion runs"}</h3>
+            <ul>
+              {data.ingestionRuns.map((run) => (
+                <li key={run.id}>
+                  <strong>{formatRunStatus(locale, run.status)}</strong> - {run.sourceKind} - {formatDate(run.startedAt, locale)}
+                  <br />
+                  {locale === "ru"
+                    ? `Создано: ${run.createdCount}, дубликаты: ${run.duplicateCount}, ошибки: ${run.failedCount}`
+                    : `Created: ${run.createdCount}, duplicates: ${run.duplicateCount}, failed: ${run.failedCount}`}
+                </li>
+              ))}
+            </ul>
+          </article>
+
           <article className="policy-card">
             <h3>{locale === "ru" ? "Что уже умеет админка" : "What admin can do now"}</h3>
             <ul>
