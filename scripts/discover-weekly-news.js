@@ -4,6 +4,7 @@ const { URL } = require("node:url");
 const { PrismaClient } = require("@prisma/client");
 
 const { classifyArticleWithAi } = require("./ai-article-taxonomy");
+const { ensureUfcFightersForText } = require("./ensure-ufc-fighters");
 
 const prisma = new PrismaClient();
 
@@ -16,7 +17,7 @@ const ALL_SOURCES = [
     streams: ["news", "predictions", "quotes"],
     targetKeywords: {
       quotes: ["interview", "reacts", "reaction", "media-day", "press-conference", "says"],
-      predictions: ["preview", "breakdown", "analysis", "keys-to-victory", "fight-night"]
+      predictions: ["preview", "fight-by-fight-preview", "keys-to-victory", "at-stake", "breakdown", "analysis", "matchup"]
     },
     sourceType: "official"
   },
@@ -47,7 +48,7 @@ const ALL_SOURCES = [
     streams: ["quotes", "predictions"],
     targetKeywords: {
       quotes: ["interview", "life", "journey", "says", "opens-up"],
-      predictions: ["preview", "breakdown", "analysis", "keys-to-victory"]
+      predictions: ["preview", "breakdown", "analysis", "keys-to-victory", "steal-the-show", "things-to-know", "at-stake"]
     },
     sourceType: "interview"
   },
@@ -67,7 +68,7 @@ const ALL_SOURCES = [
     articlePattern: /^https:\/\/www\.sherdog\.com\/news\/articles\/[^?#]+$/i,
     streams: ["predictions"],
     targetKeywords: {
-      predictions: ["preview", "breakdown", "picks", "analysis", "matchup"]
+      predictions: ["preview", "breakdown", "picks", "analysis", "matchup", "by-the-numbers"]
     },
     sourceType: "interview"
   },
@@ -78,7 +79,7 @@ const ALL_SOURCES = [
     streams: ["news", "quotes", "predictions"],
     targetKeywords: {
       quotes: ["interview", "reacts", "reaction", "says", "media-day"],
-      predictions: ["preview", "predictions", "analysis", "breakdown", "picks"]
+      predictions: ["preview", "predictions", "analysis", "breakdown", "picks", "best-bets", "fight-card-preview"]
     },
     sourceType: "press_release"
   },
@@ -296,6 +297,28 @@ function inferTagSlugs(category, headline, body) {
   return Array.from(new Set(tags));
 }
 
+function looksLikeUfcArticle(source, headline, body, url) {
+  const text = `${source.label} ${source.promotionSlug || ""} ${headline} ${body} ${url}`.toLowerCase();
+  return /\bufc\b|fight night|dwcs|contender series|dana white|apex|tuf\b/.test(text);
+}
+
+function mergeTaxonomyFighters(taxonomyContext, importedFighters) {
+  for (const imported of importedFighters) {
+    const fighter = imported.fighter;
+    if (!fighter || taxonomyContext.fighters.some((entry) => entry.slug === fighter.slug)) {
+      continue;
+    }
+
+    taxonomyContext.fighters.push({
+      slug: fighter.slug,
+      name: fighter.name,
+      nameRu: fighter.nameRu,
+      nickname: fighter.nickname,
+      promotionSlug: "ufc"
+    });
+  }
+}
+
 async function fetchHtml(url) {
   let lastError = null;
   const maxAttempts = 2;
@@ -409,6 +432,15 @@ async function discoverSourceItems(source, options, taxonomyContext) {
         continue;
       }
 
+      if (looksLikeUfcArticle(source, headline, body, url)) {
+        try {
+          const importedFighters = await ensureUfcFightersForText(prisma, `${headline}\n${body}`, 2);
+          mergeTaxonomyFighters(taxonomyContext, importedFighters);
+        } catch (error) {
+          console.error(`[UFC-RESOLVE] skipped enrichment for ${url}: ${error.message || error}`);
+        }
+      }
+
       let aiTaxonomy = {
         contentType: heuristicCategory,
         promotionSlug: source.promotionSlug || "",
@@ -482,10 +514,18 @@ async function main() {
   const discovered = [];
   const taxonomyContext = {
     promotions: await prisma.promotion.findMany({ select: { slug: true, name: true, shortName: true } }),
-    fighters: await prisma.fighter.findMany({
-      select: { slug: true, name: true, nameRu: true, nickname: true },
-      take: 4000
-    })
+    fighters: (
+      await prisma.fighter.findMany({
+        select: { slug: true, name: true, nameRu: true, nickname: true, promotion: { select: { slug: true } } },
+        take: 4000
+      })
+    ).map((fighter) => ({
+      slug: fighter.slug,
+      name: fighter.name,
+      nameRu: fighter.nameRu,
+      nickname: fighter.nickname,
+      promotionSlug: fighter.promotion.slug
+    }))
   };
 
   const selectedSources = ALL_SOURCES.filter((source) => matchesTargetStream(source, options.target));

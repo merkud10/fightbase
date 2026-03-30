@@ -9,27 +9,8 @@ import { getFightPredictionPageData } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { buildPredictionCopy, getDisplayName, getPredictionScore } from "@/lib/predictions";
 import { getSiteUrl } from "@/lib/site";
-
-function parseRecord(record: string | null | undefined) {
-  const match = String(record || "").match(/^(\d+)-(\d+)(?:-(\d+))?$/);
-  if (!match) {
-    return { wins: 0, losses: 0, draws: 0 };
-  }
-
-  return {
-    wins: Number(match[1]),
-    losses: Number(match[2]),
-    draws: Number(match[3] || 0)
-  };
-}
-
-function getDisplayName(
-  fighter: { name: string; nameRu?: string | null },
-  locale: "ru" | "en"
-) {
-  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
-}
 
 function hasUsablePhoto(url?: string | null) {
   return (
@@ -38,85 +19,6 @@ function hasUsablePhoto(url?: string | null) {
       String(url)
     )
   );
-}
-
-function getWinRate(record: string | null | undefined) {
-  const parsed = parseRecord(record);
-  const total = parsed.wins + parsed.losses + parsed.draws;
-  return total > 0 ? parsed.wins / total : 0;
-}
-
-function getPredictionScore(fighter: {
-  record: string | null;
-  status: string;
-  sigStrikesLandedPerMin: number | null;
-  strikeAccuracy: number | null;
-  strikeDefense: number | null;
-  takedownAveragePer15: number | null;
-  takedownAccuracy: number | null;
-  takedownDefense: number | null;
-  submissionAveragePer15: number | null;
-}) {
-  const winRate = getWinRate(fighter.record);
-
-  return (
-    winRate * 50 +
-    (fighter.status === "champion" ? 8 : fighter.status === "prospect" ? 3 : 0) +
-    (fighter.sigStrikesLandedPerMin ?? 0) * 2 +
-    (fighter.strikeAccuracy ?? 0) * 0.2 +
-    (fighter.strikeDefense ?? 0) * 0.15 +
-    (fighter.takedownAveragePer15 ?? 0) * 3 +
-    (fighter.takedownAccuracy ?? 0) * 0.12 +
-    (fighter.takedownDefense ?? 0) * 0.12 +
-    (fighter.submissionAveragePer15 ?? 0) * 4
-  );
-}
-
-function buildPredictionCopy(
-  locale: "ru" | "en",
-  fighterA: Parameters<typeof getPredictionScore>[0] & { name: string; nameRu?: string | null },
-  fighterB: Parameters<typeof getPredictionScore>[0] & { name: string; nameRu?: string | null }
-) {
-  const scoreA = getPredictionScore(fighterA);
-  const scoreB = getPredictionScore(fighterB);
-  const favorite = scoreA >= scoreB ? fighterA : fighterB;
-  const underdog = favorite === fighterA ? fighterB : fighterA;
-  const margin = Math.abs(scoreA - scoreB);
-  const confidenceLabel =
-    margin > 18
-      ? locale === "ru"
-        ? "уверенное преимущество"
-        : "clear edge"
-      : margin > 8
-        ? locale === "ru"
-          ? "умеренное преимущество"
-          : "moderate edge"
-        : locale === "ru"
-          ? "равный бой"
-          : "tight matchup";
-  const favoriteName = getDisplayName(favorite, locale);
-  const underdogName = getDisplayName(underdog, locale);
-
-  return {
-    favorite,
-    confidenceLabel,
-    overview:
-      locale === "ru"
-        ? `${favoriteName} подходит к этому матчапу с более устойчивой суммой цифр: рекорд, ударная активность и защитные показатели дают ему небольшое, но ощутимое преимущество на дистанции.`
-        : `${favoriteName} comes in with the sturdier statistical base. The blend of record, pace, and defense gives this side the more stable projection over three rounds.`,
-    keyEdge:
-      locale === "ru"
-        ? `Главный перевес сейчас у ${favoriteName}: модель видит ${confidenceLabel}, а ${underdogName} нужно ломать ритм, навязывать неудобные размены и забирать бой через смену темпа.`
-        : `${favoriteName} owns the key edge for now. The model sees a ${confidenceLabel}, while ${underdogName} needs to disrupt rhythm and force a less comfortable fight.`,
-    fightScript:
-      locale === "ru"
-        ? `Если бой пойдёт в чистом темпе и без резких сдвигов по позициям, преимущество будет медленно смещаться к ${favoriteName}. Для ${underdogName} лучший сценарий — рано забрать инициативу и заставить бой развалиться на отрезки.`
-        : `If the fight stays orderly, the edge should slowly tilt toward ${favoriteName}. ${underdogName} has the better chance in a broken rhythm, early momentum swings, and uncomfortable exchanges.`,
-    pick:
-      locale === "ru"
-        ? `Выбор FightBase: ${favoriteName} — ${confidenceLabel}.`
-        : `FightBase pick: ${favoriteName} with a ${confidenceLabel}.`
-  };
 }
 
 export async function generateMetadata({
@@ -135,7 +37,7 @@ export async function generateMetadata({
   }
 
   const { fight } = data;
-  const title = `${fight.fighterA.name} vs ${fight.fighterB.name} — ${locale === "ru" ? "прогноз" : "prediction"}`;
+  const title = `${fight.fighterA.name} vs ${fight.fighterB.name} - ${locale === "ru" ? "прогноз" : "prediction"}`;
 
   return {
     title,
@@ -163,7 +65,7 @@ export default async function FightPredictionPage({
     notFound();
   }
 
-  const { fight, relatedArticles } = data;
+  const { fight, relatedArticles, relatedPredictionArticles } = data;
   const prediction = buildPredictionCopy(locale, fight.fighterA, fight.fighterB);
   const siteUrl = getSiteUrl();
   const pageUrl = new URL(localizePath(`/predictions/${eventSlug}/${fightId}`, locale), siteUrl).toString();
@@ -208,7 +110,7 @@ export default async function FightPredictionPage({
           <div>
             <span className="prediction-hero-label">{locale === "ru" ? "Сторона A" : "Side A"}</span>
             <h3>{fighterAName}</h3>
-            <p className="copy">{fight.fighterA.record || "—"}</p>
+            <p className="copy">{fight.fighterA.record || "-"}</p>
           </div>
         </div>
 
@@ -233,7 +135,7 @@ export default async function FightPredictionPage({
           <div>
             <span className="prediction-hero-label">{locale === "ru" ? "Сторона B" : "Side B"}</span>
             <h3>{fighterBName}</h3>
-            <p className="copy">{fight.fighterB.record || "—"}</p>
+            <p className="copy">{fight.fighterB.record || "-"}</p>
           </div>
         </div>
       </section>
@@ -246,13 +148,33 @@ export default async function FightPredictionPage({
               <p className="copy">{prediction.overview}</p>
             </section>
             <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Ключевой перевес" : "Key edge"}</h3>
+              <h3>{locale === "ru" ? "Ключевое преимущество" : "Key edge"}</h3>
               <p className="copy">{prediction.keyEdge}</p>
             </section>
             <section className="prediction-section-card">
               <h3>{locale === "ru" ? "Ожидаемый сценарий" : "Likely fight script"}</h3>
               <p className="copy">{prediction.fightScript}</p>
             </section>
+            <section className="prediction-section-card">
+              <h3>{locale === "ru" ? "Форма перед боем" : "Recent form"}</h3>
+              <p className="copy">{prediction.formA}</p>
+              <p className="copy">{prediction.formB}</p>
+            </section>
+            <section className="prediction-section-card">
+              <h3>{locale === "ru" ? "Пути к победе" : "Paths to victory"}</h3>
+              <p className="copy">{prediction.pathA}</p>
+              <p className="copy">{prediction.pathB}</p>
+            </section>
+            {prediction.statLines.length > 0 ? (
+              <section className="prediction-section-card">
+                <h3>{locale === "ru" ? "Ключевые цифры" : "Key metrics"}</h3>
+                <ul className="event-side-list">
+                  {prediction.statLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
 
           <div className="prediction-stats-grid">
@@ -262,27 +184,27 @@ export default async function FightPredictionPage({
                 <ul className="prediction-stat-list">
                   <li>
                     <span>{locale === "ru" ? "Рекорд" : "Record"}</span>
-                    <strong>{fighter.record || "—"}</strong>
+                    <strong>{fighter.record || "-"}</strong>
                   </li>
                   <li>
                     <span>SLpM</span>
-                    <strong>{fighter.sigStrikesLandedPerMin?.toFixed(2) ?? "—"}</strong>
+                    <strong>{fighter.sigStrikesLandedPerMin?.toFixed(2) ?? "-"}</strong>
                   </li>
                   <li>
                     <span>{locale === "ru" ? "Точность ударов" : "Strike accuracy"}</span>
-                    <strong>{fighter.strikeAccuracy != null ? `${Math.round(fighter.strikeAccuracy)}%` : "—"}</strong>
+                    <strong>{fighter.strikeAccuracy != null ? `${Math.round(fighter.strikeAccuracy)}%` : "-"}</strong>
                   </li>
                   <li>
                     <span>{locale === "ru" ? "Защита в стойке" : "Strike defense"}</span>
-                    <strong>{fighter.strikeDefense != null ? `${Math.round(fighter.strikeDefense)}%` : "—"}</strong>
+                    <strong>{fighter.strikeDefense != null ? `${Math.round(fighter.strikeDefense)}%` : "-"}</strong>
                   </li>
                   <li>
-                    <span>{locale === "ru" ? "TD avg" : "TD avg"}</span>
-                    <strong>{fighter.takedownAveragePer15?.toFixed(2) ?? "—"}</strong>
+                    <span>TD avg</span>
+                    <strong>{fighter.takedownAveragePer15?.toFixed(2) ?? "-"}</strong>
                   </li>
                   <li>
-                    <span>{locale === "ru" ? "TD defense" : "TD defense"}</span>
-                    <strong>{fighter.takedownDefense != null ? `${Math.round(fighter.takedownDefense)}%` : "—"}</strong>
+                    <span>TD defense</span>
+                    <strong>{fighter.takedownDefense != null ? `${Math.round(fighter.takedownDefense)}%` : "-"}</strong>
                   </li>
                 </ul>
               </div>
@@ -301,7 +223,7 @@ export default async function FightPredictionPage({
             </Link>
           </div>
           <div className="policy-card">
-            <h3>{locale === "ru" ? "Что ещё открыть" : "What to open next"}</h3>
+            <h3>{locale === "ru" ? "Что еще открыть" : "What to open next"}</h3>
             <ul className="event-side-list">
               <li>
                 <Link href={localizePath(`/fighters/${fight.fighterA.slug}`, locale)}>{fighterAName}</Link>
@@ -312,6 +234,16 @@ export default async function FightPredictionPage({
               <li>
                 <Link href={localizePath(`/events/${fight.event.slug}`, locale)}>{fight.event.name}</Link>
               </li>
+            </ul>
+          </div>
+          <div className="policy-card">
+            <h3>{locale === "ru" ? "Разборы и превью" : "Preview coverage"}</h3>
+            <ul className="event-side-list">
+              {relatedPredictionArticles.map((article) => (
+                <li key={article.id}>
+                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+                </li>
+              ))}
             </ul>
           </div>
           <div className="policy-card">

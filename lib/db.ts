@@ -893,12 +893,20 @@ export async function getFightPredictionPageData(eventSlug: string, fightId: str
       },
       fighterA: {
         include: {
-          promotion: true
+          promotion: true,
+          recentFights: {
+            orderBy: { date: "desc" },
+            take: 3
+          }
         }
       },
       fighterB: {
         include: {
-          promotion: true
+          promotion: true,
+          recentFights: {
+            orderBy: { date: "desc" },
+            take: 3
+          }
         }
       }
     }
@@ -928,7 +936,28 @@ export async function getFightPredictionPageData(eventSlug: string, fightId: str
     take: 4
   });
 
-  return { fight, relatedArticles };
+  const relatedPredictionArticles = await prisma.article.findMany({
+    where: {
+      status: "published",
+      category: "analysis",
+      OR: [
+        { eventId: fight.eventId },
+        {
+          fighterMap: {
+            some: {
+              fighterId: {
+                in: [fight.fighterAId, fight.fighterBId]
+              }
+            }
+          }
+        }
+      ]
+    },
+    orderBy: { publishedAt: "desc" },
+    take: 4
+  });
+
+  return { fight, relatedArticles, relatedPredictionArticles };
 }
 
 export async function getFighterPageData(slug: string) {

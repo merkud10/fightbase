@@ -471,65 +471,14 @@ async function main() {
 
   for (const entry of scopedEntries) {
     try {
-      const { slug, url } = entry;
-      const existing = await prisma.fighter.findUnique({
-        where: { slug },
-        include: { recentFights: true }
-      });
+      const { fighter, created: wasCreated } = await syncUfcRosterEntry(prisma, promotion, entry);
 
-      const html = await fetchText(url);
-      const profile = parseUfcProfile(html, slug, existing);
-
-      const data = {
-        slug: profile.slug,
-        name: profile.name,
-        nameRu: profile.nameRu,
-        nickname: profile.nickname,
-        photoUrl: profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null,
-        country: profile.country,
-        weightClass: titleCase(profile.weightClass),
-        status: profile.status,
-        record: profile.record,
-        age: profile.age,
-        heightCm: profile.heightCm,
-        reachCm: profile.reachCm,
-        winsByKnockout: profile.winsByKnockout,
-        winsBySubmission: profile.winsBySubmission,
-        winsByDecision: profile.winsByDecision,
-        sigStrikesLandedPerMin: profile.sigStrikesLandedPerMin,
-        strikeAccuracy: profile.strikeAccuracy,
-        sigStrikesAbsorbedPerMin: profile.sigStrikesAbsorbedPerMin,
-        strikeDefense: profile.strikeDefense,
-        takedownAveragePer15: profile.takedownAveragePer15,
-        takedownAccuracy: profile.takedownAccuracy,
-        takedownDefense: profile.takedownDefense,
-        submissionAveragePer15: profile.submissionAveragePer15,
-        averageFightTime: profile.averageFightTime,
-        team: profile.team,
-        style: profile.style,
-        bio: profile.bio,
-        bioEn: profile.bioEn,
-        promotionId: promotion.id
-      };
-
-      const fighter = existing
-        ? await prisma.fighter.update({
-            where: { id: existing.id },
-            data
-          })
-        : await prisma.fighter.create({
-            data
-          });
-
-      const recentFights = parseUfcRecentFights(html, slug, data.name, data.weightClass);
-      await saveRecentFights(prisma, fighter.id, recentFights);
-
-      if (existing) {
-        updated += 1;
-        console.log(`Updated UFC fighter: ${fighter.name}`);
-      } else {
+      if (wasCreated) {
         created += 1;
         console.log(`Created UFC fighter: ${fighter.name}`);
+      } else {
+        updated += 1;
+        console.log(`Updated UFC fighter: ${fighter.name}`);
       }
     } catch (error) {
       console.error(`Failed UFC sync for ${entry.url || entry.slug}: ${error.message || error}`);
@@ -554,6 +503,87 @@ async function main() {
   console.log(`UFC sync complete. Created: ${created}. Updated: ${updated}.`);
 }
 
+async function syncUfcRosterEntry(prismaClient, promotion, entry) {
+  const { slug, url } = entry;
+  const existing = await prismaClient.fighter.findUnique({
+    where: { slug },
+    include: { recentFights: true }
+  });
+
+  const html = await fetchText(url);
+  const profile = parseUfcProfile(html, slug, existing);
+
+  const data = {
+    slug: profile.slug,
+    name: profile.name,
+    nameRu: profile.nameRu,
+    nickname: profile.nickname,
+    photoUrl: profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null,
+    country: profile.country,
+    weightClass: titleCase(profile.weightClass),
+    status: profile.status,
+    record: profile.record,
+    age: profile.age,
+    heightCm: profile.heightCm,
+    reachCm: profile.reachCm,
+    winsByKnockout: profile.winsByKnockout,
+    winsBySubmission: profile.winsBySubmission,
+    winsByDecision: profile.winsByDecision,
+    sigStrikesLandedPerMin: profile.sigStrikesLandedPerMin,
+    strikeAccuracy: profile.strikeAccuracy,
+    sigStrikesAbsorbedPerMin: profile.sigStrikesAbsorbedPerMin,
+    strikeDefense: profile.strikeDefense,
+    takedownAveragePer15: profile.takedownAveragePer15,
+    takedownAccuracy: profile.takedownAccuracy,
+    takedownDefense: profile.takedownDefense,
+    submissionAveragePer15: profile.submissionAveragePer15,
+    averageFightTime: profile.averageFightTime,
+    team: profile.team,
+    style: profile.style,
+    bio: profile.bio,
+    bioEn: profile.bioEn,
+    promotionId: promotion.id
+  };
+
+  const fighter = existing
+    ? await prismaClient.fighter.update({
+        where: { id: existing.id },
+        data
+      })
+    : await prismaClient.fighter.create({
+        data
+      });
+
+  const recentFights = parseUfcRecentFights(html, slug, data.name, data.weightClass);
+  await saveRecentFights(prismaClient, fighter.id, recentFights);
+
+  return {
+    fighter,
+    created: !existing
+  };
+}
+
+async function syncUfcFighterBySlug(prismaClient, slug) {
+  const normalizedSlug = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
+  if (!normalizedSlug) {
+    throw new Error("UFC slug is required");
+  }
+
+  const promotion = await prismaClient.promotion.findUnique({
+    where: { slug: "ufc" }
+  });
+
+  if (!promotion) {
+    throw new Error("Promotion ufc not found");
+  }
+
+  return syncUfcRosterEntry(prismaClient, promotion, {
+    slug: normalizedSlug,
+    url: `https://www.ufc.com/athlete/${normalizedSlug}`,
+    rosterPhotoUrl: null
+  });
+}
+
 module.exports = {
   collectUfcRosterEntries,
   normalizePhotoUrl,
@@ -561,6 +591,8 @@ module.exports = {
   parseUfcProfile,
   parseUfcRecentFights,
   parseUfcStatBlock,
+  syncUfcFighterBySlug,
+  syncUfcRosterEntry,
   main
 };
 
