@@ -11,8 +11,8 @@ export default async function DisclaimerPage() {
         title={locale === "ru" ? "Дисклеймер" : "Disclaimer"}
         description={
           locale === "ru"
-            ? "Контент FightBase не должен восприниматься как беттинг-советы. AI-generated блоки должны быть прозрачны и привязаны к источникам."
-            : "FightBase content should not be framed as betting advice. AI-generated blocks must be transparent and source-linked."
+            ? "Контент FightBase не должен восприниматься как беттинг-советы или финансовые рекомендации. Материалы публикуются в информационных целях."
+            : "FightBase content should not be treated as betting advice or financial guidance. All materials are published for informational purposes."
         }
       />
     </main>

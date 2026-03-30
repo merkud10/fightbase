@@ -3,11 +3,14 @@ import Link from "next/link";
 import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
+import { localizePath } from "@/lib/locale-path";
 
 type ArticleCardData = {
   id: string;
   slug: string;
   title: string;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
   excerpt: string;
   publishedAt: Date | string;
   category: string;
@@ -45,13 +48,14 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
   return (
     <article className="story-card editorial-card">
       <div className="story-art">
+        {article.coverImageUrl ? (
+          <img src={article.coverImageUrl} alt={article.coverImageAlt || article.title} className="story-art-image" />
+        ) : null}
         <div className="story-art-label">{metaLabel}</div>
       </div>
-      <p className="kicker">
-        {new Date(article.publishedAt).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}
-      </p>
+      <p className="kicker">{new Date(article.publishedAt).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}</p>
       <h3>
-        <Link href={`/news/${article.slug}`}>{article.title}</Link>
+        <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
       </h3>
       <p className="copy">{article.excerpt}</p>
       {tags.length > 0 ? (
@@ -72,15 +76,14 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
   return (
     <article className="event-card editorial-card">
       <p className="kicker">
-        {event.promotion?.shortName ?? "MMA"} ·{" "}
-        {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} · {event.city}
+        {event.promotion?.shortName ?? "MMA"} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} · {event.city}
       </p>
       <h3>{event.name}</h3>
       <p className="copy">{event.summary}</p>
       <p className="copy">
         {locale === "ru" ? "Главный бой" : "Main event"}: {mainFight ? `${mainFight.fighterA.name} vs ${mainFight.fighterB.name}` : "TBD"}
       </p>
-      <Link href={`/events/${event.slug}`} className="button-secondary">
+      <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary">
         {t.common.eventCard}
       </Link>
     </article>
@@ -99,11 +102,7 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
 
   return (
     <article className="fighter-card editorial-card fighter-card-editorial">
-      {hasUsablePhoto ? (
-        <img src={String(fighter.photoUrl)} alt={displayName} className="fighter-photo" />
-      ) : (
-        <div className="fighter-avatar" />
-      )}
+      {hasUsablePhoto ? <img src={String(fighter.photoUrl)} alt={displayName} className="fighter-photo" /> : <div className="fighter-avatar" />}
       <p className="kicker">{fighter.promotion?.shortName ?? "MMA"}</p>
       <h3>{displayName}</h3>
       <p className="copy">
@@ -112,7 +111,7 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
       </p>
       <span className="status-pill">{formatFighterStatus(fighter.status, locale)}</span>
       <div style={{ marginTop: 18 }}>
-        <Link href={`/fighters/${fighter.slug}`} className="button-secondary">
+        <Link href={localizePath(`/fighters/${fighter.slug}`, locale)} className="button-secondary">
           {t.common.profile}
         </Link>
       </div>

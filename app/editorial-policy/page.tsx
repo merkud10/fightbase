@@ -11,8 +11,8 @@ export default async function EditorialPolicyPage() {
         title={locale === "ru" ? "Редакционная политика" : "Editorial policy"}
         description={
           locale === "ru"
-            ? "AI может структурировать факты и предлагать саммари, но интерпретация, фрейминг и спорные утверждения должны быть явно помечены."
-            : "AI can structure facts and suggest summaries, but interpretation, framing, and disputed claims should remain clearly labeled."
+            ? "Редакционная политика FightBase опирается на проверяемые источники, точность формулировок и понятное разграничение новостей, аналитики и мнений."
+            : "FightBase editorial policy is built around verifiable sourcing, precise wording, and a clear distinction between news, analysis, and opinion."
         }
       />
     </main>

@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EventCard } from "@/components/cards";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getEventsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
 
 type EventsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -11,6 +15,34 @@ type EventsPageProps = {
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export async function generateMetadata({ searchParams }: EventsPageProps): Promise<Metadata> {
+  const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  const promotion = readParam(params.promotion);
+  const status = readParam(params.status);
+  const hasFilters = Boolean(promotion || status);
+  const localizedUrl = localizePath("/events", locale);
+
+  return {
+    title: "Турниры MMA",
+    description:
+      "Турниры MMA на FightBase Media: ближайшие и прошедшие события UFC, PFL и ONE, карточки боёв, даты и площадки.",
+    alternates: buildLocaleAlternates("/events"),
+    openGraph: {
+      title: "Турниры MMA",
+      description:
+        "Турниры MMA на FightBase Media: ближайшие и прошедшие события UFC, PFL и ONE, карточки боёв, даты и площадки.",
+      url: localizedUrl
+    },
+    robots: hasFilters
+      ? {
+          index: false,
+          follow: true
+        }
+      : undefined
+  };
 }
 
 function buildFilterHref(current: { promotion: string; status: string }, next: Partial<{ promotion: string; status: string }>) {
@@ -83,9 +115,37 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
     status: filters.status
   };
   const activeFiltersCount = [filters.promotion, filters.status].filter(Boolean).length;
+  const siteUrl = getSiteUrl();
+  const collectionUrl = new URL("/events", siteUrl).toString();
+  const itemListElements = events.slice(0, 12).map((event, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    url: new URL(`/events/${event.slug}`, siteUrl).toString(),
+    name: event.name
+  }));
 
   return (
     <main className="container">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: locale === "ru" ? "Турниры MMA" : "MMA events",
+          url: collectionUrl,
+          inLanguage: locale === "ru" ? "ru-RU" : "en-US"
+        }}
+      />
+      {itemListElements.length > 0 ? (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: locale === "ru" ? "Календарь турниров" : "Event calendar",
+            itemListElement: itemListElements
+          }}
+        />
+      ) : null}
+
       <PageHero
         eyebrow="/events"
         title={locale === "ru" ? "Турниры" : "Events"}

@@ -11,8 +11,8 @@ export default async function AboutPage() {
         title={locale === "ru" ? "О FightBase" : "About FightBase"}
         description={
           locale === "ru"
-            ? "FightBase — это MMA-медиа платформа, построенная вокруг сущностей, перелинковки и редакционных AI-процессов."
-            : "FightBase is an MMA media platform designed around entities, internal linking, and AI-assisted editorial workflows."
+            ? "FightBase — это MMA-медиа платформа, построенная вокруг новостей, турниров, профилей бойцов и глубокой внутренней перелинковки."
+            : "FightBase is an MMA media platform built around news, events, fighter profiles, and strong internal linking."
         }
       />
 
@@ -20,8 +20,8 @@ export default async function AboutPage() {
         <h3>{locale === "ru" ? "Как это работает" : "Operating model"}</h3>
         <p>
           {locale === "ru"
-            ? "Новости, турниры, бойцы и аналитика опираются на общие данные. Это позволяет агенту один раз ingest-ить факты, а потом публиковать несколько полезных представлений без превращения сайта в контентную свалку."
-            : "News, events, fighters, and analysis all sit on top of shared data. That lets an agent ingest facts once, then publish multiple useful views without turning the site into a content dump."}
+            ? "Новости, турниры, бойцы и аналитика опираются на общие данные и редакционную структуру. Это помогает связывать материалы между собой и не превращать сайт в разрозненный набор публикаций."
+            : "News, events, fighters, and analysis all sit on top of shared data and one editorial structure, which keeps the site connected instead of fragmented."}
         </p>
       </section>
     </main>

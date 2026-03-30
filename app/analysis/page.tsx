@@ -1,8 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
 import { getAnalysisPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates } from "@/lib/locale-path";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const analysis = await getAnalysisPageData();
+
+  return {
+    title: "Аналитика MMA",
+    description: "Тактические разборы, превью и постфайт-материалы FightBase Media.",
+    alternates: buildLocaleAlternates("/analysis"),
+    robots: analysis.length
+      ? undefined
+      : {
+          index: false,
+          follow: true
+        }
+  };
+}
 
 export default async function AnalysisPage() {
   const locale = await getLocale();

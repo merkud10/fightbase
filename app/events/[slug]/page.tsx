@@ -1,10 +1,54 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getEventPageData } from "@/lib/db";
 import { formatFightStage, formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const locale = await getLocale();
+  const data = await getEventPageData(slug);
+
+  if (!data) {
+    return {
+      title: "Event not found"
+    };
+  }
+
+  const { event } = data;
+  const description = `${event.promotion.shortName} • ${event.city} • ${event.venue} • ${event.summary}`;
+
+  return {
+    title: event.name,
+    description,
+    alternates: {
+      ...buildLocaleAlternates(`/events/${event.slug}`),
+      canonical: localizePath(`/events/${event.slug}`, locale)
+    },
+    openGraph: {
+      type: "website",
+      title: event.name,
+      description,
+      url: localizePath(`/events/${event.slug}`, locale)
+    },
+    twitter: {
+      card: "summary",
+      title: event.name,
+      description
+    }
+  };
+}
 
 export default async function EventPage({
   params
@@ -20,9 +64,52 @@ export default async function EventPage({
   }
 
   const { event, relatedArticles } = data;
+  const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
+  const eventUrl = `${siteUrl}${localizePath(`/events/${event.slug}`, locale)}`;
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Турниры" : "Events", href: "/events" },
+    { label: event.name }
+  ];
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.label,
+      item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : eventUrl
+    }))
+  };
+  const eventJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: event.name,
+    description: event.summary,
+    startDate: event.date.toISOString(),
+    eventStatus:
+      event.status === "completed"
+        ? "https://schema.org/EventCompleted"
+        : event.status === "live"
+          ? "https://schema.org/EventInProgress"
+          : "https://schema.org/EventScheduled",
+    location: {
+      "@type": "Place",
+      name: event.venue,
+      address: event.city
+    },
+    organizer: {
+      "@type": "SportsOrganization",
+      name: event.promotion.name
+    },
+    url: eventUrl
+  };
 
   return (
     <main className="container">
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={eventJsonLd} />
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow={`/events/${event.slug}`}
         title={event.name}

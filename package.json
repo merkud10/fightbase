@@ -47,6 +47,8 @@
     "content:refresh-fighter-bio-ru-quality": "node scripts/refresh-fighter-bio-ru-quality.js",
     "content:refresh-fighter-bio-en-quality": "node scripts/refresh-fighter-bio-en-quality.js",
     "content:migrate-sqlite-content": "node scripts/migrate-sqlite-content-to-postgres.js",
+    "content:backfill-article-images": "node scripts/backfill-article-images.js",
+    "content:improve-article-quality": "node scripts/improve-article-quality.js",
     "content:refresh-fighters-full": "node scripts/seed-fighter-cards.js && node scripts/seed-bellator-pfl-expansion.js && node scripts/sync-ufc-roster.js && node scripts/sync-ufc-russian-names.js --concurrency 24 && node scripts/sync-pfl-roster.js && node scripts/normalize-pfl-russian-names.js && node scripts/sync-one-roster.js && node scripts/refresh-non-ufc-russian-names.js && node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js && node scripts/normalize-imported-fighters.js && node scripts/backfill-fighter-bio-en.js && node scripts/fill-missing-fighter-bio-en.js && node scripts/refresh-fighter-bio-en-quality.js && node scripts/refresh-fighter-bio-ru-quality.js && node scripts/fill-missing-fighter-photos.js",
     "ingest:feed": "node scripts/ingest-feed.js",
     "ingest:fetch": "node scripts/fetch-source-feed.js",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getDictionary, getLocale } from "@/lib/i18n";
+import { localizePath } from "@/lib/locale-path";
 
 export async function Footer() {
   const locale = await getLocale();
@@ -13,17 +14,17 @@ export async function Footer() {
           <strong>FightBase Media</strong>
           <p className="muted">
             {locale === "ru"
-              ? "Новости, турниры, бойцы, аналитика и редакционный workflow с AI-поддержкой."
-              : "News, events, fighters, analysis, and an AI-assisted editorial workflow."}
+              ? "Новости, турниры, бойцы, аналитика и редакционное покрытие главных событий в ММА."
+              : "News, events, fighters, analysis, and editorial coverage across the MMA landscape."}
           </p>
         </div>
         <div className="footer-links">
-          <Link href="/about">{t.nav.about}</Link>
-          <Link href="/sources-policy">{locale === "ru" ? "Политика источников" : "Sources policy"}</Link>
-          <Link href="/editorial-policy">{locale === "ru" ? "Редакционная политика" : "Editorial policy"}</Link>
-          <Link href="/privacy-policy">{locale === "ru" ? "Приватность" : "Privacy"}</Link>
-          <Link href="/terms">{locale === "ru" ? "Условия" : "Terms"}</Link>
-          <Link href="/disclaimer">{locale === "ru" ? "Дисклеймер" : "Disclaimer"}</Link>
+          <Link href={localizePath("/about", locale)}>{t.nav.about}</Link>
+          <Link href={localizePath("/sources-policy", locale)}>{locale === "ru" ? "Политика источников" : "Sources policy"}</Link>
+          <Link href={localizePath("/editorial-policy", locale)}>{locale === "ru" ? "Редакционная политика" : "Editorial policy"}</Link>
+          <Link href={localizePath("/privacy-policy", locale)}>{locale === "ru" ? "Приватность" : "Privacy"}</Link>
+          <Link href={localizePath("/terms", locale)}>{locale === "ru" ? "Условия" : "Terms"}</Link>
+          <Link href={localizePath("/disclaimer", locale)}>{locale === "ru" ? "Дисклеймер" : "Disclaimer"}</Link>
         </div>
       </div>
     </footer>

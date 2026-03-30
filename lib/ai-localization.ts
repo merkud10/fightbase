@@ -18,6 +18,8 @@ const openAiApiUrl = "https://api.openai.com/v1/responses";
 const defaultOpenAiModel = "gpt-4o-mini";
 const defaultOllamaUrl = "http://127.0.0.1:11434/api/generate";
 const defaultOllamaModel = "aya:8b-23";
+const defaultAlibabaBaseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const defaultAlibabaModel = "qwen-flash";
 const execFileAsync = promisify(execFile);
 
 function readEnvValueFromFile(name: string) {
@@ -51,8 +53,29 @@ function getOllamaModel() {
   return getEnvValue("OLLAMA_MODEL", defaultOllamaModel);
 }
 
+function getAiProvider() {
+  return getEnvValue("AI_PROVIDER", "").toLowerCase();
+}
+
+function getAlibabaApiKey() {
+  return getEnvValue("DASHSCOPE_API_KEY");
+}
+
+function getAlibabaBaseUrl() {
+  return getEnvValue("DASHSCOPE_BASE_URL", defaultAlibabaBaseUrl);
+}
+
+function getAlibabaModel() {
+  return getEnvValue("DASHSCOPE_MODEL", defaultAlibabaModel);
+}
+
 function looksRussian(value: string) {
   return /[А-Яа-яЁё]/.test(value);
+}
+
+function looksUkrainian(value: string) {
+  const lower = value.toLowerCase();
+  return /[іїєґ]/i.test(value) || /\b(та|після|переміг|відбувся|глядачі|поєдинок|судді|головному|висвітлення|результати)\b/i.test(lower);
 }
 
 function sanitizeJsonPayload(value: string) {
@@ -297,15 +320,17 @@ function buildPrompt(input: IngestDraftInput) {
 
   return [
     "You are an MMA news translator and editor for a Russian-language media outlet.",
-    "Translate the source material into natural Russian and lightly rewrite it into concise newsroom style.",
+    "Translate the source material into natural Russian and lightly rewrite it into clean newsroom style.",
+    "Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text.",
     "Use vocabulary common in Russian MMA media, not literal word-for-word calques.",
     "Translate promotional words contextually: event/card/showcase usually becomes турнир, кард, or шоу depending on meaning.",
     "Preserve facts, names, dates, organizations, and uncertainty exactly.",
     "Preserve weight classes and card terminology exactly. Do not confuse featherweight with lightweight or other divisions.",
     "Do not invent any details.",
+    "Do not aggressively summarize. Preserve the substance and most factual detail of the original article.",
     "Return strict JSON with keys headline and body.",
     "Both headline and body must be in Russian.",
-    "Body should be 2-4 short paragraphs without markdown.",
+    "Body should usually stay close to the source in informational density and can be 4-8 short paragraphs without markdown when needed.",
     ...glossaryHints,
     "",
     `Source: ${input.sourceLabel}`,
@@ -316,19 +341,40 @@ function buildPrompt(input: IngestDraftInput) {
   ].join("\n");
 }
 
+function buildRussianRepairPrompt(localized: { headline: string; body: string }) {
+  return [
+    "You are fixing a draft for a Russian-language MMA media outlet.",
+    "Rewrite the text into clean natural Russian only.",
+    "Do not use Ukrainian words, Ukrainian grammar, Ukrainian spelling, or mixed-language output.",
+    "Keep names, promotions, dates, and facts intact.",
+    "Return strict JSON with keys headline and body.",
+    "",
+    `Headline: ${localized.headline}`,
+    "Body:",
+    localized.body
+  ].join("\n");
+}
+
 async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const model = getOllamaModel();
   const url = getOllamaUrl();
-  const requestBody = JSON.stringify({
-    model,
-    stream: false,
-    format: "json",
-    prompt: buildPrompt(input)
-  });
+  const sendPrompt = async (prompt: string) => {
+    const requestBody = JSON.stringify({
+      model,
+      stream: false,
+      format: "json",
+      prompt
+    });
 
-  const rawPayload = await postJson(url, requestBody);
-  const payload = JSON.parse(rawPayload) as { response?: string };
-  const localized = normalizeLocalizedOutput(input, parseLocalizationResponse(payload.response ?? ""));
+    const rawPayload = await postJson(url, requestBody);
+    const payload = JSON.parse(rawPayload) as { response?: string };
+    return parseLocalizationResponse(payload.response ?? "");
+  };
+
+  let localized = normalizeLocalizedOutput(input, await sendPrompt(buildPrompt(input)));
+  if (looksUkrainian(`${localized.headline}\n${localized.body}`)) {
+    localized = normalizeLocalizedOutput(input, await sendPrompt(buildRussianRepairPrompt(localized)));
+  }
 
   return {
     headline: localized.headline,
@@ -354,7 +400,7 @@ async function localizeWithOpenAi(input: IngestDraftInput): Promise<LocalizedIng
           {
             type: "input_text",
             text:
-              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as турнир, кард, or шоу when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Output strict JSON with keys headline and body. Body should be 2-4 concise paragraphs without markdown."
+              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as турнир, кард, or шоу when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
           }
         ]
       },
@@ -396,6 +442,80 @@ async function localizeWithOpenAi(input: IngestDraftInput): Promise<LocalizedIng
   };
 }
 
+async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
+  const apiKey = getAlibabaApiKey();
+  if (!apiKey) {
+    throw new Error("DASHSCOPE_API_KEY is not configured");
+  }
+
+  const model = getAlibabaModel();
+  const baseUrl = getAlibabaBaseUrl().replace(/\/$/, "");
+  const requestBody = JSON.stringify({
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
+      },
+      {
+        role: "user",
+        content: buildPrompt(input)
+      }
+    ],
+    response_format: {
+      type: "json_object"
+    },
+    temperature: 0.2
+  });
+
+  const rawPayload = await postJson(`${baseUrl}/chat/completions`, requestBody, {
+    Authorization: `Bearer ${apiKey}`
+  });
+  const payload = JSON.parse(rawPayload) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const outputText = payload.choices?.[0]?.message?.content ?? "";
+  let localized = normalizeLocalizedOutput(input, parseLocalizationResponse(outputText));
+
+  if (looksUkrainian(`${localized.headline}\n${localized.body}`)) {
+    const repairBody = JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are fixing a draft for a Russian-language MMA media outlet. Rewrite the text into clean natural Russian only. Do not use Ukrainian words, Ukrainian grammar, Ukrainian spelling, or mixed-language output. Keep names, promotions, dates, and facts intact. Return strict JSON with keys headline and body."
+        },
+        {
+          role: "user",
+          content: buildRussianRepairPrompt(localized)
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      },
+      temperature: 0.1
+    });
+
+    const repairRawPayload = await postJson(`${baseUrl}/chat/completions`, repairBody, {
+      Authorization: `Bearer ${apiKey}`
+    });
+    const repairPayload = JSON.parse(repairRawPayload) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const repairText = repairPayload.choices?.[0]?.message?.content ?? "";
+    localized = normalizeLocalizedOutput(input, parseLocalizationResponse(repairText));
+  }
+
+  return {
+    headline: localized.headline,
+    body: localized.body,
+    localized: true,
+    model
+  };
+}
+
 export async function localizeIngestionInput(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const sourceText = `${input.headline}\n${input.body}`.trim();
 
@@ -406,6 +526,16 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
       localized: false,
       model: null
     };
+  }
+
+  const provider = getAiProvider();
+
+  if (provider === "alibaba" && getAlibabaApiKey()) {
+    try {
+      return await localizeWithAlibaba(input);
+    } catch (error) {
+      console.error("Alibaba localization failed, falling back to Ollama/OpenAI/source language", error);
+    }
   }
 
   try {

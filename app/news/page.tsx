@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArticleCard } from "@/components/cards";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getNewsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
 
 type NewsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -11,6 +15,34 @@ type NewsPageProps = {
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export async function generateMetadata({ searchParams }: NewsPageProps): Promise<Metadata> {
+  const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  const promotion = readParam(params.promotion);
+  const tag = readParam(params.tag);
+  const hasFilters = Boolean(promotion || tag);
+  const localizedUrl = localizePath("/news", locale);
+
+  return {
+    title: "Новости MMA",
+    description:
+      "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам.",
+    alternates: buildLocaleAlternates("/news"),
+    openGraph: {
+      title: "Новости MMA",
+      description:
+        "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам.",
+      url: localizedUrl
+    },
+    robots: hasFilters
+      ? {
+          index: false,
+          follow: true
+        }
+      : undefined
+  };
 }
 
 function buildFilterHref(current: { promotion: string; tag: string }, next: Partial<{ promotion: string; tag: string }>) {
@@ -81,9 +113,37 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
     tag: filters.tag
   };
   const activeFiltersCount = [filters.promotion, filters.tag].filter(Boolean).length;
+  const siteUrl = getSiteUrl();
+  const collectionUrl = new URL("/news", siteUrl).toString();
+  const itemListElements = articles.slice(0, 12).map((article, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    url: new URL(`/news/${article.slug}`, siteUrl).toString(),
+    name: article.title
+  }));
 
   return (
     <main className="container">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: locale === "ru" ? "Новости MMA" : "MMA News",
+          url: collectionUrl,
+          inLanguage: locale === "ru" ? "ru-RU" : "en-US"
+        }}
+      />
+      {itemListElements.length > 0 ? (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: locale === "ru" ? "Лента новостей MMA" : "MMA news feed",
+            itemListElement: itemListElements
+          }}
+        />
+      ) : null}
+
       <PageHero
         eyebrow="/news"
         title={locale === "ru" ? "Новости" : "News"}

@@ -191,6 +191,8 @@ model Article {
   id                     String           @id @default(cuid())
   slug                   String           @unique
   title                  String
+  coverImageUrl          String?
+  coverImageAlt          String?
   excerpt                String
   meaning                String
   category               ArticleCategory

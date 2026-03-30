@@ -1,10 +1,93 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AdSlot } from "@/components/ad-slot";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticlePageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
+
+function splitIntoParagraphs(text: string) {
+  const normalized = text
+    .replace(/\r/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const explicitParagraphs = normalized
+    .split(/\n\s*\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (explicitParagraphs.length > 1) {
+    return explicitParagraphs;
+  }
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (sentences.length <= 3) {
+    return [normalized];
+  }
+
+  const chunks: string[] = [];
+  for (let index = 0; index < sentences.length; index += 3) {
+    chunks.push(sentences.slice(index, index + 3).join(" "));
+  }
+
+  return chunks;
+}
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const locale = await getLocale();
+  const article = await getArticlePageData(slug);
+
+  if (!article) {
+    return {
+      title: "Материал не найден"
+    };
+  }
+
+  return {
+    title: article.title,
+    description: article.excerpt,
+    alternates: {
+      ...buildLocaleAlternates(`/news/${article.slug}`),
+      canonical: localizePath(`/news/${article.slug}`, locale)
+    },
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description: article.excerpt,
+      url: localizePath(`/news/${article.slug}`, locale),
+      images: article.coverImageUrl
+        ? [
+            {
+              url: article.coverImageUrl,
+              alt: article.coverImageAlt || article.title
+            }
+          ]
+        : undefined
+    },
+    twitter: {
+      card: article.coverImageUrl ? "summary_large_image" : "summary",
+      title: article.title,
+      description: article.excerpt,
+      images: article.coverImageUrl ? [article.coverImageUrl] : undefined
+    }
+  };
+}
 
 export default async function ArticlePage({
   params
@@ -19,29 +102,75 @@ export default async function ArticlePage({
     notFound();
   }
 
+  const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
+  const articleUrl = `${siteUrl}${localizePath(`/news/${article.slug}`, locale)}`;
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Новости" : "News", href: "/news" },
+    { label: article.title }
+  ];
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.label,
+      item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : articleUrl
+    }))
+  };
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: article.title,
+    description: article.excerpt,
+    image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+    datePublished: article.publishedAt.toISOString(),
+    dateModified: article.updatedAt.toISOString(),
+    mainEntityOfPage: articleUrl,
+    articleSection: article.category,
+    author: {
+      "@type": "Organization",
+      name: "FightBase Media"
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "FightBase Media"
+    }
+  };
+
   return (
     <main className="container">
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={articleJsonLd} />
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero eyebrow={`/${article.category}`} title={article.title} description={article.excerpt} />
 
       <section className="detail-grid">
         <article className="stack">
-          <div className="policy-card">
-            <h3>{locale === "ru" ? "Краткая выжимка" : "Quick summary"}</h3>
-            <p className="copy">{article.meaning}</p>
-            <div className="tag-row">
-              {article.tagMap.map(({ tag }) => (
-                <span key={tag.id}>{tag.label}</span>
-              ))}
+          {article.coverImageUrl ? (
+            <div className="article-cover-shell">
+              <img
+                src={article.coverImageUrl}
+                alt={article.coverImageAlt || article.title}
+                className="article-cover-image"
+              />
             </div>
-          </div>
+          ) : null}
 
           <AdSlot placement="articleInline" locale={locale} />
 
           <div className="policy-card">
             {article.sections.map((section) => (
               <div key={section.id} style={{ marginBottom: 22 }}>
-                <h3>{section.heading}</h3>
-                <p className="copy">{section.body}</p>
+                {section.heading && section.heading !== "AI draft" ? <h3>{section.heading}</h3> : null}
+                <div className="article-copy-stack">
+                  {splitIntoParagraphs(section.body).map((paragraph, index) => (
+                    <p key={`${section.id}-${index}`} className="copy">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -80,9 +209,9 @@ export default async function ArticlePage({
               {article.event ? (
                 <Link href={`/events/${article.event.slug}`}>{article.event.name}</Link>
               ) : locale === "ru" ? (
-                "Привяжи турнир в CMS или ingestion pipeline."
+                "Для этого материала отдельный турнир не указан."
               ) : (
-                "Attach event relation in CMS or pipeline."
+                "No standalone event is linked to this story."
               )}
             </p>
           </div>

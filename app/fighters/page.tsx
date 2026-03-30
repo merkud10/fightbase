@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { FighterCard } from "@/components/cards";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getFightersPageData } from "@/lib/db";
 import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
 
 type FightersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -12,6 +16,35 @@ type FightersPageProps = {
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export async function generateMetadata({ searchParams }: FightersPageProps): Promise<Metadata> {
+  const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  const promotion = readParam(params.promotion);
+  const status = readParam(params.status);
+  const weightClass = readParam(params.weightClass);
+  const hasFilters = Boolean(promotion || status || weightClass);
+  const localizedUrl = localizePath("/fighters", locale);
+
+  return {
+    title: "Бойцы MMA",
+    description:
+      "Каталог бойцов FightBase Media: профили UFC, PFL и ONE с фотографиями, статистикой, последними боями и быстрыми фильтрами по дивизионам.",
+    alternates: buildLocaleAlternates("/fighters"),
+    openGraph: {
+      title: "Бойцы MMA",
+      description:
+        "Каталог бойцов FightBase Media: профили UFC, PFL и ONE с фотографиями, статистикой, последними боями и быстрыми фильтрами по дивизионам.",
+      url: localizedUrl
+    },
+    robots: hasFilters
+      ? {
+          index: false,
+          follow: true
+        }
+      : undefined
+  };
 }
 
 function buildFilterHref(
@@ -89,11 +122,38 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
     status: filters.status,
     weightClass: filters.weightClass
   };
-
   const activeFiltersCount = [filters.promotion, filters.status, filters.weightClass].filter(Boolean).length;
+  const siteUrl = getSiteUrl();
+  const collectionUrl = new URL("/fighters", siteUrl).toString();
+  const itemListElements = fighters.slice(0, 24).map((fighter, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    url: new URL(`/fighters/${fighter.slug}`, siteUrl).toString(),
+    name: locale === "ru" ? fighter.nameRu || fighter.name : fighter.name
+  }));
 
   return (
     <main className="container">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: locale === "ru" ? "Бойцы MMA" : "MMA fighters",
+          url: collectionUrl,
+          inLanguage: locale === "ru" ? "ru-RU" : "en-US"
+        }}
+      />
+      {itemListElements.length > 0 ? (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: locale === "ru" ? "Каталог бойцов" : "Fighter directory",
+            itemListElement: itemListElements
+          }}
+        />
+      ) : null}
+
       <PageHero
         eyebrow="/fighters"
         title={locale === "ru" ? "Бойцы" : "Fighters"}

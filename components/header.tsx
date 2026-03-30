@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { getDictionary, getLocale } from "@/lib/i18n";
+import { localizePath } from "@/lib/locale-path";
 
 export async function Header() {
   const locale = await getLocale();
@@ -20,7 +21,7 @@ export async function Header() {
   return (
     <header className="site-header">
       <div className="container site-header-inner">
-        <Link href="/" className="brand">
+        <Link href={localizePath("/", locale)} className="brand">
           <span className="brand-mark">FB</span>
           <span className="brand-copy">
             <span>FightBase</span>
@@ -30,7 +31,7 @@ export async function Header() {
 
         <nav className="nav-links" aria-label="Primary">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className="nav-link">
+            <Link key={item.href} href={localizePath(item.href, locale)} className="nav-link">
               {item.label}
             </Link>
           ))}
@@ -39,7 +40,7 @@ export async function Header() {
         <div className="header-actions">
           <span className="header-search-label">{t.common.search}</span>
           <LanguageSwitcher locale={locale} />
-          <Link href="#subscribe" className="button">
+          <Link href={localizePath("/#subscribe", locale)} className="button">
             {t.common.subscribe}
           </Link>
         </div>

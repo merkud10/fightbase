@@ -1,5 +1,18 @@
+import type { Metadata } from "next";
+
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates } from "@/lib/locale-path";
+
+export const metadata: Metadata = {
+  title: "Видео MMA",
+  description: "Раздел видео находится в подготовке и пока не предназначен для индексации.",
+  alternates: buildLocaleAlternates("/videos"),
+  robots: {
+    index: false,
+    follow: false
+  }
+};
 
 export default async function VideosPage() {
   const locale = await getLocale();

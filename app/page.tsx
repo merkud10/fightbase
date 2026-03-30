@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
 import { getHomePageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { localizePath } from "@/lib/locale-path";
 
 export default async function HomePage() {
   const locale = await getLocale();
@@ -28,11 +29,11 @@ export default async function HomePage() {
             </p>
             <div className="header-actions">
               {leadArticle ? (
-                <Link href={`/news/${leadArticle.slug}`} className="button">
+                <Link href={localizePath(`/news/${leadArticle.slug}`, locale)} className="button">
                   {locale === "ru" ? "Читать материал" : "Read feature"}
                 </Link>
               ) : null}
-              <Link href="/news" className="button-secondary">
+              <Link href={localizePath("/news", locale)} className="button-secondary">
                 {locale === "ru" ? "Открыть новости" : "Open news desk"}
               </Link>
             </div>
@@ -51,7 +52,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Ближайший турнир" : "Upcoming event"}</p>
               <h3>{leadEvent ? leadEvent.name : locale === "ru" ? "Карточка турнира" : "Event card"}</h3>
               {leadEvent ? (
-                <Link href={`/events/${leadEvent.slug}`}>{locale === "ru" ? "Открыть карточку" : "Open event card"}</Link>
+                <Link href={localizePath(`/events/${leadEvent.slug}`, locale)}>{locale === "ru" ? "Открыть карточку" : "Open event card"}</Link>
               ) : null}
             </article>
             <article className="mini-card blue editorial-mini-card">
@@ -81,7 +82,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Лента" : "News desk"}</p>
               <h2>{locale === "ru" ? "Свежие материалы" : "Latest stories"}</h2>
             </div>
-            <Link href="/news" className="section-link">
+            <Link href={localizePath("/news", locale)} className="section-link">
               {locale === "ru" ? "Все новости" : "All stories"}
             </Link>
           </div>
@@ -100,7 +101,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Турниры" : "Events"}</p>
               <h2>{locale === "ru" ? "Ближайшие и прошедшие турниры" : "Upcoming and completed events"}</h2>
             </div>
-            <Link href="/events" className="section-link">
+            <Link href={localizePath("/events", locale)} className="section-link">
               {locale === "ru" ? "Все турниры" : "All events"}
             </Link>
           </div>
@@ -119,7 +120,7 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Ростер" : "Roster"}</p>
               <h2>{locale === "ru" ? "Главные бойцы недели" : "Featured fighters"}</h2>
             </div>
-            <Link href="/fighters" className="section-link">
+            <Link href={localizePath("/fighters", locale)} className="section-link">
               {locale === "ru" ? "Вся база бойцов" : "Full roster"}
             </Link>
           </div>
@@ -152,12 +153,12 @@ export default async function HomePage() {
             </p>
           </article>
           <article className="feature-card editorial-card">
-            <p className="eyebrow">AI workflow</p>
-            <h3>{locale === "ru" ? "Сущности, драфты и модерация" : "Entities, drafts, and moderation"}</h3>
+            <p className="eyebrow">{locale === "ru" ? "Структура" : "Structure"}</p>
+            <h3>{locale === "ru" ? "Профили, турниры и внутренняя перелинковка" : "Profiles, events, and internal linking"}</h3>
             <p className="copy">
               {locale === "ru"
-                ? "Одна и та же data-модель уже связывает новости, турниры, бойцов и будущую автоматизацию."
-                : "The same data model already connects stories, events, fighters, and future automation."}
+                ? "Единая структура сайта связывает новости, турниры, бойцов и аналитические материалы в одну контентную сеть."
+                : "One shared structure connects stories, events, fighter profiles, and analysis into a single media network."}
             </p>
           </article>
         </div>

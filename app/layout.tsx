@@ -6,6 +6,8 @@ import "./globals.css";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
 
 const bodyFont = Manrope({
   subsets: ["latin", "cyrillic"],
@@ -19,14 +21,48 @@ const displayFont = Cormorant_Garamond({
   weight: ["500", "600", "700"]
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "FightBase Media",
-    template: "%s | FightBase Media"
-  },
-  description:
-    "MMA media platform with news, events, fighter profiles, rankings, analysis, quotes, and AI-assisted publishing workflows."
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const rootPath = localizePath("/", locale);
+
+  return {
+    metadataBase: getSiteUrl(),
+    title: {
+      default: "FightBase Media",
+      template: "%s | FightBase Media"
+    },
+    description:
+      "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE.",
+    applicationName: "FightBase Media",
+    keywords: [
+      "MMA",
+      "UFC",
+      "PFL",
+      "ONE Championship",
+      "MMA news",
+      "fighter profiles",
+      "MMA rankings",
+      "MMA events"
+    ],
+    alternates: buildLocaleAlternates("/"),
+    openGraph: {
+      type: "website",
+      locale: locale === "ru" ? "ru_RU" : "en_US",
+      url: rootPath,
+      siteName: "FightBase Media",
+      title: "FightBase Media",
+      description:
+        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE."
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "FightBase Media",
+      description:
+        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE."
+    },
+    category: "sports"
+  };
+}
 
 export const dynamic = "force-dynamic";
 

@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getPromotionRankingsPageData, getPromotionRankingLinks, getUfcOfficialRankingLinks } from "@/lib/db";
 import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fetchPflOfficialRankings } from "@/lib/pfl-rankings";
+import { getSiteUrl } from "@/lib/site";
 import { fetchUfcOfficialRankings } from "@/lib/ufc-rankings";
 
 type RankingsPageProps = {
@@ -19,6 +23,34 @@ function readParam(value: string | string[] | undefined) {
 
 function buildPromotionHref(promotion: string) {
   return promotion ? `/rankings?promotion=${promotion}` : "/rankings";
+}
+
+export async function generateMetadata({ searchParams }: RankingsPageProps): Promise<Metadata> {
+  const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  const promotion = readParam(params.promotion);
+  const normalizedPromotion = promotion === "pfl" ? "pfl" : "ufc";
+  const canonicalPath = normalizedPromotion === "ufc" ? "/rankings" : `/rankings?promotion=${normalizedPromotion}`;
+  const canonical = localizePath(canonicalPath, locale);
+  const title = normalizedPromotion === "pfl" ? "Рейтинги PFL" : "Рейтинги UFC";
+  const description =
+    normalizedPromotion === "pfl"
+      ? "Официальные рейтинги PFL по дивизионам, чемпионам и претендентам."
+      : "Официальные рейтинги UFC по дивизионам, чемпионам и претендентам.";
+
+  return {
+    title,
+    description,
+    alternates: {
+      ...buildLocaleAlternates("/rankings"),
+      canonical
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical
+    }
+  };
 }
 
 function normalizeRankingName(value: string) {
@@ -166,12 +198,12 @@ function getPromotionHeadline(slug: string, locale: "ru" | "en") {
       en: "Official UFC divisional rankings"
     },
     pfl: {
-      ru: "Ростер PFL по весовым категориям",
-      en: "PFL roster broken down by divisions"
+      ru: "Официальные рейтинги PFL по дивизионам",
+      en: "Official PFL divisional rankings"
     },
     one: {
-      ru: "Рейтинг бойцов ONE по категориям",
-      en: "ONE rankings grouped by divisions"
+      ru: "Рейтинги ONE по категориям",
+      en: "ONE rankings by division"
     }
   };
 
@@ -192,15 +224,61 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   const ufcLinks = isUfc ? await getUfcOfficialRankingLinks() : null;
   const pflGroups = isPfl ? await fetchPflOfficialRankings() : [];
   const pflLinks = isPfl ? await getPromotionRankingLinks("pfl") : null;
+  const siteUrl = getSiteUrl();
+  const rankingListElements = (
+    isUfc
+      ? ufcGroups.flatMap((group) =>
+          group.rows.slice(0, 5).map((fighter) => ({
+            name: fighter.name,
+            slug:
+              ufcLinks?.bySlug.get(fighter.officialSlug.toLowerCase())?.localSlug ??
+              ufcLinks?.byName.get(fighter.name.toLowerCase())?.localSlug
+          }))
+        )
+      : pflGroups.flatMap((group) =>
+          group.rows.slice(0, 5).map((fighter) => ({
+            name: fighter.name,
+            slug: findPromotionRankingLink(fighter.name, pflLinks)?.localSlug
+          }))
+        )
+  )
+    .filter((fighter) => fighter.slug)
+    .slice(0, 20)
+    .map((fighter, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: fighter.name,
+      url: new URL(`/fighters/${fighter.slug}`, siteUrl).toString()
+    }));
 
   return (
     <main className="container">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: isPfl ? "PFL Rankings" : "UFC Rankings",
+          url: new URL(isPfl ? "/rankings?promotion=pfl" : "/rankings", siteUrl).toString(),
+          inLanguage: locale === "ru" ? "ru-RU" : "en-US"
+        }}
+      />
+      {rankingListElements.length > 0 ? (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: isPfl ? "PFL rankings" : "UFC rankings",
+            itemListElement: rankingListElements
+          }}
+        />
+      ) : null}
+
       <PageHero
         eyebrow="/rankings"
         title={locale === "ru" ? "Рейтинги" : "Rankings"}
         description={
           locale === "ru"
-            ? "Выбери лигу и смотри набор отдельных таблиц по каждой весовой категории."
+            ? "Выбери лигу и смотри отдельные таблицы по каждой весовой категории."
             : "Choose a promotion and view a dedicated table for each weight class."
         }
       />
@@ -378,7 +456,15 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                           loading="lazy"
                         />
                       ) : null}
-                      <span>{group.champion.isChampion ? (locale === "ru" ? "Чемпион дивизиона" : "Division champion") : (locale === "ru" ? "Лидер рейтинга" : "Top-ranked fighter")}</span>
+                      <span>
+                        {group.champion.isChampion
+                          ? locale === "ru"
+                            ? "Чемпион дивизиона"
+                            : "Division champion"
+                          : locale === "ru"
+                            ? "Лидер рейтинга"
+                            : "Top-ranked fighter"}
+                      </span>
                       <strong>{group.champion.name}</strong>
                       {championLink?.localSlug ? (
                         <Link href={`/fighters/${championLink.localSlug}`}>

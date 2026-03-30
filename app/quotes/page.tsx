@@ -1,8 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
 import { getQuotesPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates } from "@/lib/locale-path";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const quotes = await getQuotesPageData();
+
+  return {
+    title: "Цитаты и интервью MMA",
+    description: "Ключевые цитаты, интервью и источниковые материалы по MMA.",
+    alternates: buildLocaleAlternates("/quotes"),
+    robots: quotes.length
+      ? undefined
+      : {
+          index: false,
+          follow: true
+        }
+  };
+}
 
 export default async function QuotesPage() {
   const locale = await getLocale();
@@ -15,7 +33,7 @@ export default async function QuotesPage() {
         title={locale === "ru" ? "Цитаты и интервью" : "Quotes and interviews"}
         description={
           locale === "ru"
-            ? "Более безопасный формат для пресс-конференций, интервью, подкастов и мониторинга соцсетей с явными ссылками на источники."
+            ? "Раздел для пресс-конференций, интервью, подкастов и материалов с явными ссылками на источники."
             : "A safer format for press conferences, interviews, podcasts, and social-media monitoring with explicit source links."
         }
       />

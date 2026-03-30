@@ -1,7 +1,10 @@
 import type { ArticleCategory, ArticleStatus, SourceType } from "@prisma/client";
+import http from "node:http";
+import https from "node:https";
 
 import { localizeIngestionInput } from "@/lib/ai-localization";
 import { slugify } from "@/lib/admin";
+import { buildRussianMeaningBlock, cleanNewsText, cleanNewsTitle } from "@/lib/article-quality";
 import {
   buildMeaningBlock,
   buildTokenSet,
@@ -58,6 +61,166 @@ function normalizeSourceSlug(label: string, url: string) {
   }
 }
 
+function buildSourceSlugBase(label: string, url: string) {
+  const labelSlug = slugify(label) || "source";
+
+  try {
+    const parsed = new URL(url);
+    const pathSlug = slugify(parsed.pathname.replace(/^\/+/, "")) || "link";
+    return `${labelSlug}-${pathSlug}`;
+  } catch {
+    return labelSlug;
+  }
+}
+
+function fetchText(url: string) {
+  return new Promise<string>((resolve, reject) => {
+    const target = new URL(url);
+    const transport = target.protocol === "https:" ? https : http;
+
+    const request = transport.request(
+      url,
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": "FightBaseBot/1.0"
+        }
+      },
+      (response) => {
+        const statusCode = response.statusCode ?? 500;
+
+        if ([301, 302, 303, 307, 308].includes(statusCode) && response.headers.location) {
+          const redirectedUrl = new URL(response.headers.location, url).toString();
+          response.resume();
+          fetchText(redirectedUrl).then(resolve).catch(reject);
+          return;
+        }
+
+        if (statusCode >= 400) {
+          response.resume();
+          reject(new Error(`HTTP ${statusCode}`));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          resolve(Buffer.concat(chunks).toString("utf8"));
+        });
+      }
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function extractMetaContent(html: string, propertyName: string) {
+  const patterns = [
+    new RegExp(`<meta[^>]+property=["']${propertyName}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${propertyName}["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+name=["']${propertyName}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${propertyName}["'][^>]*>`, "i")
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&ldquo;/gi, '"')
+    .replace(/&rdquo;/gi, '"')
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&ndash;/gi, "-")
+    .replace(/&mdash;/gi, "-");
+}
+
+function stripTags(value: string) {
+  return decodeHtmlEntities(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractParagraphBody(html: string, limit = 14) {
+  const paragraphs = Array.from(html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+    .map((match) => stripTags(match[1]))
+    .filter((paragraph) => paragraph.length >= 80)
+    .filter(
+      (paragraph) =>
+        !/cookie|newsletter|subscribe|sign up|download the app|follow us|read more|advertisement/i.test(paragraph)
+    )
+    .slice(0, limit);
+
+  return paragraphs.join("\n\n").trim();
+}
+
+async function hydrateBodyFromSource(sourceUrl: string, fallbackBody: string) {
+  try {
+    const html = await fetchText(sourceUrl);
+    const description =
+      extractMetaContent(html, "description") ||
+      extractMetaContent(html, "og:description") ||
+      "";
+    const paragraphBody = extractParagraphBody(html);
+    const mergedBody = [description, paragraphBody]
+      .map((part) => stripTags(part))
+      .filter(Boolean)
+      .filter((part, index, array) => array.indexOf(part) === index)
+      .join("\n\n")
+      .trim();
+
+    if (!mergedBody) {
+      return fallbackBody;
+    }
+
+    return mergedBody.length > fallbackBody.length + 180 ? mergedBody : fallbackBody;
+  } catch {
+    return fallbackBody;
+  }
+}
+
+async function extractArticleCoverImage(sourceUrl: string) {
+  try {
+    const html = await fetchText(sourceUrl);
+    const image =
+      extractMetaContent(html, "og:image") ||
+      extractMetaContent(html, "twitter:image") ||
+      extractMetaContent(html, "og:image:url");
+    const alt =
+      extractMetaContent(html, "og:image:alt") ||
+      extractMetaContent(html, "twitter:image:alt");
+
+    if (!image) {
+      return null;
+    }
+
+    return {
+      url: new URL(image, sourceUrl).toString(),
+      alt: alt?.trim() || null
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function ensureUniqueArticleSlug(baseSlug: string) {
   let candidate = baseSlug || `draft-${Date.now()}`;
   let counter = 1;
@@ -72,9 +235,7 @@ async function ensureUniqueArticleSlug(baseSlug: string) {
 
 async function ensureSource(label: string, url: string, type: SourceType) {
   const existingSource = await prisma.source.findFirst({
-    where: {
-      OR: [{ url }, { slug: normalizeSourceSlug(label, url) }]
-    }
+    where: { url }
   });
 
   if (existingSource) {
@@ -92,7 +253,7 @@ async function ensureSource(label: string, url: string, type: SourceType) {
     return existingSource;
   }
 
-  const baseSlug = normalizeSourceSlug(label, url);
+  const baseSlug = buildSourceSlugBase(label, url);
   let candidateSlug = baseSlug;
   let counter = 1;
 
@@ -163,7 +324,7 @@ async function inferRelations(input: IngestDraftInput) {
 
   const [promotions, fighters, tags, events] = await Promise.all([
     prisma.promotion.findMany({ select: { id: true, slug: true, name: true, shortName: true } }),
-    prisma.fighter.findMany({ select: { id: true, slug: true, name: true, nickname: true } }),
+    prisma.fighter.findMany({ select: { id: true, slug: true, name: true, nameRu: true, nickname: true } }),
     prisma.tag.findMany({ select: { id: true, slug: true, label: true } }),
     prisma.event.findMany({ select: { id: true, slug: true, name: true, promotionId: true } })
   ]);
@@ -368,15 +529,20 @@ function adjustConfidence(
 export async function createDraftFromIngestion(input: IngestDraftInput): Promise<IngestDraftResult> {
   const source = await ensureSource(input.sourceLabel.trim(), input.sourceUrl.trim(), input.sourceType ?? "official");
   const fallbackSourceSlug = slugify(input.headline.trim());
+  const hydratedBody = await hydrateBodyFromSource(source.url, input.body);
+  const hydratedInput = {
+    ...input,
+    body: hydratedBody
+  };
   let localizedInput = {
-    headline: input.headline,
-    body: input.body,
+    headline: hydratedInput.headline,
+    body: hydratedInput.body,
     localized: false,
     model: null as string | null
   };
 
   try {
-    localizedInput = await localizeIngestionInput(input);
+    localizedInput = await localizeIngestionInput(hydratedInput);
   } catch (error) {
     console.error("Failed to localize ingestion input", error);
   }
@@ -395,12 +561,19 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
 
   const mergedTagSlugs = uniqueItems([...(input.tagSlugs ?? []), ...normalized.relatedTagSlugs]);
   const relations = await inferRelations({
-    ...input,
+    ...hydratedInput,
     headline: localizedInput.headline,
     body: localizedInput.body,
-    category: input.category ?? normalized.articleDraft.category,
+    category: hydratedInput.category ?? normalized.articleDraft.category,
     tagSlugs: mergedTagSlugs
   });
+  const qualityFighters = relations.fighters.map((fighter) => ({
+    name: fighter.name,
+    nameRu: fighter.nameRu
+  }));
+  const cleanedTitle = cleanNewsTitle(normalized.articleDraft.title, qualityFighters);
+  const cleanedExcerpt = cleanNewsText(normalized.articleDraft.excerpt, qualityFighters);
+  const cleanedBody = cleanNewsText(normalized.articleDraft.body, qualityFighters);
   const duplicateCandidate = await findDuplicateCandidate(normalizeComparableText(normalized.articleDraft.title), source.id, relations);
   const confidence = adjustConfidence(normalized.confidence, relations, Boolean(duplicateCandidate));
 
@@ -419,17 +592,21 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     };
   }
 
+  const articleCover = await extractArticleCoverImage(source.url);
+
   const article = await prisma.article.create({
     data: {
       slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
-      title: normalized.articleDraft.title,
-      excerpt: normalized.articleDraft.excerpt,
-      meaning: buildMeaningBlock(localizedInput.body),
+      title: cleanedTitle,
+      coverImageUrl: articleCover?.url ?? null,
+      coverImageAlt: articleCover?.alt ?? cleanedTitle,
+      excerpt: cleanedExcerpt,
+      meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),
       category: input.category ?? normalized.articleDraft.category,
-      status: input.status ?? "draft",
+      status: hydratedInput.status ?? "draft",
       aiConfidence: confidence,
-      ingestionSourceSummary: buildIngestionSourceSummary(input, relations),
-      ingestionNotes: buildIngestionNotes(input, confidence, relations, undefined, localizedInput),
+      ingestionSourceSummary: buildIngestionSourceSummary(hydratedInput, relations),
+      ingestionNotes: buildIngestionNotes(hydratedInput, confidence, relations, undefined, localizedInput),
       publishedAt: new Date(normalized.articleDraft.publishedAt),
       promotionId: relations.promotion?.id ?? null,
       eventId: relations.event?.id ?? null,
@@ -437,7 +614,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
         create: [
           {
             heading: "AI draft",
-            body: normalized.articleDraft.body,
+            body: cleanedBody,
             sortOrder: 1
           }
         ]

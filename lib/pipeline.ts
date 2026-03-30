@@ -173,7 +173,7 @@ export function normalizeIngestionItem(item: IngestionItem): NormalizedPayload {
 
 export function buildMeaningBlock(articleText: string) {
   const excerpt = buildExcerpt(articleText, 120);
-  return `Why it matters: ${excerpt}`;
+  return `Почему это важно: ${excerpt}`;
 }
 
 export function buildTokenSet(value: string) {

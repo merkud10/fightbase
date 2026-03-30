@@ -1,10 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getFighterPageData } from "@/lib/db";
 import { formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getSiteUrl } from "@/lib/site";
 
 const countryLocaleMap: Record<string, { ru: string; en: string }> = {
   "США": { ru: "США", en: "United States" },
@@ -294,6 +299,60 @@ function buildEnglishFighterBio(fighter: {
   return parts.join(" ");
 }
 
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const locale = await getLocale();
+  const data = await getFighterPageData(slug);
+
+  if (!data) {
+    return {
+      title: "Fighter not found"
+    };
+  }
+
+  const { fighter } = data;
+  const title = fighter.nameRu ? `${fighter.nameRu} (${fighter.name})` : fighter.name;
+  const descriptionParts = [
+    fighter.promotion?.shortName || fighter.promotion?.name,
+    fighter.weightClass,
+    fighter.record && !/^0-0(?:-0)?$/.test(fighter.record) ? fighter.record : null,
+    fighter.country
+  ].filter(Boolean);
+
+  return {
+    title,
+    description: descriptionParts.join(" • "),
+    alternates: {
+      ...buildLocaleAlternates(`/fighters/${fighter.slug}`),
+      canonical: localizePath(`/fighters/${fighter.slug}`, locale)
+    },
+    openGraph: {
+      type: "profile",
+      title,
+      description: descriptionParts.join(" • "),
+      url: localizePath(`/fighters/${fighter.slug}`, locale),
+      images: fighter.photoUrl
+        ? [
+            {
+              url: fighter.photoUrl,
+              alt: fighter.nameRu ?? fighter.name
+            }
+          ]
+        : undefined
+    },
+    twitter: {
+      card: fighter.photoUrl ? "summary_large_image" : "summary",
+      title,
+      description: descriptionParts.join(" • "),
+      images: fighter.photoUrl ? [fighter.photoUrl] : undefined
+    }
+  };
+}
+
 export default async function FighterPage({
   params
 }: {
@@ -309,6 +368,39 @@ export default async function FighterPage({
 
   const { fighter, recentFights, profileRecentFights, relatedArticles } = data;
   const displayName = locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+  const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
+  const fighterUrl = `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`;
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Бойцы" : "Fighters", href: "/fighters" },
+    { label: displayName }
+  ];
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.label,
+      item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : fighterUrl
+    }))
+  };
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: fighter.name,
+    alternateName: [fighter.nameRu, fighter.nickname].filter(Boolean),
+    description: fighter.bioEn || fighter.bio,
+    image: fighter.photoUrl || undefined,
+    url: fighterUrl,
+    nationality: fighter.country,
+    memberOf: fighter.promotion?.name
+      ? {
+          "@type": "SportsOrganization",
+          name: fighter.promotion.name
+        }
+      : undefined
+  };
   const localizedBio =
     locale === "ru"
       ? fighter.bio
@@ -342,6 +434,9 @@ export default async function FighterPage({
 
   return (
     <main className="container">
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={personJsonLd} />
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero eyebrow={`/fighters/${fighter.slug}`} title={displayName} description={descriptionBits.join(" - ")} />
 
       <section className="detail-grid">
