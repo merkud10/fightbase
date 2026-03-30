@@ -20,8 +20,8 @@ export default async function AboutPage() {
         <h3>{locale === "ru" ? "Как это работает" : "Operating model"}</h3>
         <p>
           {locale === "ru"
-            ? "Новости, турниры, бойцы и аналитика опираются на общие данные и редакционную структуру. Это помогает связывать материалы между собой и не превращать сайт в разрозненный набор публикаций."
-            : "News, events, fighters, and analysis all sit on top of shared data and one editorial structure, which keeps the site connected instead of fragmented."}
+            ? "Новости, турниры, бойцы и прогнозы опираются на общие данные и одну редакционную структуру. Это помогает связывать материалы между собой и не превращать сайт в разрозненный набор публикаций."
+            : "News, events, fighters, and predictions all sit on top of shared data and one editorial structure, which keeps the site connected instead of fragmented."}
         </p>
       </section>
     </main>

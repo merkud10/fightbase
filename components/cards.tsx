@@ -18,6 +18,13 @@ type ArticleCardData = {
   tagMap?: Array<{ tag: { id: string; label: string } }>;
 };
 
+type EventFightCardData = {
+  id: string;
+  weightClass: string;
+  fighterA: { name: string; nameRu?: string | null; photoUrl?: string | null };
+  fighterB: { name: string; nameRu?: string | null; photoUrl?: string | null };
+};
+
 type EventCardData = {
   id: string;
   slug: string;
@@ -25,8 +32,9 @@ type EventCardData = {
   summary: string;
   date: Date | string;
   city: string;
+  status?: string;
   promotion?: { shortName: string } | null;
-  fights?: Array<{ fighterA: { name: string }; fighterB: { name: string } }>;
+  fights?: EventFightCardData[];
 };
 
 type FighterCardData = {
@@ -40,6 +48,22 @@ type FighterCardData = {
   status: string;
   promotion?: { shortName: string } | null;
 };
+
+function getDisplayName(
+  fighter: { name: string; nameRu?: string | null },
+  locale: Locale
+) {
+  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+}
+
+function isUsablePhoto(url?: string | null) {
+  return (
+    Boolean(url) &&
+    !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(
+      String(url)
+    )
+  );
+}
 
 export function ArticleCard({ article, locale }: { article: ArticleCardData; locale: Locale }) {
   const metaLabel = article.promotion?.shortName ?? article.category.toUpperCase();
@@ -71,21 +95,86 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
 
 export function EventCard({ event, locale }: { event: EventCardData; locale: Locale }) {
   const t = getDictionary(locale);
-  const mainFight = event.fights?.[0];
+  const fights = event.fights ?? [];
+  const leadFight = fights[0];
+  const featuredPhoto =
+    leadFight?.fighterA.photoUrl ||
+    leadFight?.fighterB.photoUrl ||
+    fights[1]?.fighterA.photoUrl ||
+    fights[1]?.fighterB.photoUrl ||
+    null;
+  const secondaryPhoto =
+    leadFight?.fighterB.photoUrl ||
+    fights[1]?.fighterA.photoUrl ||
+    fights[1]?.fighterB.photoUrl ||
+    leadFight?.fighterA.photoUrl ||
+    null;
+  const statusLabel =
+    locale === "ru"
+      ? event.status === "completed"
+        ? "Прошедший турнир"
+        : event.status === "live"
+          ? "Идёт сейчас"
+          : "Ближайший турнир"
+      : event.status === "completed"
+        ? "Completed event"
+        : event.status === "live"
+          ? "Live now"
+          : "Upcoming event";
 
   return (
-    <article className="event-card editorial-card">
-      <p className="kicker">
-        {event.promotion?.shortName ?? "MMA"} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} · {event.city}
-      </p>
-      <h3>{event.name}</h3>
+    <article className="event-card editorial-card event-card-rich">
+      <div className="event-card-media">
+        {isUsablePhoto(featuredPhoto) ? (
+          <img
+            src={String(featuredPhoto)}
+            alt={leadFight ? getDisplayName(leadFight.fighterA, locale) : event.name}
+            className="event-card-media-primary"
+          />
+        ) : (
+          <div className="event-card-media-primary event-card-media-placeholder" />
+        )}
+        {isUsablePhoto(secondaryPhoto) ? (
+          <img
+            src={String(secondaryPhoto)}
+            alt={leadFight ? getDisplayName(leadFight.fighterB, locale) : event.name}
+            className="event-card-media-secondary"
+          />
+        ) : null}
+        <div className="event-card-overlay">
+          <span className="event-card-status">{statusLabel}</span>
+          <p className="kicker">
+            {event.promotion?.shortName ?? "MMA"} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} ·{" "}
+            {event.city}
+          </p>
+          <h3>{event.name}</h3>
+        </div>
+      </div>
       <p className="copy">{event.summary}</p>
-      <p className="copy">
-        {locale === "ru" ? "Главный бой" : "Main event"}: {mainFight ? `${mainFight.fighterA.name} vs ${mainFight.fighterB.name}` : "TBD"}
-      </p>
-      <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary">
-        {t.common.eventCard}
-      </Link>
+
+      {fights.length > 0 ? (
+        <div className="event-fight-list">
+          {fights.slice(0, 4).map((fight) => (
+            <div key={fight.id} className="event-fight-row">
+              <div className="event-fight-copy">
+                <strong>
+                  {getDisplayName(fight.fighterA, locale)} vs {getDisplayName(fight.fighterB, locale)}
+                </strong>
+                <span>{formatWeightClass(fight.weightClass, locale)}</span>
+              </div>
+              <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-fight-link">
+                {t.common.openPrediction}
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="event-card-actions">
+        <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary">
+          {t.common.eventCard}
+        </Link>
+      </div>
     </article>
   );
 }
@@ -94,11 +183,7 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
   const t = getDictionary(locale);
   const displayName = locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
   const hasRecord = Boolean(fighter.record && fighter.record !== "-" && fighter.record !== "0-0" && fighter.record !== "0-0-0");
-  const hasUsablePhoto =
-    Boolean(fighter.photoUrl) &&
-    !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(
-      String(fighter.photoUrl)
-    );
+  const hasUsablePhoto = isUsablePhoto(fighter.photoUrl);
 
   return (
     <article className="fighter-card editorial-card fighter-card-editorial">

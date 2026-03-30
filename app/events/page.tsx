@@ -26,14 +26,18 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   const localizedUrl = localizePath("/events", locale);
 
   return {
-    title: "Турниры MMA",
+    title: locale === "ru" ? "Турниры MMA" : "MMA events",
     description:
-      "Турниры MMA на FightBase Media: ближайшие и прошедшие события UFC, PFL и ONE, карточки боёв, даты и площадки.",
+      locale === "ru"
+        ? "Календарь турниров UFC, PFL и ONE с карточками событий, перечнем боёв и переходом к отдельным прогнозам."
+        : "UFC, PFL, and ONE event calendar with event cards, fight lists, and dedicated prediction pages.",
     alternates: buildLocaleAlternates("/events"),
     openGraph: {
-      title: "Турниры MMA",
+      title: locale === "ru" ? "Турниры MMA" : "MMA events",
       description:
-        "Турниры MMA на FightBase Media: ближайшие и прошедшие события UFC, PFL и ONE, карточки боёв, даты и площадки.",
+        locale === "ru"
+          ? "Календарь турниров UFC, PFL и ONE с карточками событий, перечнем боёв и переходом к отдельным прогнозам."
+          : "UFC, PFL, and ONE event calendar with event cards, fight lists, and dedicated prediction pages.",
       url: localizedUrl
     },
     robots: hasFilters
@@ -45,7 +49,11 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   };
 }
 
-function buildFilterHref(current: { promotion: string; status: string }, next: Partial<{ promotion: string; status: string }>) {
+function buildFilterHref(
+  current: { promotion: string; status: string },
+  next: Partial<{ promotion: string; status: string }>,
+  locale: "ru" | "en"
+) {
   const params = new URLSearchParams();
   const merged = { ...current, ...next };
 
@@ -58,7 +66,8 @@ function buildFilterHref(current: { promotion: string; status: string }, next: P
   }
 
   const query = params.toString();
-  return query ? `/events?${query}` : "/events";
+  const basePath = localizePath("/events", locale);
+  return query ? `${basePath}?${query}` : basePath;
 }
 
 function FilterSection({
@@ -67,7 +76,8 @@ function FilterSection({
   activeValue,
   current,
   param,
-  allLabel
+  allLabel,
+  locale
 }: {
   title: string;
   items: Array<{ label: string; value: string }>;
@@ -75,13 +85,14 @@ function FilterSection({
   current: { promotion: string; status: string };
   param: "promotion" | "status";
   allLabel: string;
+  locale: "ru" | "en";
 }) {
   return (
     <div className="filter-block">
       <h4>{title}</h4>
       <div className="filter-chip-row">
         <Link
-          href={buildFilterHref(current, { [param]: "" })}
+          href={buildFilterHref(current, { [param]: "" }, locale)}
           className={`filter-chip ${activeValue === "" ? "active" : ""}`}
         >
           {allLabel}
@@ -89,7 +100,7 @@ function FilterSection({
         {items.map((item) => (
           <Link
             key={item.value}
-            href={buildFilterHref(current, { [param]: activeValue === item.value ? "" : item.value })}
+            href={buildFilterHref(current, { [param]: activeValue === item.value ? "" : item.value }, locale)}
             className={`filter-chip ${activeValue === item.value ? "active" : ""}`}
           >
             {item.label}
@@ -116,11 +127,11 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   };
   const activeFiltersCount = [filters.promotion, filters.status].filter(Boolean).length;
   const siteUrl = getSiteUrl();
-  const collectionUrl = new URL("/events", siteUrl).toString();
+  const collectionUrl = new URL(localizePath("/events", locale), siteUrl).toString();
   const itemListElements = events.slice(0, 12).map((event, index) => ({
     "@type": "ListItem",
     position: index + 1,
-    url: new URL(`/events/${event.slug}`, siteUrl).toString(),
+    url: new URL(localizePath(`/events/${event.slug}`, locale), siteUrl).toString(),
     name: event.name
   }));
 
@@ -151,8 +162,8 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         title={locale === "ru" ? "Турниры" : "Events"}
         description={
           locale === "ru"
-            ? "Предстоящие и прошедшие турниры с карточками событий, главным боем и переходом к подробной странице."
-            : "Upcoming and completed events with event cards, main fights, and detailed pages."
+            ? "Предстоящие и прошедшие турниры с живыми карточками событий, списком боёв и переходом к отдельным прогнозам."
+            : "Upcoming and completed events with richer event cards, fight lists, and direct links to matchup predictions."
         }
       />
 
@@ -162,7 +173,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             <div className="filter-head">
               <h3>{locale === "ru" ? "Фильтры" : "Filters"}</h3>
               {activeFiltersCount > 0 ? (
-                <Link href="/events" className="button-ghost filter-reset-link">
+                <Link href={localizePath("/events", locale)} className="button-ghost filter-reset-link">
                   {locale === "ru" ? "Сбросить" : "Reset"}
                 </Link>
               ) : null}
@@ -189,6 +200,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               current={current}
               param="status"
               allLabel={locale === "ru" ? "Все" : "All"}
+              locale={locale}
             />
 
             <FilterSection
@@ -201,6 +213,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               current={current}
               param="promotion"
               allLabel={locale === "ru" ? "Все" : "All"}
+              locale={locale}
             />
 
             <p className="filter-results-copy">

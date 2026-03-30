@@ -26,7 +26,7 @@ export const dictionary = {
       events: "Турниры",
       fighters: "Бойцы",
       rankings: "Рейтинги",
-      analysis: "Аналитика",
+      predictions: "Прогнозы",
       quotes: "Цитаты",
       videos: "Видео",
       about: "О сайте"
@@ -40,7 +40,8 @@ export const dictionary = {
       eventCard: "Карточка турнира",
       readArticle: "Читать материал",
       viewEvents: "Смотреть турниры",
-      openCoverage: "Открыть материал"
+      openCoverage: "Открыть материал",
+      openPrediction: "Прогноз"
     }
   },
   en: {
@@ -52,7 +53,7 @@ export const dictionary = {
       events: "Events",
       fighters: "Fighters",
       rankings: "Rankings",
-      analysis: "Analysis",
+      predictions: "Predictions",
       quotes: "Quotes",
       videos: "Videos",
       about: "About"
@@ -66,7 +67,8 @@ export const dictionary = {
       eventCard: "Event card",
       readArticle: "Read feature",
       viewEvents: "View events",
-      openCoverage: "Open coverage"
+      openCoverage: "Open coverage",
+      openPrediction: "Prediction"
     }
   }
 } as const;

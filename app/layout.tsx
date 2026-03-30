@@ -32,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | FightBase Media"
     },
     description:
-      "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE.",
+      "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and matchup predictions across UFC, PFL, and ONE.",
     applicationName: "FightBase Media",
     keywords: [
       "MMA",
@@ -52,13 +52,13 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: "FightBase Media",
       title: "FightBase Media",
       description:
-        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE."
+        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and matchup predictions across UFC, PFL, and ONE."
     },
     twitter: {
       card: "summary_large_image",
       title: "FightBase Media",
       description:
-        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and analysis across UFC, PFL, and ONE."
+        "FightBase Media covers MMA with daily news, event cards, fighter profiles, rankings, interviews, and matchup predictions across UFC, PFL, and ONE."
     },
     category: "sports"
   };

@@ -25,7 +25,7 @@ export default async function HomePage() {
             <p>
               {locale === "ru"
                 ? "FightBase строится как настоящее спортивное медиа: сильный хедлайнер, живая новостная лента, карточки турниров, профили бойцов и аналитика, связанная одной редакционной системой."
-                : "FightBase is structured like a true sports publication: a strong lead story, a living news desk, event cards, fighter profiles, and analysis tied together by one editorial system."}
+                : "FightBase is structured like a true sports publication: a strong lead story, a living news desk, event cards, fighter profiles, and a dedicated predictions layer tied together by one editorial system."}
             </p>
             <div className="header-actions">
               {leadArticle ? (
@@ -45,7 +45,7 @@ export default async function HomePage() {
               <h3>
                 {locale === "ru"
                   ? "Каждая большая новость может вести в профили бойцов, карточки турниров и разборы"
-                  : "Every big story can branch into profiles, event cards, and analysis"}
+                  : "Every big story can branch into profiles, event cards, and matchup predictions"}
               </h3>
             </article>
             <article className="mini-card gold editorial-mini-card">
@@ -64,7 +64,7 @@ export default async function HomePage() {
               </h3>
             </article>
             <article className="mini-card green editorial-mini-card">
-              <p className="eyebrow">{locale === "ru" ? "Разборы" : "Analysis"}</p>
+              <p className="eyebrow">{locale === "ru" ? "Прогнозы" : "Predictions"}</p>
               <h3>
                 {locale === "ru"
                   ? "Прематч, постфайт и тактические материалы делают проект полноценным медиа"
@@ -158,7 +158,7 @@ export default async function HomePage() {
             <p className="copy">
               {locale === "ru"
                 ? "Единая структура сайта связывает новости, турниры, бойцов и аналитические материалы в одну контентную сеть."
-                : "One shared structure connects stories, events, fighter profiles, and analysis into a single media network."}
+                : "One shared structure connects stories, events, fighter profiles, and predictions into a single media network."}
             </p>
           </article>
         </div>

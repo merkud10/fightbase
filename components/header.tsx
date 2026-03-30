@@ -12,7 +12,7 @@ export async function Header() {
     { href: "/events", label: t.nav.events },
     { href: "/fighters", label: t.nav.fighters },
     { href: "/rankings", label: t.nav.rankings },
-    { href: "/analysis", label: t.nav.analysis },
+    { href: "/predictions", label: t.nav.predictions },
     { href: "/quotes", label: t.nav.quotes },
     { href: "/videos", label: t.nav.videos },
     { href: "/about", label: t.nav.about }
