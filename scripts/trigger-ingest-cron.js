@@ -5,7 +5,11 @@ function parseArgs(argv) {
     baseUrl: process.env.INGEST_BASE_URL || "http://localhost:3000",
     file: "ingestion/sample-watchlist.json",
     dryRun: false,
-    secret: process.env.INGEST_CRON_SECRET || ""
+    secret: process.env.INGEST_CRON_SECRET || "",
+    job: process.env.INGEST_CRON_JOB || "ai-discovery",
+    lookbackHours: Number(process.env.AI_DISCOVERY_LOOKBACK_HOURS || "8") || 8,
+    limit: Number(process.env.AI_DISCOVERY_ITEM_LIMIT || "8") || 8,
+    status: process.env.AI_DISCOVERY_STATUS || "published"
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -25,6 +29,30 @@ function parseArgs(argv) {
 
     if (arg === "--secret" && argv[index + 1]) {
       options.secret = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--job" && argv[index + 1]) {
+      options.job = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--lookback-hours" && argv[index + 1]) {
+      options.lookbackHours = Number(argv[index + 1]) || options.lookbackHours;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--limit" && argv[index + 1]) {
+      options.limit = Number(argv[index + 1]) || options.limit;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--status" && argv[index + 1]) {
+      options.status = argv[index + 1];
       index += 1;
       continue;
     }
@@ -51,8 +79,12 @@ async function main() {
       "x-ingest-cron-secret": options.secret
     },
     body: JSON.stringify({
+      job: options.job,
       file: options.file,
-      dryRun: options.dryRun
+      dryRun: options.dryRun,
+      lookbackHours: options.lookbackHours,
+      limit: options.limit,
+      status: options.status
     })
   });
 

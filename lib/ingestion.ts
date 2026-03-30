@@ -20,6 +20,8 @@ export interface IngestDraftInput {
   publishedAt?: string;
   sourceLabel: string;
   sourceUrl: string;
+  coverImageUrl?: string;
+  coverImageAlt?: string;
   sourceType?: SourceType;
   category?: ArticleCategory;
   promotionSlug?: string;
@@ -44,6 +46,20 @@ export interface IngestDraftResult {
 
 function uniqueItems(items: string[]) {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+}
+
+function normalizeAbsoluteUrl(value: string | null | undefined) {
+  const normalized = String(value || "").trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return new URL(normalized).toString();
+  } catch {
+    return null;
+  }
 }
 
 function normalizeSourceSlug(label: string, url: string) {
@@ -593,13 +609,15 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   }
 
   const articleCover = await extractArticleCoverImage(source.url);
+  const providedCoverImageUrl = normalizeAbsoluteUrl(input.coverImageUrl);
+  const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
 
   const article = await prisma.article.create({
     data: {
       slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
       title: cleanedTitle,
-      coverImageUrl: articleCover?.url ?? null,
-      coverImageAlt: articleCover?.alt ?? cleanedTitle,
+      coverImageUrl: providedCoverImageUrl ?? articleCover?.url ?? null,
+      coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,
       excerpt: cleanedExcerpt,
       meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),
       category: input.category ?? normalized.articleDraft.category,

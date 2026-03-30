@@ -47,11 +47,33 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     file?: string;
     dryRun?: boolean;
+    job?: "watchlist" | "ai-discovery";
+    lookbackHours?: number;
+    limit?: number;
+    status?: "draft" | "review" | "published";
   };
 
-  const scriptPath = path.resolve(process.cwd(), "scripts", "fetch-source-feed.js");
   const origin = new URL(request.url).origin;
-  const args = [scriptPath, "--file", body.file ?? "ingestion/sample-watchlist.json", "--base-url", origin];
+  const job = body.job === "watchlist" ? "watchlist" : "ai-discovery";
+  const scriptName = job === "watchlist" ? "fetch-source-feed.js" : "discover-ai-news.js";
+  const scriptPath = path.resolve(process.cwd(), "scripts", scriptName);
+  const args = [scriptPath, "--base-url", origin];
+
+  if (job === "watchlist") {
+    args.push("--file", body.file ?? "ingestion/sample-watchlist.json");
+  } else {
+    if (typeof body.lookbackHours === "number" && Number.isFinite(body.lookbackHours)) {
+      args.push("--lookback-hours", String(body.lookbackHours));
+    }
+
+    if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
+      args.push("--limit", String(body.limit));
+    }
+
+    if (body.status) {
+      args.push("--status", body.status);
+    }
+  }
 
   if (body.dryRun) {
     args.push("--dry-run");
@@ -65,6 +87,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      job,
       mode: body.dryRun ? "dry-run" : "write",
       stdout: result.stdout.trim(),
       stderr: result.stderr.trim()

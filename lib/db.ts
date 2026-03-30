@@ -380,7 +380,8 @@ export async function getHomePageData() {
             fighterA: true,
             fighterB: true
           },
-          take: 1
+          take: 4,
+          orderBy: { createdAt: "asc" }
         }
       },
       take: 3
@@ -408,6 +409,8 @@ export async function getHomePageData() {
 export async function getNewsPageData(filters: NewsPageFilters = {}) {
   const articleWhere: Prisma.ArticleWhereInput = {
     status: "published",
+    category: "news",
+    AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }],
     ...(filters.promotion ? { promotion: { slug: filters.promotion } } : {}),
     ...(filters.tag
       ? {
@@ -463,7 +466,8 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
             fighterA: true,
             fighterB: true
           },
-          take: 1
+          take: 5,
+          orderBy: { createdAt: "asc" }
         }
       }
     }),
@@ -761,10 +765,59 @@ export async function getAnalysisPageData() {
   });
 }
 
+export async function getPredictionsPageData() {
+  return prisma.event.findMany({
+    where: {
+      status: {
+        in: ["upcoming", "live"]
+      }
+    },
+    orderBy: [{ status: "asc" }, { date: "asc" }],
+    include: {
+      promotion: true,
+      fights: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          fighterA: {
+            include: {
+              promotion: true
+            }
+          },
+          fighterB: {
+            include: {
+              promotion: true
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 export async function getQuotesPageData() {
   return prisma.article.findMany({
-    where: { category: "interview", status: "published" },
+    where: {
+      category: "interview",
+      status: "published",
+      AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+    },
     orderBy: { publishedAt: "desc" }
+  });
+}
+
+export async function getPredictionEditorialPageData() {
+  return prisma.article.findMany({
+    where: {
+      category: "analysis",
+      status: "published",
+      AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+    },
+    orderBy: { publishedAt: "desc" },
+    include: {
+      promotion: true,
+      tagMap: { include: { tag: true } }
+    },
+    take: 12
   });
 }
 
@@ -827,6 +880,55 @@ export async function getEventPageData(slug: string) {
   });
 
   return { event, relatedArticles };
+}
+
+export async function getFightPredictionPageData(eventSlug: string, fightId: string) {
+  const fight = await prisma.fight.findUnique({
+    where: { id: fightId },
+    include: {
+      event: {
+        include: {
+          promotion: true
+        }
+      },
+      fighterA: {
+        include: {
+          promotion: true
+        }
+      },
+      fighterB: {
+        include: {
+          promotion: true
+        }
+      }
+    }
+  });
+
+  if (!fight || fight.event.slug !== eventSlug) {
+    return null;
+  }
+
+  const relatedArticles = await prisma.article.findMany({
+    where: {
+      status: "published",
+      OR: [
+        { eventId: fight.eventId },
+        {
+          fighterMap: {
+            some: {
+              fighterId: {
+                in: [fight.fighterAId, fight.fighterBId]
+              }
+            }
+          }
+        }
+      ]
+    },
+    orderBy: { publishedAt: "desc" },
+    take: 4
+  });
+
+  return { fight, relatedArticles };
 }
 
 export async function getFighterPageData(slug: string) {

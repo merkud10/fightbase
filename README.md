@@ -57,6 +57,7 @@ npm run content:sync-one-roster
 npm run content:refresh-fighters-full
 npm run ingest:feed -- --dry-run
 npm run ingest:fetch -- --dry-run
+npm run content:discover-ai-news -- --dry-run
 npm run ingest:cron -- --dry-run --secret YOUR_SECRET
 ```
 
@@ -66,7 +67,11 @@ Optional AI localization env vars:
 OPENAI_API_KEY="your-key"
 OPENAI_INGEST_MODEL="gpt-4o-mini"
 OLLAMA_URL="http://127.0.0.1:11434/api/generate"
-OLLAMA_MODEL="aya:8b-23"
+OLLAMA_MODEL="qwen35-aggressive:latest"
+INGEST_CRON_JOB="ai-discovery"
+AI_DISCOVERY_LOOKBACK_HOURS="8"
+AI_DISCOVERY_ITEM_LIMIT="8"
+AI_DISCOVERY_STATUS="published"
 ```
 
 Current local database is seeded with:
@@ -86,6 +91,7 @@ Current Prisma-backed additions:
 - article workflow with `draft`, `review`, and `published` states
 - `npm run ingest:feed` worker for batch JSON ingestion into draft articles
 - `npm run ingest:fetch` worker with parser registry for source pages and fixtures
+- `npm run content:discover-ai-news` worker that asks the local model to browse the web for fresh MMA news and ingest the results
 - `npm run ingest:cron` client for hitting the protected cron endpoint
 - RU-first ingestion localization via OpenAI Responses API when `OPENAI_API_KEY` is configured
 - local-first ingestion localization via Ollama when `OLLAMA_MODEL` is configured
@@ -201,6 +207,12 @@ Cron trigger dry run:
 
 ```bash
 npm run ingest:cron -- --base-url http://localhost:3000 --secret YOUR_SECRET --dry-run
+```
+
+AI discovery dry run:
+
+```bash
+npm run content:discover-ai-news -- --base-url http://localhost:3000 --dry-run
 ```
 
 Windows Task Scheduler helper:
