@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { getLatestIngestionRun } from "@/lib/db";
+import { getEnvironmentReport } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
+    const environment = getEnvironmentReport();
     const [articleCount, fighterCount, eventCount, latestIngestionRun] = await Promise.all([
       prisma.article.count(),
       prisma.fighter.count(),
@@ -18,6 +20,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       checks: {
         database: "ok",
+        environment,
         content: {
           articles: articleCount,
           fighters: fighterCount,

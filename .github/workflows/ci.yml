@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: file:./prisma/dev.db
+      DEPLOYMENT_ENV: preview
+      INGEST_CRON_SECRET: ci-secret
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_ADS_ENABLED: "0"
+      OPENAI_API_KEY: ""
+      OLLAMA_URL: ""
+      OLLAMA_MODEL: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Push SQLite schema
+        run: npm run db:push
+
+      - name: Build app
+        run: npm run build

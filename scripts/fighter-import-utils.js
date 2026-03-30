@@ -59,9 +59,13 @@ const countryMap = {
 
 const weightClassMap = {
   Strawweight: "Минимальный вес",
+  "Women's Strawweight": "Минимальный вес",
   Flyweight: "Наилегчайший вес",
+  "Women's Flyweight": "Наилегчайший вес",
   Bantamweight: "Легчайший вес",
+  "Women's Bantamweight": "Легчайший вес",
   Featherweight: "Полулегкий вес",
+  "Women's Featherweight": "Полулегкий вес",
   Lightweight: "Легкий вес",
   Welterweight: "Полусредний вес",
   Middleweight: "Средний вес",
@@ -362,6 +366,238 @@ function transliterateName(name) {
     .join(" ");
 }
 
+const transliterationTokenMap = {
+  AJ: "Эй Джей",
+  McKee: "Макки",
+  Mckee: "Макки",
+  Omalley: "О'Мэлли",
+  "O'Malley": "О'Мэлли",
+  Jones: "Джонс",
+  Johnson: "Джонсон",
+  Topuria: "Топурия",
+  Pereira: "Перейра",
+  Makhachev: "Махачев",
+  Nurmagomedov: "Нурмагомедов",
+  Chimaev: "Чимаев",
+  Tsarukyan: "Царукян",
+  Ankalaev: "Анкалаев",
+  Shevchenko: "Шевченко",
+  Malykhin: "Малыхин",
+  Pacio: "Пасио",
+  Moraes: "Мораес",
+  Andrade: "Андраде",
+  Ngannou: "Нганну",
+  Ditcheva: "Дитчева",
+  Eblen: "Эблен",
+  Dvalishvili: "Двалишвили",
+  Aspinall: "Аспиналл",
+  Plessis: "Плесси",
+  Muhammad: "Мухаммад",
+  Evloev: "Евлоев",
+  Mix: "Микс",
+  Pitbull: "Питбуль",
+  Weili: "Вэйли",
+  Belal: "Белал",
+  Merab: "Мераб",
+  Tom: "Том",
+  Jon: "Джон",
+  Sean: "Шон",
+  Leon: "Леон",
+  Francis: "Фрэнсис",
+  Dakota: "Дакота",
+  Larissa: "Ларисса",
+  Christian: "Кристиан",
+  Anatoly: "Анатолий",
+  Joshua: "Джошуа",
+  Valentina: "Валентина",
+  Zhang: "Чжан",
+  Magomed: "Магомед",
+  Ilia: "Илия",
+  Umar: "Умар",
+  Usman: "Усман",
+  Arman: "Арман",
+  Khamzat: "Хамзат",
+  Reinier: "Ренье",
+  Fabricio: "Фабрисио",
+  Adriano: "Адриано",
+  Patricio: "Патрисио",
+  Demetrious: "Деметриус",
+  Justin: "Джастин",
+  Johnny: "Джонни",
+  Joe: "Джо",
+  Lewis: "Льюис",
+  Mitch: "Митч",
+  Nick: "Ник",
+  Patrick: "Патрик",
+  Tyson: "Тайсон",
+  Youcef: "Юсеф",
+  Younes: "Юнес",
+  Youssef: "Юссеф",
+  Sean: "Шон",
+  Taylor: "Тейлор",
+  Natan: "Натан",
+  Schulte: "Шулте",
+  Ciaran: "Киаран",
+  Clarke: "Кларк",
+  Abdoulaye: "Абдулай",
+  Abdoul: "Абдул",
+  Abdouraguimov: "Абдурагимов",
+  Pedro: "Педру",
+  Lee: "Ли"
+};
+
+const transliterationNameMap = {
+  "Ariane Lipski da Silva": "Ариане Липски да Силва",
+  "AJ McKee": "Эй Джей Макки",
+  "Asael Adjoudj": "Асаэль Аджудж",
+  "Asaël Adjoudj": "Асаэль Аджудж",
+  "Anatoly Malykhin": "Анатолий Малыхин",
+  "Asset Anarbayev": "Асет Анарбаев",
+  "Cedric Doumbe": "Седрик Думбе",
+  "Cédric Doumbé": "Седрик Думбе",
+  "Chequina Noso Pedro": "Чекина Носу Педру",
+  "Christian Lee": "Кристиан Ли",
+  "Ciara McGuirk": "Киара Макгирк",
+  "Ciaran Clarke": "Киаран Кларк",
+  "Da Woon Jung": "Да Ун Джунг",
+  "Demetrious Johnson": "Деметриус Джонсон",
+  "Fabricio Andrade": "Фабрисио Андраде",
+  "Francis Ngannou": "Фрэнсис Нганну",
+  "Joshua Pacio": "Джошуа Пасио",
+  "Johnny Eblen": "Джонни Эблен",
+  "Justin Clarke": "Джастин Кларк",
+  "Justin Jones Matoto": "Джастин Джонс Матото",
+  "Lewis McGrillen": "Льюис Макгриллен",
+  "Mele dje Yedoh": "Меледж Йедо",
+  "Meledje Yedoh": "Меледж Йедо",
+  "Mélèdje Yedoh": "Меледж Йедо",
+  "Mitch McKee": "Митч Макки",
+  "Natan Schulte": "Натан Шулте",
+  "Patchy Mix": "Пэтчи Микс",
+  "Patricio Pitbull": "Патрисио Питбуль",
+  "Rhys McKee": "Рис Макки",
+  "Sean Gauci": "Шон Гаучи",
+  "Sergey Bilostenniy": "Сергей Белостенный",
+  "Shadrack Yemba": "Шадрак Йемба",
+  "Taylor Lapilus": "Тейлор Лапилус",
+  "Tomasz Langowski": "Томаш Ланговский",
+  "Tomasz Łangowski": "Томаш Ланговский",
+  "Tyson Pedro": "Тайсон Педро",
+  "Youcef Ouabbas": "Юсеф Уаббас",
+  "Younes Najid": "Юнес Наджид",
+  "Youssef Al Housani": "Юссеф Аль-Хусани",
+  "Yabna N'tchala": "Ябна Нтчала",
+  "Yabna N’tchala": "Ябна Нтчала",
+  "Abdoul Abdouraguimov": "Абдул Абдурагимов",
+  "Abdoulaye Kane": "Абдулай Кане"
+};
+
+function normalizeLatinToken(token) {
+  return String(token || "")
+    .replace(/[’']/g, "'")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/gi, "l")
+    .replace(/æ/gi, "ae")
+    .replace(/œ/gi, "oe")
+    .replace(/ß/g, "ss");
+}
+
+function transliterateToken(token) {
+  const original = stripTags(token);
+  const cleanToken = normalizeLatinToken(original);
+
+  if (["Da", "da", "De", "de"].includes(original)) {
+    return original;
+  }
+
+  if (transliterationTokenMap[original]) {
+    return transliterationTokenMap[original];
+  }
+
+  if (transliterationTokenMap[cleanToken]) {
+    return transliterationTokenMap[cleanToken];
+  }
+
+  const map = {
+    a: "а",
+    b: "б",
+    c: "к",
+    d: "д",
+    e: "е",
+    f: "ф",
+    g: "г",
+    h: "х",
+    i: "и",
+    j: "дж",
+    k: "к",
+    l: "л",
+    m: "м",
+    n: "н",
+    o: "о",
+    p: "п",
+    q: "к",
+    r: "р",
+    s: "с",
+    t: "т",
+    u: "у",
+    v: "в",
+    w: "у",
+    x: "кс",
+    y: "и",
+    z: "з"
+  };
+
+  const normalized = cleanToken
+    .replace(/sch/gi, "ш")
+    .replace(/shch/gi, "щ")
+    .replace(/tch/gi, "ч")
+    .replace(/sh/gi, "ш")
+    .replace(/ch/gi, "ч")
+    .replace(/zh/gi, "ж")
+    .replace(/kh/gi, "х")
+    .replace(/ph/gi, "ф")
+    .replace(/ts/gi, "ц")
+    .replace(/tz/gi, "ц")
+    .replace(/ya/gi, "я")
+    .replace(/yu/gi, "ю")
+    .replace(/yo/gi, "ё")
+    .replace(/ye/gi, "е")
+    .replace(/th/gi, "т");
+
+  let output = "";
+
+  for (const char of normalized.toLowerCase()) {
+    if (/[а-яё]/i.test(char)) {
+      output += char;
+      continue;
+    }
+
+    output += map[char] || char;
+  }
+
+  return output.charAt(0).toUpperCase() + output.slice(1);
+}
+
+function transliterateName(name) {
+  const cleanName = stripTags(name).replace(/\s+/g, " ").trim();
+  const normalizedName = normalizeLatinToken(cleanName);
+
+  if (transliterationNameMap[cleanName]) {
+    return transliterationNameMap[cleanName];
+  }
+
+  if (transliterationNameMap[normalizedName]) {
+    return transliterationNameMap[normalizedName];
+  }
+
+  return cleanName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => transliterateToken(token))
+    .join(" ");
+}
+
 const preferredRussianNameMap = {
   "Maycee Barber": "Мэйси Барбер",
   "Reinier de Ridder": "Ренье де Риддер",
@@ -425,7 +661,23 @@ function buildGenericBio({
   const countryRu = normalizeCountry(country);
   const weightRu = translateWeightClass(weightClass);
   const promotion = promotionLabel(promotionSlug);
-  const parts = [`${nameRu} — профессиональный боец ${promotion}, представляющий ${countryRu} и выступающий в категории «${weightRu}».`];
+  const cleanDescription = stripTags(description)
+    .replace(/Get the latest [^.]+(?:\.|$)/gi, "")
+    .replace(/\bNOTABLE WINS:[^.]+(?:\.|$)/gi, "")
+    .replace(/\b\d+X NCAA[^.]+(?:\.|$)/gi, "")
+    .replace(/\b\d+-\d+\s+BELLATOR RECORD[^.]+(?:\.|$)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedHighlights = stripTags(highlights).replace(/\s+/g, " ").trim();
+  const parts = [`${nameRu} — профессиональный боец ${promotion}, выступающий в категории «${weightRu}».`];
+
+  if (countryRu && !/^unknown$/i.test(countryRu)) {
+    if (/,/.test(countryRu) || /[A-Za-z]{3,}/.test(countryRu)) {
+      parts.push(`В официальном профиле указано место базовой подготовки: ${countryRu}.`);
+    } else {
+      parts.push(`В профиле бойца указана страна: ${countryRu}.`);
+    }
+  }
 
   if (nickname) {
     parts.push(`Выступает под прозвищем «${nickname}».`);
@@ -436,22 +688,16 @@ function buildGenericBio({
     profileLine.push(`рекорд ${record}`);
   }
   if (hasMeaningfulTeam(team)) {
-    profileLine.push(`команда ${team}`);
+    profileLine.push(`команду ${team}`);
   }
   if (profileLine.length > 0) {
-    parts.push(`В официальном профиле указаны ${profileLine.join(", ")}.`);
+    parts.push(`Официальный профиль указывает ${profileLine.join(" и ")}.`);
   }
 
-  if (highlights) {
-    parts.push(highlights);
-  } else if (description) {
-    if (status === "champion") {
-      parts.push("На текущий момент входит в число чемпионов своей организации.");
-    } else if (status === "prospect") {
-      parts.push("Считается одним из заметных проспектов своего дивизиона.");
-    } else if (status === "retired") {
-      parts.push("Сейчас значится вне активных выступлений.");
-    }
+  if (normalizedHighlights && !/[A-Za-z]{4,}/.test(normalizedHighlights)) {
+    parts.push(normalizedHighlights);
+  } else if (cleanDescription && !/[A-Za-z]{4,}/.test(cleanDescription)) {
+    parts.push(cleanDescription);
   } else {
     if (status === "champion") {
       parts.push("На текущий момент входит в число чемпионов своей организации.");
@@ -480,6 +726,12 @@ function buildGenericBioEn({
   const promotion = promotionLabel(promotionSlug);
   const weight = titleCase(stripTags(weightClass || "").replace(/\s+division$/i, "")) || "Lightweight";
   const countryEn = stripTags(country);
+  const cleanDescription = stripTags(description)
+    .replace(/Get the latest [^.]+(?:\.|$)/gi, "")
+    .replace(/Official profile details list [^.]+(?:\.|$)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedHighlights = stripTags(highlights).replace(/\s+/g, " ").trim();
   const parts = [`${name} is a professional ${promotion} fighter competing at ${weight.toLowerCase()}.`];
 
   if (nickname) {
@@ -487,23 +739,35 @@ function buildGenericBioEn({
   }
 
   if (countryEn && !/^unknown$/i.test(countryEn)) {
-    parts.push(`Represents ${countryEn}.`);
+    if (/,/.test(countryEn)) {
+      parts.push(`Fights out of ${countryEn}.`);
+    } else if (!/[А-Яа-яЁё]/.test(countryEn)) {
+      parts.push(`Represents ${countryEn}.`);
+    }
   }
 
   const profileLine = [];
   if (hasMeaningfulRecord(record)) {
-    profileLine.push(`record ${record}`);
+    const article = /^[8]|^11|^18/i.test(String(record || "").trim()) ? "an" : "a";
+    profileLine.push(`${article} ${record} professional record`);
   }
   if (hasMeaningfulTeam(team)) {
-    profileLine.push(`team ${team}`);
-  }
-  if (profileLine.length > 0) {
-    parts.push(`Official profile details list ${profileLine.join(", ")}.`);
+    profileLine.push(`${team} as the listed camp`);
   }
 
-  if (highlights) {
-    parts.push(highlights);
-  } else if (description) {
+  if (cleanDescription) {
+    parts.push(cleanDescription);
+  }
+
+  if (normalizedHighlights) {
+    parts.push(normalizedHighlights);
+  }
+
+  if (profileLine.length > 0) {
+    parts.push(`The official profile lists ${profileLine.join(" and ")}.`);
+  }
+
+  if (!cleanDescription && !normalizedHighlights) {
     if (status === "champion") {
       parts.push("Currently holds championship status in the promotion.");
     } else if (status === "prospect") {

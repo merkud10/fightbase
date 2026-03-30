@@ -318,21 +318,18 @@ function parsePflProfile(html, card, existing) {
             highlights: notes.length > 0 ? notes.join(". ") + "." : null,
             description
           }),
-    bioEn:
-      existing?.bioEn && existing.bioEn.length > 140
-        ? existing.bioEn
-        : buildGenericBioEn({
-            name,
-            promotionSlug: "pfl",
-            country: info.From || existing?.country || "Unknown",
-            weightClass,
-            status: existing?.status || "active",
-            nickname: nickname.replace(/^"|"$/g, "").trim() || existing?.nickname || null,
-            record: hasMeaningfulRecord(careerRecord) ? careerRecord : existing?.record || "",
-            team,
-            highlights: englishHighlights,
-            description
-          }),
+    bioEn: buildGenericBioEn({
+      name,
+      promotionSlug: "pfl",
+      country: info.From || existing?.country || "Unknown",
+      weightClass,
+      status: existing?.status || "active",
+      nickname: nickname.replace(/^"|"$/g, "").trim() || existing?.nickname || null,
+      record: hasMeaningfulRecord(careerRecord) ? careerRecord : existing?.record || "",
+      team,
+      highlights: englishHighlights,
+      description
+    }),
     recentFights: parsePflRecentFights(html, name, weightClass)
   };
 }

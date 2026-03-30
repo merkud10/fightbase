@@ -35,10 +35,19 @@ type RankingsPageFilters = {
 type UfcOfficialRankingLink = {
   localSlug?: string;
   officialUrl: string;
+  photoUrl?: string | null;
 };
 
 type PromotionRankingLink = {
   localSlug?: string;
+  photoUrl?: string | null;
+};
+
+type PromotionRankingLinkEntry = {
+  localSlug: string;
+  photoUrl?: string | null;
+  name: string;
+  nameRu?: string | null;
 };
 
 type FighterListItem = Prisma.FighterGetPayload<{
@@ -663,6 +672,7 @@ export async function getUfcOfficialRankingLinks() {
       slug: true,
       name: true,
       nameRu: true,
+      photoUrl: true,
       promotion: {
         select: {
           slug: true
@@ -677,7 +687,8 @@ export async function getUfcOfficialRankingLinks() {
   for (const fighter of fighters) {
     const link = {
       localSlug: fighter.slug,
-      officialUrl: `https://www.ufc.com/athlete/${fighter.slug}`
+      officialUrl: `https://www.ufc.com/athlete/${fighter.slug}`,
+      photoUrl: fighter.photoUrl
     };
     const isUfcFighter = fighter.promotion?.slug === "ufc";
     const existingBySlug = bySlug.get(fighter.slug.toLowerCase());
@@ -710,16 +721,19 @@ export async function getPromotionRankingLinks(promotionSlug: string) {
     select: {
       slug: true,
       name: true,
-      nameRu: true
+      nameRu: true,
+      photoUrl: true
     }
   });
 
   const bySlug = new Map<string, PromotionRankingLink>();
   const byName = new Map<string, PromotionRankingLink>();
+  const entries: PromotionRankingLinkEntry[] = [];
 
   for (const fighter of fighters) {
     const link = {
-      localSlug: fighter.slug
+      localSlug: fighter.slug,
+      photoUrl: fighter.photoUrl
     };
 
     bySlug.set(fighter.slug.toLowerCase(), link);
@@ -728,9 +742,16 @@ export async function getPromotionRankingLinks(promotionSlug: string) {
     if (fighter.nameRu) {
       byName.set(fighter.nameRu.toLowerCase(), link);
     }
+
+    entries.push({
+      localSlug: fighter.slug,
+      photoUrl: fighter.photoUrl,
+      name: fighter.name,
+      nameRu: fighter.nameRu
+    });
   }
 
-  return { bySlug, byName };
+  return { bySlug, byName, entries };
 }
 
 export async function getAnalysisPageData() {

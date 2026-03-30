@@ -269,21 +269,18 @@ function parseUfcProfile(html, slug, existing) {
             highlights,
             description
           }),
-    bioEn:
-      existing?.bioEn && existing.bioEn.length > 140
-        ? existing.bioEn
-        : buildGenericBioEn({
-            name,
-            promotionSlug: "ufc",
-            country,
-            weightClass: division,
-            status: parseStatusTag(html, existing?.status),
-            nickname,
-            record: normalizedRecord,
-            team,
-            highlights: description || null,
-            description
-          })
+    bioEn: buildGenericBioEn({
+      name,
+      promotionSlug: "ufc",
+      country,
+      weightClass: division,
+      status: parseStatusTag(html, existing?.status),
+      nickname,
+      record: normalizedRecord,
+      team,
+      highlights: null,
+      description
+    })
   };
 }
 
@@ -535,7 +532,7 @@ async function main() {
         console.log(`Created UFC fighter: ${fighter.name}`);
       }
     } catch (error) {
-      console.error(`Failed UFC sync for ${url}: ${error.message || error}`);
+      console.error(`Failed UFC sync for ${entry.url || entry.slug}: ${error.message || error}`);
     }
   }
 

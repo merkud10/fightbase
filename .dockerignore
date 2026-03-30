@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+next-dev.log
+next-build.log
+next-prod.log
+next-start.log
+next-start.err.log
+next-dev.err.log
+server-*.log
+ufc-sync.log
+.env
+.env.local
+design-concepts

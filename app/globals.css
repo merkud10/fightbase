@@ -663,6 +663,17 @@ img {
   min-width: 210px;
 }
 
+.ranking-champion-photo {
+  width: 100%;
+  max-width: 120px;
+  height: 120px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .ranking-champion-badge span {
   color: #d7b572;
   font-size: 0.78rem;
@@ -692,12 +703,38 @@ img {
 
 .ranking-fighter-cell {
   display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.ranking-fighter-copy {
+  display: grid;
   gap: 4px;
 }
 
 .ranking-fighter-cell span {
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.ranking-fighter-photo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: cover;
+  object-position: center top;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ranking-fighter-photo--placeholder {
+  display: grid;
+  place-items: center;
+  color: #d7b572;
+  font-weight: 800;
+  font-size: 1rem;
+  background: linear-gradient(145deg, rgba(207, 171, 99, 0.16), rgba(255, 255, 255, 0.04));
 }
 
 .ranking-status {

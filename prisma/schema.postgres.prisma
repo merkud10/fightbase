@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ArticleCategory {
+  news
+  analysis
+  interview
+  feature
+  video
+}
+
+enum ArticleStatus {
+  draft
+  review
+  published
+}
+
+enum EventStatus {
+  upcoming
+  live
+  completed
+}
+
+enum FighterStatus {
+  active
+  champion
+  retired
+  prospect
+}
+
+enum FightStage {
+  main_card
+  prelims
+  early_prelims
+}
+
+enum FightStatus {
+  scheduled
+  completed
+}
+
+enum SourceType {
+  official
+  interview
+  social
+  press_release
+  stats
+}
+
+enum IngestionRunStatus {
+  running
+  success
+  partial
+  failed
+  dry_run
+}
+
+model Promotion {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  shortName String
+  fighters  Fighter[]
+  events    Event[]
+  articles  Article[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Source {
+  id         String          @id @default(cuid())
+  slug       String          @unique
+  label      String
+  type       SourceType
+  url        String
+  articleMap ArticleSource[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+model Tag {
+  id         String       @id @default(cuid())
+  slug       String       @unique
+  label      String
+  articleMap ArticleTag[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model Fighter {
+  id                     String              @id @default(cuid())
+  slug                   String              @unique
+  name                   String
+  nameRu                 String?
+  nickname               String?
+  photoUrl               String?
+  country                String
+  weightClass            String
+  status                 FighterStatus
+  record                 String
+  age                    Int
+  heightCm               Int
+  reachCm                Int
+  winsByKnockout         Int?
+  winsBySubmission       Int?
+  winsByDecision         Int?
+  sigStrikesLandedPerMin Float?
+  strikeAccuracy         Int?
+  sigStrikesAbsorbedPerMin Float?
+  strikeDefense          Int?
+  takedownAveragePer15   Float?
+  takedownAccuracy       Int?
+  takedownDefense        Int?
+  submissionAveragePer15 Float?
+  averageFightTime       String?
+  team                   String
+  style                  String
+  bio                    String
+  bioEn                  String?
+  promotionId            String
+  promotion              Promotion           @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  articleMap             ArticleFighter[]
+  fightsA                Fight[]             @relation("FightA")
+  fightsB                Fight[]             @relation("FightB")
+  recentFights           FighterRecentFight[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+}
+
+model FighterRecentFight {
+  id             String   @id @default(cuid())
+  fighterId      String
+  opponentName   String
+  opponentNameRu String?
+  eventName      String
+  result         String
+  method         String?
+  date           DateTime
+  round          Int?
+  time           String?
+  weightClass    String?
+  notes          String?
+  fighter        Fighter  @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  name        String
+  date        DateTime
+  city        String
+  venue       String
+  status      EventStatus
+  summary     String
+  promotionId String
+  promotion   Promotion   @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  fights      Fight[]
+  articles    Article[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Fight {
+  id              String      @id @default(cuid())
+  stage           FightStage
+  weightClass     String
+  status          FightStatus
+  winnerFighterId String?
+  method          String?
+  resultRound     Int?
+  resultTime      String?
+  eventId         String
+  fighterAId      String
+  fighterBId      String
+  event           Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fighterA        Fighter     @relation("FightA", fields: [fighterAId], references: [id], onDelete: Restrict)
+  fighterB        Fighter     @relation("FightB", fields: [fighterBId], references: [id], onDelete: Restrict)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Article {
+  id                     String           @id @default(cuid())
+  slug                   String           @unique
+  title                  String
+  excerpt                String
+  meaning                String
+  category               ArticleCategory
+  status                 ArticleStatus    @default(draft)
+  aiConfidence           Float?
+  ingestionSourceSummary String?
+  ingestionNotes         String?
+  publishedAt            DateTime
+  promotionId            String?
+  eventId                String?
+  promotion              Promotion?       @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  event                  Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  sections               ArticleSection[]
+  tagMap                 ArticleTag[]
+  fighterMap             ArticleFighter[]
+  sourceMap              ArticleSource[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+}
+
+model ArticleSection {
+  id        String   @id @default(cuid())
+  heading   String
+  body      String
+  sortOrder Int
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model ArticleFighter {
+  articleId String
+  fighterId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  fighter   Fighter @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, fighterId])
+}
+
+model ArticleSource {
+  articleId String
+  sourceId  String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, sourceId])
+}
+
+model IngestionRun {
+  id             String             @id @default(cuid())
+  sourceKind     String
+  mode           String
+  status         IngestionRunStatus
+  filePath       String?
+  baseUrl        String?
+  itemCount      Int                @default(0)
+  createdCount   Int                @default(0)
+  duplicateCount Int                @default(0)
+  failedCount    Int                @default(0)
+  durationMs     Int?
+  message        String?
+  startedAt      DateTime           @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}

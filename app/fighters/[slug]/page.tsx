@@ -6,6 +6,60 @@ import { getFighterPageData } from "@/lib/db";
 import { formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 
+const countryLocaleMap: Record<string, { ru: string; en: string }> = {
+  "США": { ru: "США", en: "United States" },
+  "Россия": { ru: "Россия", en: "Russia" },
+  "Румыния": { ru: "Румыния", en: "Romania" },
+  "Бразилия": { ru: "Бразилия", en: "Brazil" },
+  "Сингапур": { ru: "Сингапур", en: "Singapore" },
+  "Казахстан": { ru: "Казахстан", en: "Kazakhstan" },
+  "Китай": { ru: "Китай", en: "China" },
+  "Грузия": { ru: "Грузия", en: "Georgia" },
+  "Великобритания": { ru: "Великобритания", en: "United Kingdom" },
+  "Англия": { ru: "Англия", en: "England" },
+  "Ирландия": { ru: "Ирландия", en: "Ireland" },
+  "Франция": { ru: "Франция", en: "France" },
+  "Япония": { ru: "Япония", en: "Japan" },
+  "ЮАР": { ru: "ЮАР", en: "South Africa" },
+  "Нидерланды": { ru: "Нидерланды", en: "Netherlands" },
+  "Испания": { ru: "Испания", en: "Spain" },
+  "Армения": { ru: "Армения", en: "Armenia" },
+  "Канада": { ru: "Канада", en: "Canada" },
+  "Эквадор": { ru: "Эквадор", en: "Ecuador" },
+  "Украина": { ru: "Украина", en: "Ukraine" },
+  "Узбекистан": { ru: "Узбекистан", en: "Uzbekistan" },
+  "Кыргызстан": { ru: "Кыргызстан", en: "Kyrgyzstan" },
+  "Мексика": { ru: "Мексика", en: "Mexico" },
+  "Филиппины": { ru: "Филиппины", en: "Philippines" },
+  "Таиланд": { ru: "Таиланд", en: "Thailand" },
+  "Южная Корея": { ru: "Южная Корея", en: "South Korea" },
+  "Швеция": { ru: "Швеция", en: "Sweden" },
+  "Норвегия": { ru: "Норвегия", en: "Norway" },
+  "Польша": { ru: "Польша", en: "Poland" },
+  "Чехия": { ru: "Чехия", en: "Czechia" },
+  "Беларусь": { ru: "Беларусь", en: "Belarus" },
+  "Германия": { ru: "Германия", en: "Germany" },
+  "Швейцария": { ru: "Швейцария", en: "Switzerland" },
+  "Австралия": { ru: "Австралия", en: "Australia" },
+  "Новая Зеландия": { ru: "Новая Зеландия", en: "New Zealand" },
+  "Израиль": { ru: "Израиль", en: "Israel" },
+  "Италия": { ru: "Италия", en: "Italy" },
+  "Турция": { ru: "Турция", en: "Turkey" },
+  "Камерун": { ru: "Камерун", en: "Cameroon" },
+  "Нигерия": { ru: "Нигерия", en: "Nigeria" },
+  "Перу": { ru: "Перу", en: "Peru" },
+  "Молдова": { ru: "Молдова", en: "Moldova" },
+  "Тайвань": { ru: "Тайвань", en: "Taiwan" },
+  "ОАЭ": { ru: "ОАЭ", en: "United Arab Emirates" },
+  "Австрия": { ru: "Австрия", en: "Austria" },
+  "Болгария": { ru: "Болгария", en: "Bulgaria" },
+  "Дания": { ru: "Дания", en: "Denmark" },
+  "Чили": { ru: "Чили", en: "Chile" },
+  "Колумбия": { ru: "Колумбия", en: "Colombia" },
+  "Куба": { ru: "Куба", en: "Cuba" },
+  "Сенегал": { ru: "Сенегал", en: "Senegal" }
+};
+
 function formatDate(date: Date | string, locale: "ru" | "en") {
   return new Date(date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US");
 }
@@ -177,6 +231,25 @@ function cleanOpponentName(value: string | null | undefined) {
 
 function hasCyrillic(value: string | null | undefined) {
   return /[А-Яа-яЁё]/.test(String(value || ""));
+}
+
+function formatCountry(value: string | null | undefined, locale: "ru" | "en") {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const direct = countryLocaleMap[normalized];
+  if (direct) {
+    return direct[locale];
+  }
+
+  const reverse = Object.values(countryLocaleMap).find((item) => item.en === normalized);
+  if (reverse) {
+    return reverse[locale];
+  }
+
+  return normalized;
 }
 
 function buildEnglishFighterBio(fighter: {
@@ -383,7 +456,7 @@ export default async function FighterPage({
                   {locale === "ru" ? "Размах рук" : "Reach"}: {formatVitalNumber(fighter.reachCm, locale === "ru" ? "см" : "cm", locale)}
                 </p>
               ) : null}
-              {fighter.country ? <p className="copy">{fighter.country}</p> : null}
+              {fighter.country ? <p className="copy">{formatCountry(fighter.country, locale)}</p> : null}
             </div>
           ) : null}
 

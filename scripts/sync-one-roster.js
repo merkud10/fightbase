@@ -164,21 +164,18 @@ function parseOneProfile(html, slug, existing) {
             highlights,
             description
           }),
-    bioEn:
-      existing?.bioEn && existing.bioEn.length > 140
-        ? existing.bioEn
-        : buildGenericBioEn({
-            name,
-            promotionSlug: "one",
-            country,
-            weightClass,
-            status: existing?.status || "active",
-            nickname,
-            record: recordText,
-            team,
-            highlights: description || null,
-            description
-          })
+    bioEn: buildGenericBioEn({
+      name,
+      promotionSlug: "one",
+      country,
+      weightClass,
+      status: existing?.status || "active",
+      nickname,
+      record: recordText,
+      team,
+      highlights: null,
+      description
+    })
   };
 }
 

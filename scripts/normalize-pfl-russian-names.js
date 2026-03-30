@@ -24,6 +24,8 @@ const overrideMap = {
   "Yabna N’tchala": "Ябна Нтчала"
 };
 
+overrideMap["Natan Schulte"] = "Натан Шулте";
+
 function deaccent(value) {
   return String(value || "")
     .replace(/[’']/g, "'")

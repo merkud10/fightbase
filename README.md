@@ -44,7 +44,9 @@ Useful commands:
 
 ```bash
 npm run prisma:generate
+npm run prisma:generate:pg
 npm run db:push
+npm run db:push:pg
 npm run db:seed
 npm run db:studio
 npm run content:seed-fighters
@@ -138,6 +140,20 @@ To initialize the local database:
 
 ```bash
 npm run db:push
+npm run db:seed
+```
+
+To prepare a local Postgres database:
+
+```bash
+npm run db:start:pg
+```
+
+Then temporarily point `DATABASE_URL` to the value from `POSTGRES_DATABASE_URL` and run:
+
+```bash
+npm run prisma:generate:pg
+npm run db:push:pg
 npm run db:seed
 ```
 
@@ -249,10 +265,59 @@ For public deployment, configure:
 
 - production database URL
 - `INGEST_CRON_SECRET`
+- `NEXT_PUBLIC_SITE_URL`
+- `DEPLOYMENT_ENV="production"`
 - optional `OPENAI_API_KEY`
 - optional `OLLAMA_URL` and `OLLAMA_MODEL` if self-hosted translation is used
 - health probe at `/api/health`
 - ingestion run visibility in `/admin` and `/api/health`
+
+Health now also reports:
+
+- deployment mode
+- database kind
+- whether site URL and cron secret are configured
+- whether the current env is safe for public deployment
+
+## Docker deployment
+
+The project now supports standalone Next.js output for container deployment.
+
+Build image:
+
+```bash
+docker build -t fightbase-media .
+```
+
+Run container:
+
+```bash
+docker run --rm -p 3000:3000 ^
+  --env-file .env ^
+  fightbase-media
+```
+
+For public hosting, replace local SQLite with Postgres before deployment.
+
+## Postgres migration path
+
+The project now includes a parallel Postgres-ready Prisma schema:
+
+- `prisma/schema.postgres.prisma`
+- `docker-compose.postgres.yml`
+- `ops/start-postgres-local.ps1`
+- `ops/stop-postgres-local.ps1`
+
+Recommended migration sequence:
+
+1. Start local Postgres with `npm run db:start:pg`
+2. Switch `DATABASE_URL` to a Postgres URL
+3. Run `npm run prisma:generate:pg`
+4. Run `npm run db:push:pg`
+5. Run `npm run db:seed`
+6. Smoke-test the app and `/api/health`
+
+Current app runtime still uses SQLite by default for local work, but the Postgres path is now prepared for the next deployment step.
 
 ## Recommended next step
 
@@ -261,3 +326,20 @@ Build on the deployment-ready ingestion workflow by adding:
 - more source-specific fetchers/parsers before JSON normalization
 - GitHub remote and production hosting setup
 - production Postgres instead of local SQLite
+
+## GitHub CI
+
+The repository now includes a basic GitHub Actions workflow:
+
+- `.github/workflows/ci.yml`
+
+It runs:
+
+- `npm ci`
+- `npm run prisma:generate`
+- `npm run db:push`
+- `npm run build`
+
+Deployment checklist:
+
+- `DEPLOY_CHECKLIST.md`

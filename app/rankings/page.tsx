@@ -11,12 +11,152 @@ type RankingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+type PromotionRankingLinks = Awaited<ReturnType<typeof getPromotionRankingLinks>>;
+
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
 function buildPromotionHref(promotion: string) {
   return promotion ? `/rankings?promotion=${promotion}` : "/rankings";
+}
+
+function normalizeRankingName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9\s-]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getNameTokens(value: string) {
+  return normalizeRankingName(value)
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function getLastToken(value: string) {
+  const tokens = getNameTokens(value);
+  return tokens[tokens.length - 1] ?? "";
+}
+
+function getFirstToken(value: string) {
+  const tokens = getNameTokens(value);
+  return tokens[0] ?? "";
+}
+
+function getEditDistance(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+
+  if (!left.length) {
+    return right.length;
+  }
+
+  if (!right.length) {
+    return left.length;
+  }
+
+  const matrix = Array.from({ length: left.length + 1 }, () => new Array<number>(right.length + 1).fill(0));
+
+  for (let row = 0; row <= left.length; row += 1) {
+    matrix[row][0] = row;
+  }
+
+  for (let column = 0; column <= right.length; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row <= left.length; row += 1) {
+    for (let column = 1; column <= right.length; column += 1) {
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1;
+
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + cost
+      );
+    }
+  }
+
+  return matrix[left.length][right.length];
+}
+
+function namesLookClose(left: string, right: string) {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left === right) {
+    return true;
+  }
+
+  if (left.startsWith(right) || right.startsWith(left)) {
+    return Math.min(left.length, right.length) >= 4;
+  }
+
+  return getEditDistance(left, right) <= 2;
+}
+
+function findPromotionRankingLink(name: string, rankingLinks: PromotionRankingLinks | null) {
+  if (!rankingLinks) {
+    return null;
+  }
+
+  const normalizedName = normalizeRankingName(name);
+  const direct = rankingLinks.byName.get(name.toLowerCase()) ?? rankingLinks.byName.get(normalizedName);
+
+  if (direct) {
+    return direct;
+  }
+
+  const targetLast = getLastToken(name);
+  const targetFirst = getFirstToken(name);
+
+  if (!targetLast) {
+    return null;
+  }
+
+  const candidates = rankingLinks.entries.filter((entry) => {
+    const entryLast = getLastToken(entry.name);
+    return entryLast && entryLast === targetLast;
+  });
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const bestCandidate = candidates
+    .map((entry) => ({
+      entry,
+      score: (() => {
+        const entryFirst = getFirstToken(entry.name);
+        const entryNormalized = normalizeRankingName(entry.name);
+
+        if (entryNormalized === normalizedName) {
+          return 100;
+        }
+
+        if (namesLookClose(entryFirst, targetFirst)) {
+          return 80 - getEditDistance(entryFirst, targetFirst);
+        }
+
+        return -1;
+      })()
+    }))
+    .sort((left, right) => right.score - left.score)[0];
+
+  if (!bestCandidate || bestCandidate.score < 0) {
+    return null;
+  }
+
+  return {
+    localSlug: bestCandidate.entry.localSlug,
+    photoUrl: bestCandidate.entry.photoUrl
+  };
 }
 
 function getPromotionHeadline(slug: string, locale: "ru" | "en") {
@@ -115,6 +255,14 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                     </div>
 
                     <div className="ranking-champion-badge">
+                      {championLink?.photoUrl || group.champion.imageUrl ? (
+                        <img
+                          src={championLink?.photoUrl ?? group.champion.imageUrl ?? ""}
+                          alt={group.champion.name}
+                          className="ranking-champion-photo"
+                          loading="lazy"
+                        />
+                      ) : null}
                       <span>{locale === "ru" ? "Чемпион дивизиона" : "Division champion"}</span>
                       <strong>{group.champion.name}</strong>
                       <Link
@@ -150,8 +298,22 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                               <td>{fighter.rank + 1}</td>
                               <td>
                                 <div className="ranking-fighter-cell">
-                                  <strong>{fighter.name}</strong>
-                                  <span>UFC</span>
+                                  {link?.photoUrl ? (
+                                    <img
+                                      src={link.photoUrl}
+                                      alt={fighter.name}
+                                      className="ranking-fighter-photo"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="ranking-fighter-photo ranking-fighter-photo--placeholder" aria-hidden="true">
+                                      {fighter.name.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div className="ranking-fighter-copy">
+                                    <strong>{fighter.name}</strong>
+                                    <span>UFC</span>
+                                  </div>
                                 </div>
                               </td>
                               <td>
@@ -189,9 +351,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
             </section>
 
             {pflGroups.map((group) => {
-              const championLink =
-                pflLinks?.byName.get(group.champion.name.toLowerCase()) ??
-                null;
+              const championLink = findPromotionRankingLink(group.champion.name, pflLinks);
               const visibleRows =
                 group.rows[0]?.name.toLowerCase() === group.champion.name.toLowerCase()
                   ? group.rows.slice(1)
@@ -210,6 +370,14 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                     </div>
 
                     <div className="ranking-champion-badge">
+                      {championLink?.photoUrl || group.champion.imageUrl ? (
+                        <img
+                          src={championLink?.photoUrl ?? group.champion.imageUrl ?? ""}
+                          alt={group.champion.name}
+                          className="ranking-champion-photo"
+                          loading="lazy"
+                        />
+                      ) : null}
                       <span>{group.champion.isChampion ? (locale === "ru" ? "Чемпион дивизиона" : "Division champion") : (locale === "ru" ? "Лидер рейтинга" : "Top-ranked fighter")}</span>
                       <strong>{group.champion.name}</strong>
                       {championLink?.localSlug ? (
@@ -231,15 +399,29 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                       </thead>
                       <tbody>
                         {visibleRows.map((fighter, index) => {
-                          const link = pflLinks?.byName.get(fighter.name.toLowerCase()) ?? null;
+                          const link = findPromotionRankingLink(fighter.name, pflLinks);
 
                           return (
                             <tr key={`${group.title}-${fighter.rank}`} className="ranking-row">
                               <td>{group.champion.isChampion ? index + 2 : index + 1}</td>
                               <td>
                                 <div className="ranking-fighter-cell">
-                                  <strong>{fighter.name}</strong>
-                                  <span>PFL</span>
+                                  {link?.photoUrl ? (
+                                    <img
+                                      src={link.photoUrl}
+                                      alt={fighter.name}
+                                      className="ranking-fighter-photo"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="ranking-fighter-photo ranking-fighter-photo--placeholder" aria-hidden="true">
+                                      {fighter.name.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div className="ranking-fighter-copy">
+                                    <strong>{fighter.name}</strong>
+                                    <span>PFL</span>
+                                  </div>
                                 </div>
                               </td>
                               <td>
@@ -318,8 +500,22 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                               <td>{index + 1}</td>
                               <td>
                                 <div className="ranking-fighter-cell">
-                                  <strong>{displayName}</strong>
-                                  {fighter.promotion?.shortName ? <span>{fighter.promotion.shortName}</span> : null}
+                                  {fighter.photoUrl ? (
+                                    <img
+                                      src={fighter.photoUrl}
+                                      alt={displayName}
+                                      className="ranking-fighter-photo"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <div className="ranking-fighter-photo ranking-fighter-photo--placeholder" aria-hidden="true">
+                                      {displayName.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div className="ranking-fighter-copy">
+                                    <strong>{displayName}</strong>
+                                    {fighter.promotion?.shortName ? <span>{fighter.promotion.shortName}</span> : null}
+                                  </div>
                                 </div>
                               </td>
                               <td>{displayRecord}</td>
