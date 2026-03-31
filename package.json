@@ -55,6 +55,7 @@
     "content:discover-news": "node scripts/discover-weekly-news.js --target news",
     "content:discover-quotes": "node scripts/discover-weekly-news.js --target quotes",
     "content:discover-predictions": "node scripts/discover-weekly-news.js --target predictions",
+    "content:discover-fight-predictions": "node scripts/discover-fight-predictions.js",
     "content:discover-ai-news": "node scripts/discover-ai-news.js",
     "content:refresh-fighters-full": "node scripts/seed-fighter-cards.js && node scripts/seed-bellator-pfl-expansion.js && node scripts/sync-ufc-roster.js && node scripts/sync-ufc-russian-names.js --concurrency 24 && node scripts/sync-pfl-roster.js && node scripts/normalize-pfl-russian-names.js && node scripts/sync-one-roster.js && node scripts/refresh-non-ufc-russian-names.js && node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js && node scripts/normalize-imported-fighters.js && node scripts/backfill-fighter-bio-en.js && node scripts/fill-missing-fighter-bio-en.js && node scripts/refresh-fighter-bio-en-quality.js && node scripts/refresh-fighter-bio-ru-quality.js && node scripts/fill-missing-fighter-photos.js",
     "ingest:feed": "node scripts/ingest-feed.js",

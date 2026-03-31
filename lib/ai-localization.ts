@@ -73,6 +73,25 @@ function looksRussian(value: string) {
   return /[А-Яа-яЁё]/.test(value);
 }
 
+function getLetterStats(value: string) {
+  const cyrillic = (value.match(/[А-Яа-яЁё]/g) || []).length;
+  const latin = (value.match(/[A-Za-z]/g) || []).length;
+  return {
+    cyrillic,
+    latin,
+    total: cyrillic + latin
+  };
+}
+
+function isPredominantlyRussian(value: string) {
+  const stats = getLetterStats(value);
+  if (stats.total === 0) {
+    return false;
+  }
+
+  return stats.cyrillic / stats.total >= 0.55;
+}
+
 function looksUkrainian(value: string) {
   const lower = value.toLowerCase();
   return /[іїєґ]/i.test(value) || /\b(та|після|переміг|відбувся|глядачі|поєдинок|судді|головному|висвітлення|результати)\b/i.test(lower);
@@ -519,7 +538,7 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
 export async function localizeIngestionInput(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const sourceText = `${input.headline}\n${input.body}`.trim();
 
-  if (!sourceText || looksRussian(sourceText)) {
+  if (!sourceText || (looksRussian(sourceText) && isPredominantlyRussian(sourceText))) {
     return {
       headline: input.headline,
       body: input.body,

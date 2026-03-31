@@ -463,7 +463,8 @@ function getDuplicateReason(titleOverlap: number, sameSource: boolean, samePromo
 async function findDuplicateCandidate(
   normalizedTitle: string,
   sourceId: string,
-  relations: Awaited<ReturnType<typeof inferRelations>>
+  relations: Awaited<ReturnType<typeof inferRelations>>,
+  category: ArticleCategory
 ) {
   const existingArticles = await prisma.article.findMany({
     where: {
@@ -490,6 +491,8 @@ async function findDuplicateCandidate(
   });
 
   const incomingTokens = buildTokenSet(normalizedTitle);
+  const relationFighterIds = new Set(relations.fighters.map((fighter) => fighter.id));
+  const isFightSpecificAnalysis = category === "analysis" && Boolean(relations.event?.id) && relationFighterIds.size >= 2;
 
   for (const article of existingArticles) {
     const existingTitle = normalizeComparableText(article.title);
@@ -497,9 +500,13 @@ async function findDuplicateCandidate(
     const sameSource = article.sourceMap.some((item) => item.sourceId === sourceId);
     const samePromotion = Boolean(relations.promotion?.id && article.promotionId === relations.promotion.id);
     const sameEvent = Boolean(relations.event?.id && article.eventId === relations.event.id);
+    const fighterOverlapCount = article.fighterMap.filter((item) => relationFighterIds.has(item.fighterId)).length;
 
     const exactMatch = existingTitle === normalizedTitle;
-    const nearMatch = titleOverlap >= 0.75 && (sameSource || samePromotion || sameEvent);
+    const nearMatch =
+      titleOverlap >= 0.75 &&
+      (sameSource || samePromotion || sameEvent) &&
+      (!isFightSpecificAnalysis || fighterOverlapCount >= 2);
 
     if (exactMatch || nearMatch) {
       return {
@@ -563,6 +570,13 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     console.error("Failed to localize ingestion input", error);
   }
 
+  if (input.category === "analysis" && (input.fighterSlugs?.length || 0) >= 2) {
+    localizedInput = {
+      ...localizedInput,
+      headline: hydratedInput.headline
+    };
+  }
+
   const normalized = normalizeIngestionItem({
     headline: localizedInput.headline,
     body: localizedInput.body,
@@ -590,7 +604,12 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const cleanedTitle = cleanNewsTitle(normalized.articleDraft.title, qualityFighters);
   const cleanedExcerpt = cleanNewsText(normalized.articleDraft.excerpt, qualityFighters);
   const cleanedBody = cleanNewsText(normalized.articleDraft.body, qualityFighters);
-  const duplicateCandidate = await findDuplicateCandidate(normalizeComparableText(normalized.articleDraft.title), source.id, relations);
+  const duplicateCandidate = await findDuplicateCandidate(
+    normalizeComparableText(normalized.articleDraft.title),
+    source.id,
+    relations,
+    input.category ?? normalized.articleDraft.category
+  );
   const confidence = adjustConfidence(normalized.confidence, relations, Boolean(duplicateCandidate));
 
   if (duplicateCandidate) {

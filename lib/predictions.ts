@@ -35,7 +35,9 @@ function parseRecord(record: string | null | undefined) {
   };
 }
 
-export function getPredictionScore(fighter: Omit<FighterPredictionData, "id" | "slug" | "name" | "nameRu" | "recentFights">) {
+export function getPredictionScore(
+  fighter: Omit<FighterPredictionData, "id" | "slug" | "name" | "nameRu" | "recentFights">
+) {
   const parsed = parseRecord(fighter.record);
   const total = parsed.wins + parsed.losses + parsed.draws;
   const winRate = total > 0 ? parsed.wins / total : 0;
@@ -53,10 +55,7 @@ export function getPredictionScore(fighter: Omit<FighterPredictionData, "id" | "
   );
 }
 
-export function getDisplayName(
-  fighter: Pick<FighterPredictionData, "name" | "nameRu">,
-  locale: Locale
-) {
+export function getDisplayName(fighter: Pick<FighterPredictionData, "name" | "nameRu">, locale: Locale) {
   return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
 }
 
@@ -89,8 +88,7 @@ function compareMetric(
   left: number | null | undefined,
   right: number | null | undefined,
   locale: Locale,
-  formatter: (value: number | null | undefined) => string | null = (value) =>
-    value == null ? null : value.toFixed(2)
+  formatter: (value: number | null | undefined) => string | null = (value) => (value == null ? null : value.toFixed(2))
 ) {
   if (left == null && right == null) {
     return null;
@@ -98,16 +96,11 @@ function compareMetric(
 
   const leftValue = formatter(left) ?? "-";
   const rightValue = formatter(right) ?? "-";
-  return locale === "ru"
-    ? `${labelRu}: ${leftValue} против ${rightValue}`
-    : `${labelEn}: ${leftValue} to ${rightValue}`;
+
+  return locale === "ru" ? `${labelRu}: ${leftValue} против ${rightValue}` : `${labelEn}: ${leftValue} to ${rightValue}`;
 }
 
-function buildPathsToVictory(
-  locale: Locale,
-  fighterA: FighterPredictionData,
-  fighterB: FighterPredictionData
-) {
+function buildPathsToVictory(locale: Locale, fighterA: FighterPredictionData, fighterB: FighterPredictionData) {
   const fighterAName = getDisplayName(fighterA, locale);
   const fighterBName = getDisplayName(fighterB, locale);
 
@@ -127,11 +120,7 @@ function buildPathsToVictory(
   };
 }
 
-export function buildPredictionCopy(
-  locale: Locale,
-  fighterA: FighterPredictionData,
-  fighterB: FighterPredictionData
-) {
+export function buildPredictionCopy(locale: Locale, fighterA: FighterPredictionData, fighterB: FighterPredictionData) {
   const scoreA = getPredictionScore(fighterA);
   const scoreB = getPredictionScore(fighterB);
   const favorite = scoreA >= scoreB ? fighterA : fighterB;
@@ -181,7 +170,7 @@ export function buildPredictionCopy(
         : `If the fight stays orderly, the edge should keep tilting toward ${favoriteName}. ${underdogName} needs more disruption, more phase changes, and moments where raw leverage or timing can bend the fight.`,
     pick:
       locale === "ru"
-        ? `Выбор FightBase: ${favoriteName} — ${confidenceLabel}.`
+        ? `Выбор FightBase: ${favoriteName} - ${confidenceLabel}.`
         : `FightBase pick: ${favoriteName} with a ${confidenceLabel}.`,
     formA: summarizeRecentForm(fighterA, locale),
     formB: summarizeRecentForm(fighterB, locale),
