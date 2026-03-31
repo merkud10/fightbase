@@ -179,6 +179,77 @@ function normalizeOpponentName(value) {
     .trim();
 }
 
+function inferResultFromNotes(notes) {
+  const text = String(notes || "").toLowerCase();
+
+  if (!text) {
+    return "";
+  }
+
+  if (/won|stopped|submitted|scored/i.test(text)) {
+    return "Победа";
+  }
+
+  if (/disqualified|lost|was defeated|was stopped|was knocked out|was submitted/i.test(text)) {
+    return "Поражение";
+  }
+
+  if (/no contest/i.test(text)) {
+    return "Несостоявшийся бой";
+  }
+
+  return "";
+}
+
+function getRecentFightSourceRank(fight) {
+  if (String(fight.notes || "").trim()) {
+    return 3;
+  }
+
+  if (String(fight.method || "").trim()) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function choosePreferredFightResult(left, right) {
+  const leftFromNotes = inferResultFromNotes(left.notes);
+  const rightFromNotes = inferResultFromNotes(right.notes);
+
+  if (leftFromNotes && !rightFromNotes) {
+    return leftFromNotes;
+  }
+
+  if (rightFromNotes && !leftFromNotes) {
+    return rightFromNotes;
+  }
+
+  if (leftFromNotes && rightFromNotes) {
+    return getRecentFightSourceRank(right) >= getRecentFightSourceRank(left) ? rightFromNotes : leftFromNotes;
+  }
+
+  if (!left.result) return right.result;
+  if (!right.result) return left.result;
+  if (left.result === right.result) return left.result;
+
+  return getRecentFightSourceRank(right) >= getRecentFightSourceRank(left) ? right.result : left.result;
+}
+
+function mergeParsedRecentFight(base, incoming) {
+  return {
+    opponentName: incoming.opponentName.length > base.opponentName.length ? incoming.opponentName : base.opponentName,
+    eventName: incoming.eventName.length > base.eventName.length ? incoming.eventName : base.eventName,
+    result: choosePreferredFightResult(base, incoming),
+    method: String(incoming.method || "").trim() || base.method || null,
+    date: incoming.date && (!base.date || new Date(incoming.date).getTime() >= new Date(base.date).getTime()) ? incoming.date : base.date,
+    round: incoming.round || base.round || null,
+    time: incoming.time || base.time || null,
+    weightClass: incoming.weightClass || base.weightClass || null,
+    notes: String(incoming.notes || "").trim() ? incoming.notes : base.notes
+  };
+}
+
 function parsePercentValue(raw) {
   const match = String(raw || "").match(/(\d+)/);
   return match ? Number(match[1]) : null;
@@ -422,8 +493,7 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
     });
   }
 
-  const deduped = [];
-  const seen = new Set();
+  const deduped = new Map();
   const normalizeKey = (value) =>
     String(value || "")
       .toLowerCase()
@@ -434,14 +504,11 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
     const eventKey = normalizeKey(fight.eventName);
     const opponentKey = normalizeKey(fight.opponentName).split(" ").slice(-1)[0] || normalizeKey(fight.opponentName);
     const key = `${dateKey}:${eventKey}:${opponentKey}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    deduped.push(fight);
+    const existing = deduped.get(key);
+    deduped.set(key, existing ? mergeParsedRecentFight(existing, fight) : fight);
   }
 
-  return deduped.sort((left, right) => {
+  return [...deduped.values()].sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;

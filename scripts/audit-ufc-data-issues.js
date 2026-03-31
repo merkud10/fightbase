@@ -30,10 +30,15 @@ function tokens(value) {
 function detectResult(note) {
   const value = String(note || "").trim();
   if (!value) return null;
-  if (/\b(won|submitted|stopped)\b/i.test(value) && !/\bwas submitted\b/i.test(value) && !/\bwas stopped\b/i.test(value)) {
+  if (
+    /\b(won|submitted|stopped|knocked out)\b/i.test(value) &&
+    !/\bwas submitted\b/i.test(value) &&
+    !/\bwas stopped\b/i.test(value) &&
+    !/\bwas knocked out\b/i.test(value)
+  ) {
     return "Победа";
   }
-  if (/\b(lost|was submitted|was stopped)\b/i.test(value)) {
+  if (/\b(lost|was submitted|was stopped|was knocked out)\b/i.test(value)) {
     return "Поражение";
   }
   if (/\bno contest\b/i.test(value)) {

@@ -88,6 +88,65 @@ function buildMergeKey(fight) {
   return `${year}:${eventKey}:${opponentKey}`;
 }
 
+function datesAreNear(left, right, maxDays = 2) {
+  if (!left || !right) {
+    return false;
+  }
+
+  const diffMs = Math.abs(new Date(left).getTime() - new Date(right).getTime());
+  return diffMs <= maxDays * 24 * 60 * 60 * 1000;
+}
+
+function findCompatibleMergeKey(merged, normalizedFight) {
+  const incomingOpponentBits = normalizeKeyFragment(normalizedFight.opponentName).split(" ").filter(Boolean);
+  const incomingOpponentKey = incomingOpponentBits.slice(-1)[0] || normalizeKeyFragment(normalizedFight.opponentName);
+  const incomingYear = normalizedFight.date ? new Date(normalizedFight.date).getUTCFullYear() : "no-date";
+
+  for (const [key, existing] of merged.entries()) {
+    const existingOpponentBits = normalizeKeyFragment(existing.opponentName).split(" ").filter(Boolean);
+    const existingOpponentKey = existingOpponentBits.slice(-1)[0] || normalizeKeyFragment(existing.opponentName);
+    const existingYear = existing.date ? new Date(existing.date).getUTCFullYear() : "no-date";
+
+    if (incomingOpponentKey !== existingOpponentKey) {
+      continue;
+    }
+
+    if (incomingYear !== existingYear) {
+      continue;
+    }
+
+    if (datesAreNear(existing.date, normalizedFight.date)) {
+      return key;
+    }
+  }
+
+  return null;
+}
+
+function collapseNearbyOpponentDuplicates(fights) {
+  const collapsed = [];
+
+  for (const fight of fights) {
+    const existingIndex = collapsed.findIndex((entry) => {
+      const incomingOpponentBits = normalizeKeyFragment(fight.opponentName).split(" ").filter(Boolean);
+      const existingOpponentBits = normalizeKeyFragment(entry.opponentName).split(" ").filter(Boolean);
+      const incomingOpponentKey = incomingOpponentBits.slice(-1)[0] || normalizeKeyFragment(fight.opponentName);
+      const existingOpponentKey = existingOpponentBits.slice(-1)[0] || normalizeKeyFragment(entry.opponentName);
+
+      return incomingOpponentKey === existingOpponentKey && datesAreNear(entry.date, fight.date);
+    });
+
+    if (existingIndex === -1) {
+      collapsed.push(fight);
+      continue;
+    }
+
+    collapsed[existingIndex] = mergeFightRecords(collapsed[existingIndex], fight);
+  }
+
+  return collapsed;
+}
+
 function chooseBetterText(left, right) {
   const a = String(left || "").trim();
   const b = String(right || "").trim();
@@ -100,12 +159,49 @@ function chooseBetterDate(left, right) {
   return new Date(right).getTime() > new Date(left).getTime() ? right : left;
 }
 
+function inferResultFromNotes(notes) {
+  const text = String(notes || "").toLowerCase();
+
+  if (!text) {
+    return "";
+  }
+
+  if (/won|stopped|submitted|scored/i.test(text)) return "Победа";
+  if (/disqualified|lost|was defeated|was stopped|was knocked out|was submitted/i.test(text)) return "Поражение";
+  if (/no contest/i.test(text)) return "Несостоявшийся бой";
+
+  return "";
+}
+
+function getFightSourceRank(fight) {
+  if (String(fight.notes || "").trim()) return 3;
+  if (String(fight.method || "").trim()) return 2;
+  return 1;
+}
+
+function choosePreferredResult(left, right) {
+  const leftFromNotes = inferResultFromNotes(left.notes);
+  const rightFromNotes = inferResultFromNotes(right.notes);
+
+  if (leftFromNotes && !rightFromNotes) return leftFromNotes;
+  if (rightFromNotes && !leftFromNotes) return rightFromNotes;
+  if (leftFromNotes && rightFromNotes) {
+    return getFightSourceRank(right) >= getFightSourceRank(left) ? rightFromNotes : leftFromNotes;
+  }
+
+  if (!left.result) return right.result;
+  if (!right.result) return left.result;
+  if (left.result === right.result) return left.result;
+
+  return getFightSourceRank(right) >= getFightSourceRank(left) ? right.result : left.result;
+}
+
 function mergeFightRecords(base, incoming) {
   return {
     opponentName: chooseBetterText(base.opponentName, incoming.opponentName),
     opponentNameRu: chooseBetterText(base.opponentNameRu, incoming.opponentNameRu),
     eventName: chooseBetterText(prettifyEventName(base.eventName), prettifyEventName(incoming.eventName)),
-    result: base.result || incoming.result,
+    result: choosePreferredResult(base, incoming),
     method: normalizeMethod(base.method, base.notes) || normalizeMethod(incoming.method, incoming.notes),
     date: chooseBetterDate(base.date, incoming.date),
     round: base.round || deriveRound(incoming.round, incoming.notes) || deriveRound(base.round, base.notes),
@@ -170,17 +266,18 @@ async function main() {
       };
 
       const key = buildMergeKey(normalizedFight);
-      const existing = merged.get(key);
+      const compatibleKey = merged.has(key) ? key : findCompatibleMergeKey(merged, normalizedFight);
+      const existing = compatibleKey ? merged.get(compatibleKey) : null;
       if (!existing) {
         merged.set(key, normalizedFight);
         continue;
       }
 
-      merged.set(key, mergeFightRecords(existing, normalizedFight));
+      merged.set(compatibleKey, mergeFightRecords(existing, normalizedFight));
       removedRows += 1;
     }
 
-    const nextFights = [...merged.values()].sort((left, right) => {
+    const nextFights = collapseNearbyOpponentDuplicates([...merged.values()]).sort((left, right) => {
       const leftTime = left.date ? new Date(left.date).getTime() : 0;
       const rightTime = right.date ? new Date(right.date).getTime() : 0;
       return rightTime - leftTime;
