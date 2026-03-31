@@ -110,7 +110,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     (fighter) => hasUsablePhotoUrl(fighter.photoUrl) && !looksLikeLowQualitySlug(fighter.slug)
   );
   const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((path) => ({
-    url: `${siteUrl}${path || "/"}`,
+    url: path === "" ? `${siteUrl}/ru` : `${siteUrl}/ru${path}`,
     lastModified: new Date(),
     changeFrequency: path === "" ? "daily" : "weekly",
     priority: path === "" ? 1 : 0.7
@@ -119,25 +119,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticEntries,
     ...articles.map((article) => ({
-      url: `${siteUrl}/news/${article.slug}`,
+      url: `${siteUrl}/ru/news/${article.slug}`,
       lastModified: article.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.9
     })),
     ...events.map((event) => ({
-      url: `${siteUrl}/events/${event.slug}`,
+      url: `${siteUrl}/ru/events/${event.slug}`,
       lastModified: event.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.8
     })),
     ...predictionFights.map((fight) => ({
-      url: `${siteUrl}/predictions/${fight.event.slug}/${fight.id}`,
+      url: `${siteUrl}/ru/predictions/${fight.event.slug}/${fight.id}`,
       lastModified: fight.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.7
     })),
     ...fighterEntries.map((fighter) => ({
-      url: `${siteUrl}/fighters/${fighter.slug}`,
+      url: `${siteUrl}/ru/fighters/${fighter.slug}`,
       lastModified: fighter.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.8

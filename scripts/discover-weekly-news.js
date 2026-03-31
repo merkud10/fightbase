@@ -89,6 +89,51 @@ const ALL_SOURCES = [
     articlePattern: /^https:\/\/mmajunkie\.usatoday\.com\/\d{4}\/\d{2}\/\d{2}\/[^?#]+$/i,
     streams: ["news"],
     sourceType: "press_release"
+  },
+  {
+    label: "Sports.ru MMA",
+    listingUrl: "https://www.sports.ru/mma/news/",
+    articlePattern: /^https:\/\/www\.sports\.ru\/boxing\/\d+-[^?#]+\.html$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["interview", "reacts", "reaction", "says"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
+  {
+    label: "Metaratings MMA",
+    listingUrl: "https://meta-ratings.kz/news/mma/",
+    articlePattern: /^https:\/\/meta-ratings\.kz\/news\/[\w-]+-\d+\/$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["intervyu", "otvetil", "prokommentiroval", "rasskazal"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
+  {
+    label: "FightNews.info",
+    listingUrl: "https://fightnews.info/",
+    articlePattern: /^https:\/\/fightnews\.info\/(?!votes|users|on-air|reyting)[a-z0-9][\w-]+$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["otvetil", "prokommentiroval", "otreagiroval", "rasskazal", "podelilsya"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
+  {
+    label: "Sport-Express MMA",
+    listingUrl: "https://www.sport-express.net/martial/mma/news/",
+    articlePattern: /^https:\/\/www\.sport-express\.net\/martial\/(?:mma\/)?(?:ufc\/)?(?:news|reviews)\/[\w-]+-\d+\/$/i,
+    streams: ["news", "quotes", "predictions"],
+    targetKeywords: {
+      quotes: ["intervyu", "otvetil", "rasskazal"],
+      predictions: ["prognoz", "analiz", "preview", "razborov"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
   }
 ];
 
@@ -194,11 +239,32 @@ function parsePublishedAt(html) {
   return null;
 }
 
-function extractParagraphs(html, limit = 6) {
-  return Array.from(html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+function isolateArticleBody(html) {
+  const containers = [
+    /<div[^>]+class="[^"]*news-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]+class="[^"]*article[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class="[^"]*post[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+  ];
+  for (const re of containers) {
+    const m = html.match(re);
+    if (m) return m[0];
+  }
+  return html;
+}
+
+function isLinkOnlyParagraph(rawHtml) {
+  const stripped = rawHtml.replace(/<!--[\s\S]*?-->/g, "").trim();
+  return /^<a\s[^>]*>[\s\S]*<\/a>$/i.test(stripped);
+}
+
+function extractParagraphs(html, limit = 30) {
+  const body = isolateArticleBody(html);
+  return Array.from(body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+    .filter((match) => !isLinkOnlyParagraph(match[1]))
     .map((match) => decodeHtml(match[1]))
-    .filter((paragraph) => paragraph.length >= 80)
-    .filter((paragraph) => !/cookie|newsletter|subscribe|advertisement|read more/i.test(paragraph))
+    .filter((paragraph) => paragraph.length >= 10)
+    .filter((paragraph) => !/cookie|newsletter|subscribe|advertisement|read more|подпис|реклам/i.test(paragraph))
     .slice(0, limit)
     .join("\n\n")
     .trim();

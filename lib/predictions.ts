@@ -1,6 +1,6 @@
 type Locale = "ru" | "en";
 
-type FighterPredictionData = {
+export type FighterPredictionData = {
   id: string;
   slug: string;
   name: string;
@@ -22,6 +22,11 @@ type FighterPredictionData = {
   }>;
 };
 
+export type FightOddsContext = {
+  oddsA: number | null;
+  oddsB: number | null;
+};
+
 function parseRecord(record: string | null | undefined) {
   const match = String(record || "").match(/^(\d+)-(\d+)(?:-(\d+))?$/);
   if (!match) {
@@ -35,28 +40,101 @@ function parseRecord(record: string | null | undefined) {
   };
 }
 
-export function getPredictionScore(
-  fighter: Omit<FighterPredictionData, "id" | "slug" | "name" | "nameRu" | "recentFights">
-) {
-  const parsed = parseRecord(fighter.record);
-  const total = parsed.wins + parsed.losses + parsed.draws;
-  const winRate = total > 0 ? parsed.wins / total : 0;
+/** Implied win probabilities from decimal odds, vig removed by normalizing. */
+export function getImpliedWinProbabilities(
+  oddsA: number | null | undefined,
+  oddsB: number | null | undefined
+): { pA: number; pB: number } | null {
+  if (oddsA == null || oddsB == null || oddsA <= 1 || oddsB <= 1) {
+    return null;
+  }
 
-  return (
-    winRate * 50 +
-    (fighter.status === "champion" ? 8 : fighter.status === "prospect" ? 3 : 0) +
-    (fighter.sigStrikesLandedPerMin ?? 0) * 2 +
-    (fighter.strikeAccuracy ?? 0) * 0.2 +
-    (fighter.strikeDefense ?? 0) * 0.15 +
-    (fighter.takedownAveragePer15 ?? 0) * 3 +
-    (fighter.takedownAccuracy ?? 0) * 0.12 +
-    (fighter.takedownDefense ?? 0) * 0.12 +
-    (fighter.submissionAveragePer15 ?? 0) * 4
-  );
+  const invA = 1 / oddsA;
+  const invB = 1 / oddsB;
+  const sum = invA + invB;
+  if (sum <= 0) {
+    return null;
+  }
+
+  return { pA: invA / sum, pB: invB / sum };
+}
+
+/** Heuristic score for matchup when bookmaker odds are unavailable. */
+export function getHeuristicPredictionScore(fighter: FighterPredictionData): number {
+  const parsed = parseRecord(fighter.record);
+  const totalFights = parsed.wins + parsed.losses + parsed.draws;
+  const winRate = totalFights > 0 ? parsed.wins / totalFights : 0.45;
+
+  let score = 18 + winRate * 52;
+
+  const recent = (fighter.recentFights || []).slice(0, 3);
+  const recentWins = recent.filter((f) => /побед|win/i.test(f.result)).length;
+  score += recentWins * 5;
+
+  if (fighter.status === "champion") {
+    score += 8;
+  } else if (fighter.status === "prospect") {
+    score += 3;
+  }
+
+  const hasUfcStats =
+    fighter.sigStrikesLandedPerMin != null ||
+    fighter.takedownAveragePer15 != null ||
+    fighter.strikeAccuracy != null;
+
+  if (hasUfcStats) {
+    score += (fighter.sigStrikesLandedPerMin ?? 0) * 1.5;
+    score += (fighter.strikeAccuracy ?? 0) * 0.06;
+    score += (fighter.strikeDefense ?? 0) * 0.05;
+    score += (fighter.takedownAveragePer15 ?? 0) * 2.2;
+    score += (fighter.takedownDefense ?? 0) * 0.05;
+    score += (fighter.submissionAveragePer15 ?? 0) * 3;
+  }
+
+  return score;
+}
+
+/** @deprecated Prefer getFightWinPercentages + getHeuristicPredictionScore */
+export function getPredictionScore(fighter: FighterPredictionData) {
+  return getHeuristicPredictionScore(fighter);
+}
+
+export function getFightWinPercentages(
+  fighterA: FighterPredictionData,
+  fighterB: FighterPredictionData,
+  odds?: FightOddsContext | null
+): { percentA: number; percentB: number; source: "odds" | "heuristic" } {
+  const implied = odds && getImpliedWinProbabilities(odds.oddsA, odds.oddsB);
+  if (implied) {
+    return {
+      percentA: Math.round(implied.pA * 100),
+      percentB: Math.round(implied.pB * 100),
+      source: "odds"
+    };
+  }
+
+  const sA = getHeuristicPredictionScore(fighterA);
+  const sB = getHeuristicPredictionScore(fighterB);
+  const total = Math.max(sA + sB, 0.001);
+  return {
+    percentA: Math.round((sA / total) * 100),
+    percentB: Math.round((sB / total) * 100),
+    source: "heuristic"
+  };
 }
 
 export function getDisplayName(fighter: Pick<FighterPredictionData, "name" | "nameRu">, locale: Locale) {
   return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+}
+
+export function fighterHasComparableStats(fighter: FighterPredictionData): boolean {
+  return (
+    fighter.sigStrikesLandedPerMin != null ||
+    fighter.strikeAccuracy != null ||
+    fighter.strikeDefense != null ||
+    fighter.takedownAveragePer15 != null ||
+    fighter.takedownDefense != null
+  );
 }
 
 function formatPercent(value: number | null | undefined) {
@@ -67,19 +145,19 @@ function summarizeRecentForm(fighter: FighterPredictionData, locale: Locale) {
   const recent = (fighter.recentFights || []).slice(0, 3);
   if (recent.length === 0) {
     return locale === "ru"
-      ? "По последним боям в базе форма читается слабо."
+      ? "В базе мало данных по недавним выступлениям."
       : "Recent form is thin in the local database.";
   }
 
   const wins = recent.filter((fight) => /побед|win/i.test(fight.result)).length;
   const losses = recent.filter((fight) => /поражен|loss/i.test(fight.result)).length;
-  const latest = recent[0];
+  const latest = recent[0]!;
 
   if (locale === "ru") {
-    return `${getDisplayName(fighter, locale)} идет с отрезком ${wins}-${losses} в последних ${recent.length} боях. Последний отмеченный соперник: ${latest.opponentName}.`;
+    return `${getDisplayName(fighter, locale)}: в последних ${recent.length} боях по базе ${wins}-${losses}. Последний соперник: ${latest.opponentName}.`;
   }
 
-  return `${getDisplayName(fighter, locale)} is ${wins}-${losses} across the last ${recent.length} logged fights. Most recent listed opponent: ${latest.opponentName}.`;
+  return `${getDisplayName(fighter, locale)} is ${wins}-${losses} across the last ${recent.length} logged fights. Latest opponent: ${latest.opponentName}.`;
 }
 
 function compareMetric(
@@ -94,10 +172,10 @@ function compareMetric(
     return null;
   }
 
-  const leftValue = formatter(left) ?? "-";
-  const rightValue = formatter(right) ?? "-";
+  const leftValue = formatter(left) ?? "—";
+  const rightValue = formatter(right) ?? "—";
 
-  return locale === "ru" ? `${labelRu}: ${leftValue} против ${rightValue}` : `${labelEn}: ${leftValue} to ${rightValue}`;
+  return locale === "ru" ? `${labelRu}: ${leftValue} — ${rightValue}` : `${labelEn}: ${leftValue} vs ${rightValue}`;
 }
 
 function buildPathsToVictory(locale: Locale, fighterA: FighterPredictionData, fighterB: FighterPredictionData) {
@@ -111,36 +189,63 @@ function buildPathsToVictory(locale: Locale, fighterA: FighterPredictionData, fi
   return {
     fighterA:
       locale === "ru"
-        ? `${fighterAName} лучше всего выглядит в сценарии, где ${aPressure ? "задает темп в стойке" : "ломает ритм через смены дистанции"}${aWrestling ? " и подкрепляет это переводами" : ""}.`
-        : `${fighterAName} looks best in a fight where ${aPressure ? "the striking pace is set early" : "distance and rhythm are disrupted"}${aWrestling ? " and the threat of takedowns keeps exchanges honest" : ""}.`,
+        ? `${fighterAName}: ${aPressure ? "плюс в объёме ударов" : "нужно ловить темп и дистанцию"}${aWrestling ? ", есть угроза переводов" : ""}.`
+        : `${fighterAName}: ${aPressure ? "volume edge on the feet" : "needs rhythm and distance"}${aWrestling ? ", takedown threat" : ""}.`,
     fighterB:
       locale === "ru"
-        ? `${fighterBName} опаснее, если ${bSubThreat ? "доводит эпизоды до клинча и борьбы" : "сводит бой к редким, тяжелым разменам"} и заставляет соперника принимать неудобные решения.`
-        : `${fighterBName} is more dangerous if ${bSubThreat ? "the fight touches clinch and grappling phases" : "the bout is reduced to fewer, heavier exchanges"} and the opponent is pushed into uncomfortable decisions.`
+        ? `${fighterBName}: ${bSubThreat ? "сильнее в борьбе/сабах" : "ищет тяжёлые размены и контрпики"}.`
+        : `${fighterBName}: ${bSubThreat ? "grappling/sub threat" : "heavy exchanges and counters"}.`
   };
 }
 
-export function buildPredictionCopy(locale: Locale, fighterA: FighterPredictionData, fighterB: FighterPredictionData) {
-  const scoreA = getPredictionScore(fighterA);
-  const scoreB = getPredictionScore(fighterB);
-  const favorite = scoreA >= scoreB ? fighterA : fighterB;
-  const underdog = favorite.id === fighterA.id ? fighterB : fighterA;
-  const margin = Math.abs(scoreA - scoreB);
+export function buildPredictionCopy(
+  locale: Locale,
+  fighterA: FighterPredictionData,
+  fighterB: FighterPredictionData,
+  options?: FightOddsContext | null
+) {
+  const oddsCtx = options?.oddsA != null && options?.oddsB != null ? options : null;
+  const implied = oddsCtx ? getImpliedWinProbabilities(oddsCtx.oddsA, oddsCtx.oddsB) : null;
+
+  const scoreA = getHeuristicPredictionScore(fighterA);
+  const scoreB = getHeuristicPredictionScore(fighterB);
+  let favorite = scoreA >= scoreB ? fighterA : fighterB;
+  let underdog = favorite.id === fighterA.id ? fighterB : fighterA;
+
+  if (implied) {
+    favorite = implied.pA >= implied.pB ? fighterA : fighterB;
+    underdog = favorite.id === fighterA.id ? fighterB : fighterA;
+  }
+
   const favoriteName = getDisplayName(favorite, locale);
   const underdogName = getDisplayName(underdog, locale);
+  const margin = Math.abs(scoreA - scoreB);
+  const impliedMargin = implied ? Math.abs(implied.pA - implied.pB) : 0;
 
   const confidenceLabel =
-    margin > 18
+    implied && impliedMargin > 0.18
       ? locale === "ru"
-        ? "уверенное преимущество"
-        : "clear edge"
-      : margin > 8
+        ? "явный фаворит по линии"
+        : "clear favorite by the odds"
+      : implied && impliedMargin > 0.08
         ? locale === "ru"
-          ? "умеренное преимущество"
-          : "moderate edge"
-        : locale === "ru"
-          ? "близкий бой"
-          : "tight matchup";
+          ? "умеренный фаворит по линии"
+          : "moderate favorite by the odds"
+        : implied
+          ? locale === "ru"
+            ? "примерно равные шансы по линии"
+            : "close odds"
+          : margin > 18
+            ? locale === "ru"
+              ? "преимущество по профилю"
+              : "clear edge on paper"
+            : margin > 8
+              ? locale === "ru"
+                ? "небольшое преимущество"
+                : "slight edge"
+              : locale === "ru"
+                ? "равный матчап"
+                : "toss-up";
 
   const statLines = [
     compareMetric("SLpM", "SLpM", fighterA.sigStrikesLandedPerMin, fighterB.sigStrikesLandedPerMin, locale),
@@ -153,29 +258,50 @@ export function buildPredictionCopy(locale: Locale, fighterA: FighterPredictionD
 
   const paths = buildPathsToVictory(locale, fighterA, fighterB);
 
+  const overview =
+    implied && oddsCtx
+      ? locale === "ru"
+        ? `По букмекерской линии (decimal ~${oddsCtx.oddsA!.toFixed(2)} / ${oddsCtx.oddsB!.toFixed(2)}) чуть выше шансы у ${favoriteName}. Это не гарантия исхода, а рыночная оценка перед боем; ${underdogName} остаётся опасным, если реализует свой сценарий.`
+        : `Market odds (~${oddsCtx.oddsA!.toFixed(2)} / ${oddsCtx.oddsB!.toFixed(2)}) lean toward ${favoriteName}. That is a market snapshot, not a lock — ${underdogName} can still win their fight.`
+      : locale === "ru"
+        ? `${favoriteName} по нашей модели чуть выгоднее на бумаге (рекорд, форма${statLines.length ? ", доступная статистика" : ""}). У ${underdogName} всё равно есть сценарии победы.`
+        : `${favoriteName} looks slightly better on paper (record, form${statLines.length ? ", available stats" : ""}). ${underdogName} still has paths to win.`;
+
+  const keyEdge =
+    implied && oddsCtx
+      ? locale === "ru"
+        ? `Линия букмекеров отражает консенсус по исходу; разница в коэффициентах показывает, кого считают фаворитом перед боем.`
+        : `The betting line reflects consensus; the price gap shows who is favored before the fight.`
+      : locale === "ru"
+        ? `Без линии букмекеров опираемся на рекорд, форму и UFC-статистику, где она заполнена.`
+        : `Without market odds we lean on record, form, and UFC stats where available.`;
+
+  const fightScript =
+    locale === "ru"
+      ? `Ключ — кто навяжет темп и дистанцию. ${favoriteName} логичнее тянуть бой в привычный ритм; ${underdogName} выигрывает срывами, контрпиками и силовыми эпизодами.`
+      : `Whoever imposes pace and range shapes the fight. ${favoriteName} likely wants their rhythm; ${underdogName} needs disruption and big moments.`;
+
+  const pick =
+    implied && oddsCtx
+      ? locale === "ru"
+        ? `По линии: ${favoriteName} (${confidenceLabel}).`
+        : `Market lean: ${favoriteName} (${confidenceLabel}).`
+      : locale === "ru"
+        ? `Ориентир FightBase: ${favoriteName} — ${confidenceLabel}.`
+        : `FightBase lean: ${favoriteName} — ${confidenceLabel}.`;
+
   return {
     favorite,
     confidenceLabel,
-    overview:
-      locale === "ru"
-        ? `${favoriteName} подходит к этому матчапу с более устойчивой статистической базой. Рекорд, рабочий объем и защитные метрики дают ему ${confidenceLabel}, но окно для ответа у ${underdogName} остается, если бой уйдет в неудобный сценарий.`
-        : `${favoriteName} enters this matchup with the sturdier statistical base. Record, output, and defensive numbers create a ${confidenceLabel}, but ${underdogName} still has routes back into the fight if the matchup gets uncomfortable.`,
-    keyEdge:
-      locale === "ru"
-        ? `${favoriteName} выигрывает предматчевую картину за счет более собранного набора цифр и меньшего числа очевидных провалов по профилю.`
-        : `${favoriteName} wins the pre-fight picture through the cleaner all-around statistical profile and fewer obvious weak points.`,
-    fightScript:
-      locale === "ru"
-        ? `Если бой останется структурным, преимущество должно постепенно смещаться к ${favoriteName}. ${underdogName} нуждается в более рваном рисунке, смене фаз и эпизодах, где можно навязать свой темп или силовой момент.`
-        : `If the fight stays orderly, the edge should keep tilting toward ${favoriteName}. ${underdogName} needs more disruption, more phase changes, and moments where raw leverage or timing can bend the fight.`,
-    pick:
-      locale === "ru"
-        ? `Выбор FightBase: ${favoriteName} - ${confidenceLabel}.`
-        : `FightBase pick: ${favoriteName} with a ${confidenceLabel}.`,
+    overview,
+    keyEdge,
+    fightScript,
+    pick,
     formA: summarizeRecentForm(fighterA, locale),
     formB: summarizeRecentForm(fighterB, locale),
     pathA: paths.fighterA,
     pathB: paths.fighterB,
-    statLines
+    statLines,
+    hasOdds: Boolean(implied && oddsCtx)
   };
 }

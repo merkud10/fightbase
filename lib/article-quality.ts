@@ -118,7 +118,10 @@ function applyCommonReplacements(value: string) {
     next = replaceAllInsensitive(next, search, replacement);
   }
 
-  return normalizeWhitespace(next);
+  return next
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function applyFighterNames(value: string, fighters: RelatedFighter[]) {

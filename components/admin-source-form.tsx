@@ -3,6 +3,7 @@ import {
   deleteSourceAction,
   updateSourceAction
 } from "@/app/admin/actions";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type SourceDraft = {
   id: string;
@@ -58,16 +59,17 @@ export function AdminSourceForm({
           <button type="submit" className="button">
             {locale === "ru" ? (isEdit ? "Сохранить источник" : "Создать источник") : isEdit ? "Save source" : "Create source"}
           </button>
-          {isEdit ? (
-            <form action={deleteSourceAction}>
-              <input type="hidden" name="sourceId" value={source!.id} />
-              <button type="submit" className="button-secondary">
-                {locale === "ru" ? "Удалить" : "Delete"}
-              </button>
-            </form>
-          ) : null}
         </div>
       </form>
+      {isEdit ? (
+        <form action={deleteSourceAction}>
+          <input type="hidden" name="sourceId" value={source!.id} />
+          <ConfirmDeleteButton
+            label={locale === "ru" ? "Удалить" : "Delete"}
+            confirmMessage={locale === "ru" ? "Удалить? Это действие необратимо." : "Delete? This action is irreversible."}
+          />
+        </form>
+      ) : null}
     </article>
   );
 }

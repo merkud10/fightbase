@@ -1,4 +1,5 @@
 import type { ArticleStatus, EventStatus, FighterStatus, Prisma } from "@prisma/client";
+import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
 
@@ -433,7 +434,8 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
       include: {
         promotion: true,
         tagMap: { include: { tag: true } }
-      }
+      },
+      take: 100
     })
   ]);
 
@@ -469,7 +471,8 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
           take: 5,
           orderBy: { createdAt: "asc" }
         }
-      }
+      },
+      take: 100
     }),
     prisma.promotion.findMany({
       orderBy: { shortName: "asc" },
@@ -519,7 +522,8 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
             recentFights: true
           }
         }
-      }
+      },
+      take: 500
     }),
     prisma.promotion.findMany({
       orderBy: { shortName: "asc" },
@@ -761,7 +765,8 @@ export async function getPromotionRankingLinks(promotionSlug: string) {
 export async function getAnalysisPageData() {
   return prisma.article.findMany({
     where: { category: "analysis", status: "published" },
-    orderBy: { publishedAt: "desc" }
+    orderBy: { publishedAt: "desc" },
+    take: 50
   });
 }
 
@@ -794,16 +799,17 @@ export async function getPredictionsPageData() {
   });
 }
 
-export async function getQuotesPageData() {
+export const getQuotesPageData = cache(async function getQuotesPageData() {
   return prisma.article.findMany({
     where: {
       category: "interview",
       status: "published",
       AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
     },
-    orderBy: { publishedAt: "desc" }
+    orderBy: { publishedAt: "desc" },
+    take: 50
   });
-}
+});
 
 export async function getPredictionEditorialPageData() {
   return prisma.article.findMany({
@@ -821,7 +827,7 @@ export async function getPredictionEditorialPageData() {
   });
 }
 
-export async function getArticlePageData(slug: string) {
+export const getArticlePageData = cache(async function getArticlePageData(slug: string) {
   return prisma.article.findFirst({
     where: { slug, status: "published" },
     include: {
@@ -833,7 +839,7 @@ export async function getArticlePageData(slug: string) {
       sourceMap: { include: { source: true } }
     }
   });
-}
+});
 
 export async function getAdminArticleEditorData(articleId: string) {
   const [options, article] = await Promise.all([
@@ -855,7 +861,7 @@ export async function getAdminArticleEditorData(articleId: string) {
   };
 }
 
-export async function getEventPageData(slug: string) {
+export const getEventPageData = cache(async function getEventPageData(slug: string) {
   const event = await prisma.event.findUnique({
     where: { slug },
     include: {
@@ -880,9 +886,9 @@ export async function getEventPageData(slug: string) {
   });
 
   return { event, relatedArticles };
-}
+});
 
-export async function getFightPredictionPageData(eventSlug: string, fightId: string) {
+export const getFightPredictionPageData = cache(async function getFightPredictionPageData(eventSlug: string, fightId: string) {
   const fight = await prisma.fight.findUnique({
     where: { id: fightId },
     include: {
@@ -957,10 +963,36 @@ export async function getFightPredictionPageData(eventSlug: string, fightId: str
     take: 4
   });
 
-  return { fight, relatedArticles, relatedPredictionArticles };
-}
+  const fightPredictionArticle = await prisma.article.findFirst({
+    where: {
+      status: "published",
+      category: "analysis",
+      eventId: fight.eventId,
+      AND: [
+        {
+          fighterMap: {
+            some: { fighterId: fight.fighterAId }
+          }
+        },
+        {
+          fighterMap: {
+            some: { fighterId: fight.fighterBId }
+          }
+        }
+      ]
+    },
+    include: {
+      sections: {
+        orderBy: { sortOrder: "asc" }
+      }
+    },
+    orderBy: { publishedAt: "desc" }
+  });
 
-export async function getFighterPageData(slug: string) {
+  return { fight, relatedArticles, relatedPredictionArticles, fightPredictionArticle };
+});
+
+export const getFighterPageData = cache(async function getFighterPageData(slug: string) {
   const fighter = await prisma.fighter.findUnique({
     where: { slug },
     include: {
@@ -1013,4 +1045,4 @@ export async function getFighterPageData(slug: string) {
   });
 
   return { fighter, recentFights, profileRecentFights: visibleProfileRecentFights, relatedArticles };
-}
+});

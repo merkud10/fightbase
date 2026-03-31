@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { HeaderShell } from "@/components/header-shell";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 
@@ -19,32 +19,33 @@ export async function Header() {
   ];
 
   return (
-    <header className="site-header">
-      <div className="container site-header-inner">
-        <Link href={localizePath("/", locale)} className="brand">
-          <span className="brand-mark">FB</span>
-          <span className="brand-copy">
-            <span>FightBase</span>
-            <small>{t.brandTagline}</small>
-          </span>
-        </Link>
+    <HeaderShell>
+      <header className="site-header">
+        <div className="container site-header-inner">
+          <Link href={localizePath("/", locale)} className="brand">
+            <span className="brand-mark">FB</span>
+            <span className="brand-copy">
+              <span>FightBase</span>
+              <small>{t.brandTagline}</small>
+            </span>
+          </Link>
 
-        <nav className="nav-links" aria-label="Primary">
-          {navItems.map((item) => (
-            <Link key={item.href} href={localizePath(item.href, locale)} className="nav-link">
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+          <nav className="nav-links" aria-label="Primary">
+            {navItems.map((item) => (
+              <Link key={item.href} href={localizePath(item.href, locale)} className="nav-link">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
         <div className="header-actions">
           <span className="header-search-label">{t.common.search}</span>
-          <LanguageSwitcher locale={locale} />
           <Link href={localizePath("/#subscribe", locale)} className="button">
             {t.common.subscribe}
           </Link>
         </div>
-      </div>
-    </header>
+        </div>
+      </header>
+    </HeaderShell>
   );
 }

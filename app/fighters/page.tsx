@@ -26,16 +26,19 @@ export async function generateMetadata({ searchParams }: FightersPageProps): Pro
   const weightClass = readParam(params.weightClass);
   const hasFilters = Boolean(promotion || status || weightClass);
   const localizedUrl = localizePath("/fighters", locale);
+  const title = locale === "ru" ? "Бойцы MMA" : "MMA Fighters";
+  const description =
+    locale === "ru"
+      ? "Каталог бойцов FightBase Media: профили UFC, PFL и ONE с фотографиями, статистикой, последними боями и быстрыми фильтрами по дивизионам."
+      : "FightBase Media fighter directory: UFC, PFL, and ONE profiles with photos, stats, recent fights, and quick filters by division.";
 
   return {
-    title: "Бойцы MMA",
-    description:
-      "Каталог бойцов FightBase Media: профили UFC, PFL и ONE с фотографиями, статистикой, последними боями и быстрыми фильтрами по дивизионам.",
+    title,
+    description,
     alternates: buildLocaleAlternates("/fighters"),
     openGraph: {
-      title: "Бойцы MMA",
-      description:
-        "Каталог бойцов FightBase Media: профили UFC, PFL и ONE с фотографиями, статистикой, последними боями и быстрыми фильтрами по дивизионам.",
+      title,
+      description,
       url: localizedUrl
     },
     robots: hasFilters
@@ -170,7 +173,7 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
             <div className="filter-head">
               <h3>{locale === "ru" ? "Фильтры" : "Filters"}</h3>
               {activeFiltersCount > 0 ? (
-                <Link href="/fighters" className="button-ghost filter-reset-link">
+                <Link href={localizePath("/fighters", locale)} className="button-ghost filter-reset-link">
                   {locale === "ru" ? "Сбросить" : "Reset"}
                 </Link>
               ) : null}

@@ -104,17 +104,20 @@ function sanitizeJsonPayload(value: string) {
 
 function parseLocalizationResponse(rawText: string) {
   const parsed = JSON.parse(sanitizeJsonPayload(rawText)) as {
-    headline?: string;
-    body?: string;
+    headline?: string | string[];
+    body?: string | string[];
   };
 
-  if (!parsed.headline || !parsed.body) {
+  const headline = Array.isArray(parsed.headline) ? parsed.headline.join(" ") : parsed.headline;
+  const body = Array.isArray(parsed.body) ? parsed.body.join("\n\n") : parsed.body;
+
+  if (!headline || !body) {
     throw new Error("Localization response is missing headline or body");
   }
 
   return {
-    headline: parsed.headline.trim(),
-    body: parsed.body.trim()
+    headline: headline.trim(),
+    body: body.trim()
   };
 }
 
@@ -301,7 +304,7 @@ function postJson(url: string, body: string, headers: Record<string, string> = {
       }
     );
 
-    request.setTimeout(60000, () => {
+    request.setTimeout(180000, () => {
       request.destroy(new Error("Request timed out"));
     });
 
@@ -312,21 +315,25 @@ function postJson(url: string, body: string, headers: Record<string, string> = {
 }
 
 async function postJsonWithPowerShell(url: string, body: string, headers: Record<string, string>) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Only http/https URLs are allowed");
+  }
+
   const headerAssignments = Object.entries(headers)
-    .map(([key, value]) => `"${key}" = "${value.replace(/"/g, '`"')}"`)
+    .map(([key, value]) => `"${key.replace(/"/g, "")}" = "${value.replace(/"/g, "")}"`)
     .join("\n  ");
 
   const script = `
+param([string]$Uri, [string]$Body)
 $headers = @{
   ${headerAssignments}
 }
-$response = Invoke-RestMethod -Method Post -Uri "${url}" -Headers $headers -Body @'
-${body}
-'@ -TimeoutSec 90
+$response = Invoke-RestMethod -Method Post -Uri $Uri -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($Body)) -ContentType 'application/json; charset=utf-8' -TimeoutSec 90
 $response | ConvertTo-Json -Depth 100
 `;
 
-  const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", script], {
+  const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", script, url, body], {
     cwd: process.cwd(),
     maxBuffer: 10 * 1024 * 1024
   });
@@ -374,6 +381,54 @@ function buildRussianRepairPrompt(localized: { headline: string; body: string })
   ].join("\n");
 }
 
+const FIGHT_RESULT_PATTERN =
+  /(?:победил|победила|нокаутировал|нокаутировала|выиграл|выиграла|одолел|одолела|одержал|одержала|завершили|сабмишен|техническим нокаутом|единогласным решением|решением большинства|раздельным решением|вничью)/i;
+
+const CARD_HEADER_PATTERN = /^(?:главный кард|предварительный кард|основной кард|ранние прелимы)/i;
+
+function splitNarrativeAndResults(body: string) {
+  const paragraphs = body.split(/\n\n+/);
+  const narrative: string[] = [];
+  const results: string[] = [];
+  let inResultsSection = false;
+
+  for (const p of paragraphs) {
+    const trimmed = p.trim();
+    if (!trimmed) continue;
+
+    if (CARD_HEADER_PATTERN.test(trimmed)) {
+      inResultsSection = true;
+      results.push(trimmed);
+    } else if (inResultsSection || (FIGHT_RESULT_PATTERN.test(trimmed) && trimmed.length < 120)) {
+      inResultsSection = true;
+      results.push(trimmed);
+    } else {
+      narrative.push(trimmed);
+    }
+  }
+
+  return { narrative, results };
+}
+
+function buildRewritePrompt(input: IngestDraftInput) {
+  return [
+    "You are a Russian-language MMA news editor.",
+    "Rewrite the following article in your own words so that the result is unique and not a copy of the original.",
+    "Change sentence structure, wording, and phrasing while keeping the same meaning.",
+    "Preserve ALL facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly.",
+    "Do not add any information that is not in the original article.",
+    "Do not aggressively summarize — keep the same informational density.",
+    "Output must be in natural Russian only.",
+    "Return strict JSON with keys headline and body.",
+    "",
+    `Source: ${input.sourceLabel}`,
+    `URL: ${input.sourceUrl}`,
+    `Headline: ${input.headline}`,
+    "Body:",
+    input.body
+  ].join("\n");
+}
+
 async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const model = getOllamaModel();
   const url = getOllamaUrl();
@@ -398,6 +453,41 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
   return {
     headline: localized.headline,
     body: localized.body,
+    localized: true,
+    model
+  };
+}
+
+async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
+  const model = getOllamaModel();
+  const url = getOllamaUrl();
+
+  const { narrative, results } = splitNarrativeAndResults(input.body);
+
+  const rewriteInput = {
+    ...input,
+    body: narrative.join("\n\n")
+  };
+
+  const requestBody = JSON.stringify({
+    model,
+    stream: false,
+    format: "json",
+    prompt: buildRewritePrompt(rewriteInput)
+  });
+
+  const rawPayload = await postJson(url, requestBody);
+  const payload = JSON.parse(rawPayload) as { response?: string };
+  const parsed = parseLocalizationResponse(payload.response ?? "");
+
+  const bodyParts = [parsed.body];
+  if (results.length > 0) {
+    bodyParts.push(results.join("\n\n"));
+  }
+
+  return {
+    headline: parsed.headline,
+    body: bodyParts.join("\n\n"),
     localized: true,
     model
   };
@@ -538,7 +628,22 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
 export async function localizeIngestionInput(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const sourceText = `${input.headline}\n${input.body}`.trim();
 
-  if (!sourceText || (looksRussian(sourceText) && isPredominantlyRussian(sourceText))) {
+  if (!sourceText) {
+    return {
+      headline: input.headline,
+      body: input.body,
+      localized: false,
+      model: null
+    };
+  }
+
+  if (looksRussian(sourceText) && isPredominantlyRussian(sourceText)) {
+    try {
+      return await rewriteWithOllama(input);
+    } catch (error) {
+      console.error("Russian rewrite failed, saving original text", error);
+    }
+
     return {
       headline: input.headline,
       body: input.body,

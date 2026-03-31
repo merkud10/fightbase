@@ -3,6 +3,7 @@ import {
   deleteEventAction,
   updateEventAction
 } from "@/app/admin/actions";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type PromotionOption = {
   id: string;
@@ -104,16 +105,17 @@ export function AdminEventForm({
           <button type="submit" className="button">
             {locale === "ru" ? (isEdit ? "Сохранить турнир" : "Создать турнир") : isEdit ? "Save event" : "Create event"}
           </button>
-          {isEdit ? (
-            <form action={deleteEventAction}>
-              <input type="hidden" name="eventId" value={event!.id} />
-              <button type="submit" className="button-secondary">
-                {locale === "ru" ? "Удалить" : "Delete"}
-              </button>
-            </form>
-          ) : null}
         </div>
       </form>
+      {isEdit ? (
+        <form action={deleteEventAction}>
+          <input type="hidden" name="eventId" value={event!.id} />
+          <ConfirmDeleteButton
+            label={locale === "ru" ? "Удалить" : "Delete"}
+            confirmMessage={locale === "ru" ? "Удалить? Это действие необратимо." : "Delete? This action is irreversible."}
+          />
+        </form>
+      ) : null}
     </article>
   );
 }

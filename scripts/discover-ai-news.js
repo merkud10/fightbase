@@ -178,33 +178,27 @@ function normalizeList(values) {
   );
 }
 
-function sanitizeItem(item, fallbackStatus) {
+function sanitizeDiscoveredUrl(item) {
   return {
-    headline: String(item.headline || "").trim(),
-    body: String(item.body || "").trim(),
-    publishedAt: normalizeDate(item.publishedAt),
-    sourceLabel: String(item.sourceLabel || "").trim(),
     sourceUrl: normalizeUrl(item.sourceUrl),
+    sourceLabel: String(item.sourceLabel || "").trim(),
     sourceType: VALID_SOURCE_TYPES.has(item.sourceType) ? item.sourceType : "press_release",
-    category: "news",
     promotionSlug: String(item.promotionSlug || "").trim() || undefined,
-    eventSlug: String(item.eventSlug || "").trim() || undefined,
-    fighterSlugs: normalizeList(item.fighterSlugs),
-    tagSlugs: normalizeList(item.tagSlugs),
-    status: VALID_STATUSES.has(item.status) ? item.status : fallbackStatus,
-    sourceLanguage: String(item.sourceLanguage || "").trim() || undefined
+    sourceLanguage: String(item.sourceLanguage || "").trim() || undefined,
+    publishedAt: normalizeDate(item.publishedAt)
   };
 }
 
-function validateItem(item, requireFreshSources, lookbackHours) {
-  const requiredStrings = ["headline", "body", "sourceLabel", "sourceUrl", "publishedAt"];
-  const missing = requiredStrings.filter((key) => typeof item[key] !== "string" || item[key].trim().length === 0);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing required fields: ${missing.join(", ")}`);
+function validateDiscoveredUrl(item, requireFreshSources, lookbackHours) {
+  if (!item.sourceUrl) {
+    throw new Error("Missing sourceUrl");
   }
 
-  if (requireFreshSources) {
+  if (!item.sourceLabel) {
+    throw new Error("Missing sourceLabel");
+  }
+
+  if (requireFreshSources && item.publishedAt) {
     const ageMs = Date.now() - new Date(item.publishedAt).getTime();
     const limitMs = lookbackHours * 60 * 60 * 1000;
 
@@ -212,6 +206,113 @@ function validateItem(item, requireFreshSources, lookbackHours) {
       throw new Error(`PublishedAt is older than the allowed lookback window (${lookbackHours}h)`);
     }
   }
+}
+
+function decodeHtml(value) {
+  return String(value || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&ldquo;|&rdquo;/gi, '"')
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&ndash;|&mdash;/gi, "-")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isolateArticleBody(html) {
+  const containers = [
+    /<div[^>]+class="[^"]*news-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]+class="[^"]*article[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class="[^"]*post[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+  ];
+  for (const re of containers) {
+    const m = html.match(re);
+    if (m) return m[0];
+  }
+  return html;
+}
+
+function isLinkOnlyParagraph(rawHtml) {
+  const stripped = rawHtml.replace(/<!--[\s\S]*?-->/g, "").trim();
+  return /^<a\s[^>]*>[\s\S]*<\/a>$/i.test(stripped);
+}
+
+function extractParagraphs(html, limit = 30) {
+  const body = isolateArticleBody(html);
+  return Array.from(body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+    .filter((match) => !isLinkOnlyParagraph(match[1]))
+    .map((match) => decodeHtml(match[1]))
+    .filter((paragraph) => paragraph.length >= 10)
+    .filter((paragraph) => !/cookie|newsletter|subscribe|advertisement|read more|подпис|реклам/i.test(paragraph))
+    .slice(0, limit)
+    .join("\n\n")
+    .trim();
+}
+
+function extractTitle(html) {
+  const ogTitle = extractMetaContent(html, "og:title");
+  if (ogTitle) {
+    return decodeHtml(ogTitle);
+  }
+
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return titleMatch?.[1] ? decodeHtml(titleMatch[1]) : "";
+}
+
+function extractPublishedAt(html) {
+  const candidates = [
+    extractMetaContent(html, "article:published_time"),
+    extractMetaContent(html, "og:published_time"),
+    extractMetaContent(html, "publish-date"),
+    extractMetaContent(html, "publication_date"),
+    extractMetaContent(html, "date"),
+    (html.match(/<time[^>]+datetime=["']([^"']+)["']/i) || [])[1] || "",
+    (html.match(/"datePublished":"([^"]+)"/i) || [])[1] || ""
+  ].filter(Boolean);
+
+  for (const value of candidates) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  }
+
+  return "";
+}
+
+async function scrapeArticlePage(sourceUrl) {
+  const { url: resolvedUrl, html } = await fetchText(sourceUrl);
+
+  const headline = extractTitle(html);
+  if (!headline) {
+    throw new Error("Could not extract headline from page");
+  }
+
+  const body = extractParagraphs(html);
+  if (!body || body.length < 100) {
+    throw new Error("Could not extract sufficient body text from page");
+  }
+
+  const coverImageUrl = await extractBestCoverImageFromSource(html, resolvedUrl);
+  const coverImageAlt =
+    extractMetaContent(html, "og:image:alt") ||
+    extractMetaContent(html, "twitter:image:alt") ||
+    headline;
+
+  const publishedAt = extractPublishedAt(html);
+
+  return {
+    headline,
+    body,
+    coverImageUrl,
+    coverImageAlt,
+    publishedAt,
+    resolvedUrl
+  };
 }
 
 function looksLikePlaceholderImage(url) {
@@ -353,63 +454,35 @@ async function extractBestCoverImageFromSource(html, sourceUrl) {
   return null;
 }
 
-async function hydrateAndValidateItem(item) {
-  const { url: resolvedSourceUrl, html } = await fetchText(item.sourceUrl);
-  const extractedAlt =
-    extractMetaContent(html, "og:image:alt") ||
-    extractMetaContent(html, "twitter:image:alt");
-  const finalImageUrl = await extractBestCoverImageFromSource(html, resolvedSourceUrl);
-
-  if (!finalImageUrl) {
-    throw new Error("No valid cover image found for the source page");
-  }
-
-  return {
-    ...item,
-    sourceUrl: resolvedSourceUrl,
-    coverImageUrl: finalImageUrl,
-    coverImageAlt: item.coverImageAlt || extractedAlt || item.headline
-  };
-}
-
 function buildPrompt(options) {
   const nowIso = new Date().toISOString();
   const extra = options.promptExtra ? `Additional editorial instructions:\n${options.promptExtra}\n\n` : "";
 
   return [
-    "You are an autonomous MMA news researcher for FightBase Media.",
-    "Use your internet browsing capability to find the freshest important MMA news right now.",
+    "You are an autonomous MMA news URL researcher for FightBase Media.",
+    "Use your internet browsing capability to find URLs of the freshest important MMA news articles right now.",
     `Current time: ${nowIso}.`,
     `Look back no more than ${options.lookbackHours} hours unless the information is still breaking and directly relevant.`,
-    `Find up to ${options.limit} items total across Russian- and English-language coverage.`,
+    `Find up to ${options.limit} article URLs total across Russian- and English-language coverage.`,
     `Language scope: ${options.languageScope}.`,
     "Prioritize real news, not evergreen explainers, rankings pages, or old recaps.",
     "Prioritize UFC, PFL, ONE, Bellator/PFL-related news, ACA, major title fights, injuries, bookings, results, weigh-in issues, official announcements, and high-signal fighter statements.",
-    "For each selected item, verify the source URL and the publication time from the page itself.",
     "The source URL must be the real article page URL that you actually opened successfully, not a guessed path and not a homepage.",
-    "Only include an item if you personally confirmed that the article page loads.",
-    "Do not invent image URLs. The application will extract the image itself from the source page.",
-    "Write the final headline and body in natural Russian for publication on a Russian-language MMA site.",
-    "Preserve names, promotions, dates, records, and uncertainty. Do not invent facts.",
-    "Use only one canonical source URL per item.",
+    "Only include an item if you personally confirmed that the article page loads and contains a news article.",
+    "Do NOT write headlines or article body text. The application will scrape and process the content itself.",
+    "Use only one canonical source URL per story.",
     "If two sources cover the same story, prefer the most primary one.",
     "Skip any item if you cannot verify the source URL or approximate publication time.",
     "Return strict JSON only with this exact shape:",
     "{",
     '  "items": [',
     "    {",
-    '      "headline": "Russian publication-ready headline",',
-    '      "body": "Russian body text with 2-5 short paragraphs and no markdown",',
-    '      "publishedAt": "ISO-8601 timestamp from the source page",',
-    '      "sourceLabel": "Outlet or source name",',
     '      "sourceUrl": "https://...",',
+    '      "sourceLabel": "Outlet or source name",',
     '      "sourceType": "official | interview | social | press_release | stats",',
     '      "promotionSlug": "ufc | pfl | one | empty string if unknown",',
-    '      "eventSlug": "",',
-    '      "fighterSlugs": [],',
-    '      "tagSlugs": ["announcements"] or [],',
     '      "sourceLanguage": "ru or en",',
-    `      "status": "${options.status}"`,
+    '      "publishedAt": "ISO-8601 timestamp from the source page"',
     "    }",
     "  ]",
     "}",
@@ -456,8 +529,8 @@ async function callOllama(options) {
   }
 
   return items
-    .map((item) => sanitizeItem(item, options.status))
-    .filter((item) => item.headline && item.body && item.sourceLabel && item.sourceUrl && item.publishedAt);
+    .map((item) => sanitizeDiscoveredUrl(item))
+    .filter((item) => item.sourceUrl && item.sourceLabel);
 }
 
 async function postDraft(baseUrl, item) {
@@ -499,32 +572,57 @@ async function main() {
   console.log(`Lookback hours: ${options.lookbackHours}`);
   console.log(`Requested item limit: ${options.limit}`);
 
-  const rawItems = await callOllama(options);
-  const validatedItems = [];
+  const discoveredUrls = await callOllama(options);
+  console.log(`LLM discovered ${discoveredUrls.length} URL(s)`);
 
-  for (const item of rawItems) {
+  const scrapedItems = [];
+
+  for (const discovered of discoveredUrls) {
     try {
-      validateItem(item, options.requireFreshSources, options.lookbackHours);
-      const hydratedItem = await hydrateAndValidateItem(item);
-      validatedItems.push(hydratedItem);
+      validateDiscoveredUrl(discovered, options.requireFreshSources, options.lookbackHours);
+
+      const scraped = await scrapeArticlePage(discovered.sourceUrl);
+
+      const item = {
+        headline: scraped.headline,
+        body: scraped.body,
+        publishedAt: scraped.publishedAt || discovered.publishedAt,
+        sourceLabel: discovered.sourceLabel,
+        sourceUrl: scraped.resolvedUrl || discovered.sourceUrl,
+        sourceType: discovered.sourceType,
+        category: "news",
+        promotionSlug: discovered.promotionSlug,
+        sourceLanguage: discovered.sourceLanguage,
+        status: options.status,
+        coverImageUrl: scraped.coverImageUrl || undefined,
+        coverImageAlt: scraped.coverImageAlt || scraped.headline
+      };
+
+      if (!item.coverImageUrl) {
+        console.error(`[SCRAPE] skipped ${discovered.sourceUrl}: no cover image found`);
+        continue;
+      }
+
+      scrapedItems.push(item);
+      console.log(`[SCRAPE] OK ${discovered.sourceLabel}: ${scraped.headline.slice(0, 80)}`);
     } catch (error) {
-      console.error(`[FILTER] skipped ${item.sourceUrl || item.headline}: ${error.message || error}`);
+      console.error(`[SCRAPE] skipped ${discovered.sourceUrl}: ${error.message || error}`);
     }
   }
 
-  console.log(`Validated items: ${validatedItems.length}`);
+  console.log(`Scraped items: ${scrapedItems.length}`);
 
   if (options.dryRun) {
-    validatedItems.forEach((item, index) => {
+    scrapedItems.forEach((item, index) => {
       console.log(`[${index + 1}] ${item.publishedAt} | ${item.sourceLabel} | ${item.headline}`);
       console.log(`    ${item.sourceUrl}`);
     });
 
     await finishIngestionRun(run.id, {
       status: "dry_run",
-      itemCount: validatedItems.length,
+      itemCount: scrapedItems.length,
       durationMs: Date.now() - startedAt,
-      message: `AI discovery dry run completed with ${validatedItems.length} validated item(s).`
+      message: `AI discovery dry run completed with ${scrapedItems.length} scraped item(s).`
     });
     await disconnectIngestionRunStore();
     return;
@@ -534,8 +632,8 @@ async function main() {
   let duplicateCount = 0;
   let failedCount = 0;
 
-  for (let index = 0; index < validatedItems.length; index += 1) {
-    const item = validatedItems[index];
+  for (let index = 0; index < scrapedItems.length; index += 1) {
+    const item = scrapedItems[index];
 
     try {
       const payload = await postDraft(options.baseUrl, item);
@@ -546,11 +644,11 @@ async function main() {
       }
 
       console.log(
-        `[WRITE ${index + 1}/${validatedItems.length}] ${payload.draft?.duplicate ? "duplicate" : "created"}: ${payload.draft?.slug || item.headline}`
+        `[WRITE ${index + 1}/${scrapedItems.length}] ${payload.draft?.duplicate ? "duplicate" : "created"}: ${payload.draft?.slug || item.headline}`
       );
     } catch (error) {
       failedCount += 1;
-      console.error(`[WRITE ${index + 1}/${validatedItems.length}] failed: ${item.headline}`);
+      console.error(`[WRITE ${index + 1}/${scrapedItems.length}] failed: ${item.headline}`);
       console.error(error.message || error);
     }
   }

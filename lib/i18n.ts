@@ -1,19 +1,7 @@
-import { cookies, headers } from "next/headers";
-
-import { localeCookieName, type Locale } from "@/lib/locale-config";
+import type { Locale } from "@/lib/locale-config";
 
 export async function getLocale(): Promise<Locale> {
-  const headerStore = await headers();
-  const headerLocale = headerStore.get("x-fightbase-locale");
-
-  if (headerLocale === "ru" || headerLocale === "en") {
-    return headerLocale;
-  }
-
-  const cookieStore = await cookies();
-  const locale = cookieStore.get(localeCookieName)?.value;
-
-  return locale === "en" ? "en" : "ru";
+  return "ru";
 }
 
 export const dictionary = {

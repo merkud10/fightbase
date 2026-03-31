@@ -24,16 +24,19 @@ export async function generateMetadata({ searchParams }: NewsPageProps): Promise
   const tag = readParam(params.tag);
   const hasFilters = Boolean(promotion || tag);
   const localizedUrl = localizePath("/news", locale);
+  const title = locale === "ru" ? "Новости MMA" : "MMA News";
+  const description =
+    locale === "ru"
+      ? "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам."
+      : "MMA news from FightBase Media: UFC, PFL, ONE, fight announcements, event results, and key fighter updates.";
 
   return {
-    title: "Новости MMA",
-    description:
-      "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам.",
+    title,
+    description,
     alternates: buildLocaleAlternates("/news"),
     openGraph: {
-      title: "Новости MMA",
-      description:
-        "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам.",
+      title,
+      description,
       url: localizedUrl
     },
     robots: hasFilters
@@ -160,7 +163,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             <div className="filter-head">
               <h3>{locale === "ru" ? "Фильтры" : "Filters"}</h3>
               {activeFiltersCount > 0 ? (
-                <Link href="/news" className="button-ghost filter-reset-link">
+                <Link href={localizePath("/news", locale)} className="button-ghost filter-reset-link">
                   {locale === "ru" ? "Сбросить" : "Reset"}
                 </Link>
               ) : null}

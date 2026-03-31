@@ -9,8 +9,46 @@ import { getFightPredictionPageData } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
-import { buildPredictionCopy, getDisplayName, getPredictionScore } from "@/lib/predictions";
+import {
+  buildPredictionCopy,
+  fighterHasComparableStats,
+  getDisplayName,
+  getFightWinPercentages
+} from "@/lib/predictions";
 import { getSiteUrl } from "@/lib/site";
+
+function splitIntoParagraphs(text: string) {
+  const normalized = text
+    .replace(/\r/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const explicitParagraphs = normalized
+    .split(/\n\s*\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (explicitParagraphs.length > 1) {
+    return explicitParagraphs;
+  }
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (sentences.length <= 3) {
+    return [normalized];
+  }
+
+  const chunks: string[] = [];
+  for (let index = 0; index < sentences.length; index += 3) {
+    chunks.push(sentences.slice(index, index + 3).join(" "));
+  }
+
+  return chunks;
+}
 
 function hasUsablePhoto(url?: string | null) {
   return (
@@ -65,17 +103,23 @@ export default async function FightPredictionPage({
     notFound();
   }
 
-  const { fight, relatedArticles, relatedPredictionArticles } = data;
-  const prediction = buildPredictionCopy(locale, fight.fighterA, fight.fighterB);
+  const { fight, relatedArticles, relatedPredictionArticles, fightPredictionArticle } = data;
+  const oddsCtx = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
+  const prediction = buildPredictionCopy(locale, fight.fighterA, fight.fighterB, oddsCtx);
+  const { percentA: fighterAPercent, percentB: fighterBPercent, source: winPctSource } = getFightWinPercentages(
+    fight.fighterA,
+    fight.fighterB,
+    oddsCtx
+  );
+  const showStatsCompare =
+    fighterHasComparableStats(fight.fighterA) || fighterHasComparableStats(fight.fighterB);
+  const sidebarPredictionLinks = fightPredictionArticle
+    ? relatedPredictionArticles.filter((a) => a.id !== fightPredictionArticle.id)
+    : relatedPredictionArticles;
   const siteUrl = getSiteUrl();
   const pageUrl = new URL(localizePath(`/predictions/${eventSlug}/${fightId}`, locale), siteUrl).toString();
   const fighterAName = getDisplayName(fight.fighterA, locale);
   const fighterBName = getDisplayName(fight.fighterB, locale);
-  const fighterAScore = getPredictionScore(fight.fighterA);
-  const fighterBScore = getPredictionScore(fight.fighterB);
-  const totalScore = Math.max(fighterAScore + fighterBScore, 1);
-  const fighterAPercent = Math.round((fighterAScore / totalScore) * 100);
-  const fighterBPercent = 100 - fighterAPercent;
   const breadcrumbItems = [
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
     { label: locale === "ru" ? "Прогнозы" : "Predictions", href: "/predictions" },
@@ -117,6 +161,15 @@ export default async function FightPredictionPage({
         <div className="prediction-hero-center">
           <span className="prediction-label">{locale === "ru" ? "Выбор" : "Pick"}</span>
           <strong>{prediction.pick}</strong>
+          {prediction.hasOdds && fight.oddsA != null && fight.oddsB != null ? (
+            <p className="copy prediction-odds-line">
+              {locale === "ru" ? "Линия (decimal)" : "Line (decimal)"}: {fighterAName}{" "}
+              <strong>{fight.oddsA.toFixed(2)}</strong> · {fighterBName} <strong>{fight.oddsB.toFixed(2)}</strong>
+              {fight.oddsSource ? (
+                <span className="prediction-odds-source"> · {fight.oddsSource}</span>
+              ) : null}
+            </p>
+          ) : null}
           <div className="prediction-meter">
             <div className="prediction-meter-fill" style={{ width: `${fighterAPercent}%` }} />
           </div>
@@ -124,6 +177,15 @@ export default async function FightPredictionPage({
             <span>{fighterAPercent}%</span>
             <span>{fighterBPercent}%</span>
           </div>
+          <p className="copy prediction-meter-caption">
+            {winPctSource === "odds"
+              ? locale === "ru"
+                ? "Доли шансов по букмекерской линии (без учёта маржи букмекера как «истины»)."
+                : "Win shares from the betting line (not a claim the market is always right)."
+              : locale === "ru"
+                ? "Оценка FightBase по рекорду, форме и статистике — линии букмекеров пока нет."
+                : "FightBase estimate from record, form, and stats — no market line loaded yet."}
+          </p>
         </div>
 
         <div className="prediction-hero-fighter prediction-hero-fighter--reverse">
@@ -143,28 +205,67 @@ export default async function FightPredictionPage({
       <section className="detail-grid">
         <article className="table-card prediction-detail-card">
           <div className="prediction-sections prediction-sections--editorial">
-            <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Общая картина" : "Matchup overview"}</h3>
-              <p className="copy">{prediction.overview}</p>
-            </section>
-            <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Ключевое преимущество" : "Key edge"}</h3>
-              <p className="copy">{prediction.keyEdge}</p>
-            </section>
-            <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Ожидаемый сценарий" : "Likely fight script"}</h3>
-              <p className="copy">{prediction.fightScript}</p>
-            </section>
-            <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Форма перед боем" : "Recent form"}</h3>
-              <p className="copy">{prediction.formA}</p>
-              <p className="copy">{prediction.formB}</p>
-            </section>
-            <section className="prediction-section-card">
-              <h3>{locale === "ru" ? "Пути к победе" : "Paths to victory"}</h3>
-              <p className="copy">{prediction.pathA}</p>
-              <p className="copy">{prediction.pathB}</p>
-            </section>
+            {fightPredictionArticle ? (
+              <section className="prediction-section-card prediction-section-card--article">
+                <h3>{locale === "ru" ? "Разбор" : "Breakdown"}</h3>
+                <p className="copy">
+                  <Link href={localizePath(`/news/${fightPredictionArticle.slug}`, locale)} className="event-table-link">
+                    {locale === "ru" ? "Открыть материал в разделе новостей" : "Open full article in News"}
+                  </Link>
+                </p>
+                {fightPredictionArticle.sections.map((section) => (
+                  <div key={section.id} className="prediction-article-section">
+                    {section.heading ? <h4 className="prediction-article-heading">{section.heading}</h4> : null}
+                    {splitIntoParagraphs(section.body).map((paragraph, index) => (
+                      <p key={`${section.id}-${index}`} className="copy">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            ) : null}
+
+            {!fightPredictionArticle ? (
+              <>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Общая картина" : "Matchup overview"}</h3>
+                  <p className="copy">{prediction.overview}</p>
+                </section>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Ключевое преимущество" : "Key edge"}</h3>
+                  <p className="copy">{prediction.keyEdge}</p>
+                </section>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Ожидаемый сценарий" : "Likely fight script"}</h3>
+                  <p className="copy">{prediction.fightScript}</p>
+                </section>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Форма перед боем" : "Recent form"}</h3>
+                  <p className="copy">{prediction.formA}</p>
+                  <p className="copy">{prediction.formB}</p>
+                </section>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Пути к победе" : "Paths to victory"}</h3>
+                  <p className="copy">{prediction.pathA}</p>
+                  <p className="copy">{prediction.pathB}</p>
+                </section>
+              </>
+            ) : (
+              <>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Форма перед боем" : "Recent form"}</h3>
+                  <p className="copy">{prediction.formA}</p>
+                  <p className="copy">{prediction.formB}</p>
+                </section>
+                <section className="prediction-section-card">
+                  <h3>{locale === "ru" ? "Пути к победе" : "Paths to victory"}</h3>
+                  <p className="copy">{prediction.pathA}</p>
+                  <p className="copy">{prediction.pathB}</p>
+                </section>
+              </>
+            )}
+
             {prediction.statLines.length > 0 ? (
               <section className="prediction-section-card">
                 <h3>{locale === "ru" ? "Ключевые цифры" : "Key metrics"}</h3>
@@ -177,6 +278,7 @@ export default async function FightPredictionPage({
             ) : null}
           </div>
 
+          {showStatsCompare ? (
           <div className="prediction-stats-grid">
             {[fight.fighterA, fight.fighterB].map((fighter) => (
               <div key={fighter.id} className="stat-card prediction-fighter-stat">
@@ -210,6 +312,7 @@ export default async function FightPredictionPage({
               </div>
             ))}
           </div>
+          ) : null}
         </article>
 
         <aside className="stack">
@@ -239,7 +342,7 @@ export default async function FightPredictionPage({
           <div className="policy-card">
             <h3>{locale === "ru" ? "Разборы и превью" : "Preview coverage"}</h3>
             <ul className="event-side-list">
-              {relatedPredictionArticles.map((article) => (
+              {sidebarPredictionLinks.map((article) => (
                 <li key={article.id}>
                   <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
                 </li>

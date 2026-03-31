@@ -1,11 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { localeCookieName, type Locale } from "@/lib/locale-config";
 import { localizePath, stripLocalePrefix } from "@/lib/locale-path";
 
-export function LanguageSwitcher({ locale }: { locale: Locale }) {
+function LanguageSwitcherInner({ locale }: { locale: Locale }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -20,10 +21,18 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="locale-switcher" aria-label="Language switcher">
+    <div className="locale-switcher" role="group" aria-label={locale === "ru" ? "Переключить язык" : "Switch language"}>
       <button type="button" className="button-ghost active-locale" onClick={() => setLocale(nextLocale)}>
         {locale.toUpperCase()} / {nextLocale.toUpperCase()}
       </button>
     </div>
+  );
+}
+
+export function LanguageSwitcher({ locale }: { locale: Locale }) {
+  return (
+    <Suspense fallback={<div className="locale-switcher"><span className="button-ghost active-locale">{locale.toUpperCase()}</span></div>}>
+      <LanguageSwitcherInner locale={locale} />
+    </Suspense>
   );
 }

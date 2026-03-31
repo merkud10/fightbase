@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PageHero } from "@/components/page-hero";
 import { getQuotesPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 
 export async function generateMetadata(): Promise<Metadata> {
   const quotes = await getQuotesPageData();
@@ -44,7 +44,7 @@ export default async function QuotesPage() {
             <p className="eyebrow">{locale === "ru" ? "Цитата" : "Quote"}</p>
             <h3>{article.title}</h3>
             <p className="copy">{article.meaning}</p>
-            <Link href={`/news/${article.slug}`}>{locale === "ru" ? "Открыть материал" : "Open coverage"}</Link>
+            <Link href={localizePath(`/news/${article.slug}`, locale)}>{locale === "ru" ? "Открыть материал" : "Open coverage"}</Link>
           </article>
         ))}
       </section>

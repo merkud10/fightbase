@@ -51,7 +51,7 @@ function normalizeWhitespace(value: string) {
 function normalizeForMatch(value: string) {
   return normalizeWhitespace(value)
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/[^a-zа-яё0-9\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

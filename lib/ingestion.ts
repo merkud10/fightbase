@@ -89,9 +89,19 @@ function buildSourceSlugBase(label: string, url: string) {
   }
 }
 
-function fetchText(url: string) {
+function fetchText(url: string, maxRedirects = 5) {
   return new Promise<string>((resolve, reject) => {
+    if (maxRedirects <= 0) {
+      reject(new Error("Too many redirects"));
+      return;
+    }
+
     const target = new URL(url);
+    if (target.hostname === "localhost" || target.hostname === "127.0.0.1" || target.hostname.startsWith("169.254.") || target.hostname.startsWith("10.") || target.hostname.startsWith("192.168.")) {
+      reject(new Error("Requests to private networks are not allowed"));
+      return;
+    }
+
     const transport = target.protocol === "https:" ? https : http;
 
     const request = transport.request(
@@ -108,7 +118,7 @@ function fetchText(url: string) {
         if ([301, 302, 303, 307, 308].includes(statusCode) && response.headers.location) {
           const redirectedUrl = new URL(response.headers.location, url).toString();
           response.resume();
-          fetchText(redirectedUrl).then(resolve).catch(reject);
+          fetchText(redirectedUrl, maxRedirects - 1).then(resolve).catch(reject);
           return;
         }
 
@@ -118,16 +128,29 @@ function fetchText(url: string) {
           return;
         }
 
+        const maxBytes = 5 * 1024 * 1024;
+        let totalBytes = 0;
         const chunks: Buffer[] = [];
+
         response.on("data", (chunk) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          totalBytes += buffer.length;
+          if (totalBytes > maxBytes) {
+            request.destroy(new Error("Response too large"));
+            return;
+          }
+          chunks.push(buffer);
         });
+        response.on("error", reject);
         response.on("end", () => {
           resolve(Buffer.concat(chunks).toString("utf8"));
         });
       }
     );
 
+    request.setTimeout(180000, () => {
+      request.destroy(new Error("Request timed out"));
+    });
     request.on("error", reject);
     request.end();
   });
@@ -175,13 +198,38 @@ function stripTags(value: string) {
     .trim();
 }
 
-function extractParagraphBody(html: string, limit = 14) {
-  const paragraphs = Array.from(html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+function isolateArticleBody(html: string) {
+  const containers = [
+    /<div[^>]+class="[^"]*news-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]+class="[^"]*article[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class="[^"]*post[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+  ];
+
+  for (const re of containers) {
+    const m = html.match(re);
+    if (m) return m[0];
+  }
+
+  return html;
+}
+
+function isLinkOnlyParagraph(rawHtml: string) {
+  const stripped = rawHtml.replace(/<!--[\s\S]*?-->/g, "").trim();
+  return /^<a\s[^>]*>[\s\S]*<\/a>$/i.test(stripped);
+}
+
+function extractParagraphBody(html: string, limit = 30) {
+  const body = isolateArticleBody(html);
+  const paragraphs = Array.from(body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+    .filter((match) => !isLinkOnlyParagraph(match[1]))
     .map((match) => stripTags(match[1]))
-    .filter((paragraph) => paragraph.length >= 80)
+    .filter((paragraph) => paragraph.length >= 10)
     .filter(
       (paragraph) =>
-        !/cookie|newsletter|subscribe|sign up|download the app|follow us|read more|advertisement/i.test(paragraph)
+        !/cookie|newsletter|subscribe|sign up|download the app|follow us|read more|advertisement|подпис|реклам/i.test(
+          paragraph
+        )
     )
     .slice(0, limit);
 
@@ -196,8 +244,8 @@ async function hydrateBodyFromSource(sourceUrl: string, fallbackBody: string) {
       extractMetaContent(html, "og:description") ||
       "";
     const paragraphBody = extractParagraphBody(html);
-    const mergedBody = [description, paragraphBody]
-      .map((part) => stripTags(part))
+    const cleanDescription = stripTags(description);
+    const mergedBody = [cleanDescription, paragraphBody]
       .filter(Boolean)
       .filter((part, index, array) => array.indexOf(part) === index)
       .join("\n\n")
@@ -363,13 +411,58 @@ async function inferRelations(input: IngestDraftInput) {
     eventBySlug ??
     findBestMatch(events, (item) => buildAliases([item.slug, item.name]), text, 0.72);
 
+  const russianStems = (nameRu: string) => {
+    const words = nameRu.toLowerCase().trim().split(/\s+/);
+    const stems: string[] = [];
+
+    for (const word of words) {
+      if (word.length >= 7) {
+        stems.push(word.slice(0, -2));
+      } else if (word.length >= 6) {
+        stems.push(word.slice(0, -1));
+      } else if (word.length >= 5) {
+        stems.push(word);
+      }
+    }
+
+    return stems;
+  };
+
+  const matchFighterInText = (fighter: (typeof fighters)[number]) => {
+    const aliases = buildAliases([fighter.slug, fighter.name, fighter.nameRu, fighter.nickname]);
+
+    if (aliases.some((alias) => alias && text.includes(alias) && alias.split(" ").length >= 2)) {
+      return true;
+    }
+
+    if (fighter.nameRu) {
+      const stems = russianStems(fighter.nameRu);
+
+      if (stems.length >= 2) {
+        const positions = stems.map((stem) => text.indexOf(stem));
+
+        if (positions.every((pos) => pos >= 0)) {
+          const span = Math.max(...positions) - Math.min(...positions);
+          if (span <= 80) {
+            return true;
+          }
+        }
+      }
+
+      if (stems.length === 1 && stems[0].length >= 6 && text.includes(stems[0])) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const inferredFighters =
     normalizedProvidedFighterSlugs.length > 0
-      ? fighters.filter((fighter) => normalizedProvidedFighterSlugs.includes(fighter.slug))
-      : fighters.filter((fighter) => {
-          const aliases = buildAliases([fighter.slug, fighter.name, fighter.nickname]);
-          return aliases.some((alias) => alias && text.includes(alias) && alias.split(" ").length >= 2);
-        });
+      ? fighters.filter(
+          (fighter) => normalizedProvidedFighterSlugs.includes(fighter.slug) || matchFighterInText(fighter)
+        )
+      : fighters.filter(matchFighterInText);
 
   const inferredTags =
     normalizedProvidedTagSlugs.length > 0

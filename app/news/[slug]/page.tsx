@@ -197,7 +197,7 @@ export default async function ArticlePage({
             <ul>
               {article.fighterMap.map(({ fighter }) => (
                 <li key={fighter.id}>
-                  <Link href={`/fighters/${fighter.slug}`}>{fighter.name}</Link>
+                  <Link href={localizePath(`/fighters/${fighter.slug}`, locale)}>{fighter.name}</Link>
                 </li>
               ))}
             </ul>
@@ -207,7 +207,7 @@ export default async function ArticlePage({
             <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
             <p className="copy">
               {article.event ? (
-                <Link href={`/events/${article.event.slug}`}>{article.event.name}</Link>
+                <Link href={localizePath(`/events/${article.event.slug}`, locale)}>{article.event.name}</Link>
               ) : locale === "ru" ? (
                 "Для этого материала отдельный турнир не указан."
               ) : (

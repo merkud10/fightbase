@@ -1,24 +1,31 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Inter, Oswald, Russo_One } from "next/font/google";
 
 import "./globals.css";
 
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
+import { ScrollToTop } from "@/components/header-shell";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
 
-const bodyFont = Manrope({
+const bodyFont = Inter({
   subsets: ["latin", "cyrillic"],
   variable: "--font-body",
   weight: ["400", "500", "600", "700", "800"]
 });
 
-const displayFont = Cormorant_Garamond({
+const headingFont = Oswald({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-display",
-  weight: ["500", "600", "700"]
+  variable: "--font-heading",
+  weight: ["300", "400", "500"]
+});
+
+const navFont = Russo_One({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-nav",
+  weight: ["400"]
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -64,8 +71,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const dynamic = "force-dynamic";
-
 export default async function RootLayout({
   children
 }: Readonly<{
@@ -75,12 +80,13 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
-      <body className={`${bodyFont.variable} ${displayFont.variable}`}>
+      <body className={`${bodyFont.variable} ${headingFont.variable} ${navFont.variable}`}>
         <div className="page-shell">
           <Header />
           {children}
           <Footer />
         </div>
+        <ScrollToTop />
       </body>
     </html>
   );

@@ -616,7 +616,7 @@ export default async function FighterPage({
             <ul>
               {relatedArticles.map((article) => (
                 <li key={article.id}>
-                  <Link href={`/news/${article.slug}`}>{article.title}</Link>
+                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
                 </li>
               ))}
             </ul>

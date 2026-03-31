@@ -32,11 +32,22 @@ export async function generateMetadata({ searchParams }: RankingsPageProps): Pro
   const normalizedPromotion = promotion === "pfl" ? "pfl" : "ufc";
   const canonicalPath = normalizedPromotion === "ufc" ? "/rankings" : `/rankings?promotion=${normalizedPromotion}`;
   const canonical = localizePath(canonicalPath, locale);
-  const title = normalizedPromotion === "pfl" ? "Рейтинги PFL" : "Рейтинги UFC";
+  const title =
+    normalizedPromotion === "pfl"
+      ? locale === "ru"
+        ? "Рейтинги PFL"
+        : "PFL Rankings"
+      : locale === "ru"
+        ? "Рейтинги UFC"
+        : "UFC Rankings";
   const description =
     normalizedPromotion === "pfl"
-      ? "Официальные рейтинги PFL по дивизионам, чемпионам и претендентам."
-      : "Официальные рейтинги UFC по дивизионам, чемпионам и претендентам.";
+      ? locale === "ru"
+        ? "Официальные рейтинги PFL по дивизионам, чемпионам и претендентам."
+        : "Official PFL rankings by division, champions, and contenders."
+      : locale === "ru"
+        ? "Официальные рейтинги UFC по дивизионам, чемпионам и претендентам."
+        : "Official UFC rankings by division, champions, and contenders.";
 
   return {
     title,
@@ -292,7 +303,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
             {promotions.map((promotionItem) => (
               <Link
                 key={promotionItem.slug}
-                href={buildPromotionHref(promotionItem.slug)}
+                href={localizePath(buildPromotionHref(promotionItem.slug), locale)}
                 className={`filter-chip ${selectedPromotion === promotionItem.slug ? "active" : ""}`}
               >
                 {promotionItem.shortName || promotionItem.name}
@@ -346,7 +357,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                       <Link
                         href={
                           championLink?.localSlug
-                            ? `/fighters/${championLink.localSlug}`
+                            ? localizePath(`/fighters/${championLink.localSlug}`, locale)
                             : championLink?.officialUrl ?? `https://www.ufc.com/athlete/${group.champion.officialSlug}`
                         }
                       >
@@ -398,7 +409,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                                 <Link
                                   href={
                                     link?.localSlug
-                                      ? `/fighters/${link.localSlug}`
+                                      ? localizePath(`/fighters/${link.localSlug}`, locale)
                                       : link?.officialUrl ?? `https://www.ufc.com/athlete/${fighter.officialSlug}`
                                   }
                                 >
@@ -467,7 +478,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                       </span>
                       <strong>{group.champion.name}</strong>
                       {championLink?.localSlug ? (
-                        <Link href={`/fighters/${championLink.localSlug}`}>
+                        <Link href={localizePath(`/fighters/${championLink.localSlug}`, locale)}>
                           {locale === "ru" ? "Открыть профиль" : "Open profile"}
                         </Link>
                       ) : null}
@@ -512,7 +523,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                               </td>
                               <td>
                                 {link?.localSlug ? (
-                                  <Link href={`/fighters/${link.localSlug}`}>
+                                  <Link href={localizePath(`/fighters/${link.localSlug}`, locale)}>
                                     {locale === "ru" ? "Открыть" : "Open"}
                                   </Link>
                                 ) : (
@@ -611,7 +622,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                                 </span>
                               </td>
                               <td>
-                                <Link href={`/fighters/${fighter.slug}`}>{locale === "ru" ? "Открыть" : "Open"}</Link>
+                                <Link href={localizePath(`/fighters/${fighter.slug}`, locale)}>{locale === "ru" ? "Открыть" : "Open"}</Link>
                               </td>
                             </tr>
                           );

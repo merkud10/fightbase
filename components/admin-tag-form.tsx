@@ -3,6 +3,7 @@ import {
   deleteTagAction,
   updateTagAction
 } from "@/app/admin/actions";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type TagDraft = {
   id: string;
@@ -38,16 +39,17 @@ export function AdminTagForm({
           <button type="submit" className="button">
             {locale === "ru" ? (isEdit ? "Сохранить тег" : "Создать тег") : isEdit ? "Save tag" : "Create tag"}
           </button>
-          {isEdit ? (
-            <form action={deleteTagAction}>
-              <input type="hidden" name="tagId" value={tag!.id} />
-              <button type="submit" className="button-secondary">
-                {locale === "ru" ? "Удалить" : "Delete"}
-              </button>
-            </form>
-          ) : null}
         </div>
       </form>
+      {isEdit ? (
+        <form action={deleteTagAction}>
+          <input type="hidden" name="tagId" value={tag!.id} />
+          <ConfirmDeleteButton
+            label={locale === "ru" ? "Удалить" : "Delete"}
+            confirmMessage={locale === "ru" ? "Удалить? Это действие необратимо." : "Delete? This action is irreversible."}
+          />
+        </form>
+      ) : null}
     </article>
   );
 }

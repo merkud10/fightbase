@@ -1,4 +1,5 @@
 import { createArticleAction, deleteArticleAction, updateArticleAction } from "@/app/admin/actions";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type Option = {
   id: string;
@@ -222,16 +223,17 @@ export function AdminArticleForm({
           <button type="submit" className="button">
             {locale === "ru" ? (isEdit ? "Сохранить" : "Создать статью") : isEdit ? "Save" : "Create article"}
           </button>
-          {isEdit ? (
-            <form action={deleteArticleAction}>
-              <input type="hidden" name="articleId" value={article!.id} />
-              <button type="submit" className="button-secondary">
-                {locale === "ru" ? "Удалить" : "Delete"}
-              </button>
-            </form>
-          ) : null}
         </div>
       </form>
+      {isEdit ? (
+        <form action={deleteArticleAction}>
+          <input type="hidden" name="articleId" value={article!.id} />
+          <ConfirmDeleteButton
+            label={locale === "ru" ? "Удалить" : "Delete"}
+            confirmMessage={locale === "ru" ? "Удалить? Это действие необратимо." : "Delete? This action is irreversible."}
+          />
+        </form>
+      ) : null}
     </article>
   );
 }
