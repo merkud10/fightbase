@@ -2,33 +2,30 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArticleCard } from "@/components/cards";
+import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getNewsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { readParam } from "@/lib/search-params";
 import { getSiteUrl } from "@/lib/site";
 
 type NewsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function readParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-
 export async function generateMetadata({ searchParams }: NewsPageProps): Promise<Metadata> {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
-  const promotion = readParam(params.promotion);
   const tag = readParam(params.tag);
-  const hasFilters = Boolean(promotion || tag);
+  const hasFilters = Boolean(tag);
   const localizedUrl = localizePath("/news", locale);
-  const title = locale === "ru" ? "Новости MMA" : "MMA News";
+  const title = locale === "ru" ? "Новости UFC" : "UFC News";
   const description =
     locale === "ru"
-      ? "Лента новостей MMA от FightBase Media: UFC, PFL, ONE, анонсы боёв, результаты турниров и ключевые обновления по бойцам."
-      : "MMA news from FightBase Media: UFC, PFL, ONE, fight announcements, event results, and key fighter updates.";
+      ? "Новости UFC от FightBase Media: главные события, подтвержденные анонсы, результаты и важные изменения по бойцам и турнирам."
+      : "UFC news from FightBase Media: major developments, confirmed announcements, results, and key fighter and event updates.";
 
   return {
     title,
@@ -48,74 +45,20 @@ export async function generateMetadata({ searchParams }: NewsPageProps): Promise
   };
 }
 
-function buildFilterHref(current: { promotion: string; tag: string }, next: Partial<{ promotion: string; tag: string }>) {
-  const params = new URLSearchParams();
-  const merged = { ...current, ...next };
-
-  if (merged.promotion) {
-    params.set("promotion", merged.promotion);
-  }
-
-  if (merged.tag) {
-    params.set("tag", merged.tag);
-  }
-
-  const query = params.toString();
-  return query ? `/news?${query}` : "/news";
-}
-
-function FilterSection({
-  title,
-  items,
-  activeValue,
-  current,
-  param
-}: {
-  title: string;
-  items: Array<{ label: string; value: string }>;
-  activeValue: string;
-  current: { promotion: string; tag: string };
-  param: "promotion" | "tag";
-}) {
-  return (
-    <div className="filter-block">
-      <h4>{title}</h4>
-      <div className="filter-chip-row">
-        <Link
-          href={buildFilterHref(current, { [param]: "" })}
-          className={`filter-chip ${activeValue === "" ? "active" : ""}`}
-        >
-          Все
-        </Link>
-        {items.map((item) => (
-          <Link
-            key={item.value}
-            href={buildFilterHref(current, { [param]: activeValue === item.value ? "" : item.value })}
-            className={`filter-chip ${activeValue === item.value ? "active" : ""}`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default async function NewsPage({ searchParams }: NewsPageProps) {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
-  const promotion = readParam(params.promotion);
   const tag = readParam(params.tag);
-  const { promotions, tags, articles, filters } = await getNewsPageData({
-    promotion,
+  const { tags, articles, filters } = await getNewsPageData({
+    promotion: "",
     tag
   });
 
   const current = {
-    promotion: filters.promotion,
     tag: filters.tag
   };
-  const activeFiltersCount = [filters.promotion, filters.tag].filter(Boolean).length;
+  const activeFiltersCount = [filters.tag].filter(Boolean).length;
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL("/news", siteUrl).toString();
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
@@ -131,7 +74,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         data={{
           "@context": "https://schema.org",
           "@type": "CollectionPage",
-          name: locale === "ru" ? "Новости MMA" : "MMA News",
+          name: locale === "ru" ? "Новости UFC" : "UFC News",
           url: collectionUrl,
           inLanguage: locale === "ru" ? "ru-RU" : "en-US"
         }}
@@ -141,7 +84,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           data={{
             "@context": "https://schema.org",
             "@type": "ItemList",
-            name: locale === "ru" ? "Лента новостей MMA" : "MMA news feed",
+            name: locale === "ru" ? "Лента новостей UFC" : "UFC news feed",
             itemListElement: itemListElements
           }}
         />
@@ -152,8 +95,8 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         title={locale === "ru" ? "Новости" : "News"}
         description={
           locale === "ru"
-            ? "Главная новостная лента с быстрыми фильтрами по лигам и темам материалов."
-            : "The main news feed with quick filters for promotions and story categories."
+            ? "Главная новостная лента FightBase Media с фильтрами по темам и привязкой к бойцам и турнирам UFC."
+            : "The main FightBase Media news feed with topic filters and links to UFC fighters and events."
         }
       />
 
@@ -170,29 +113,20 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             </div>
 
             <FilterSection
-              title={locale === "ru" ? "Лиги" : "Promotions"}
-              items={promotions.map((promotionItem) => ({
-                value: promotionItem.slug,
-                label: promotionItem.shortName
-              }))}
-              activeValue={filters.promotion}
-              current={current}
-              param="promotion"
-            />
-
-            <FilterSection
-              title={locale === "ru" ? "Категории" : "Categories"}
+              title={locale === "ru" ? "Темы" : "Topics"}
               items={tags.map((tagItem) => ({
                 value: tagItem.slug,
                 label: tagItem.label
               }))}
               activeValue={filters.tag}
+              basePath={localizePath("/news", locale)}
               current={current}
               param="tag"
+              allLabel={locale === "ru" ? "Все" : "All"}
             />
 
             <p className="filter-results-copy">
-              {locale === "ru" ? `Найдено новостей: ${articles.length}` : `Articles found: ${articles.length}`}
+              {locale === "ru" ? `Материалов: ${articles.length}` : `Stories: ${articles.length}`}
             </p>
           </div>
         </aside>
@@ -204,14 +138,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             ))}
           </div>
         ) : (
-          <section className="filter-empty-state">
-            <h3>{locale === "ru" ? "По этим фильтрам ничего не найдено" : "No articles match these filters"}</h3>
-            <p className="copy">
-              {locale === "ru"
-                ? "Попробуй снять часть фильтров, чтобы расширить новостную выборку."
-                : "Try clearing some filters to broaden the news feed."}
-            </p>
-          </section>
+          <FilterEmptyState
+            heading={locale === "ru" ? "По этим фильтрам ничего не найдено" : "No articles match these filters"}
+            description={locale === "ru"
+              ? "По выбранным параметрам материалов не найдено. Сбросьте часть фильтров, чтобы расширить выборку."
+              : "No stories match the selected filters. Clear some filters to broaden the list."}
+          />
         )}
       </section>
     </main>

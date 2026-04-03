@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { formatFighterStatus, formatWeightClass } from "@/lib/display";
+import { formatFighterStatus, formatWeightClass, getDisplayName } from "@/lib/display";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
 import { localizePath } from "@/lib/locale-path";
@@ -21,6 +22,9 @@ type ArticleCardData = {
 type EventFightCardData = {
   id: string;
   weightClass: string;
+  oddsA?: number | null;
+  oddsB?: number | null;
+  predictionSnapshot?: { id: string } | null;
   fighterA: { name: string; nameRu?: string | null; photoUrl?: string | null };
   fighterB: { name: string; nameRu?: string | null; photoUrl?: string | null };
 };
@@ -49,12 +53,6 @@ type FighterCardData = {
   promotion?: { shortName: string } | null;
 };
 
-function getDisplayName(
-  fighter: { name: string; nameRu?: string | null },
-  locale: Locale
-) {
-  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
-}
 
 function isUsablePhoto(url?: string | null) {
   return (
@@ -73,11 +71,18 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
     <article className="story-card editorial-card">
       <div className="story-art">
         {article.coverImageUrl ? (
-          <img src={article.coverImageUrl} alt={article.coverImageAlt || article.title} className="story-art-image" />
+          <img
+            src={getDisplayImageUrl(article.coverImageUrl)}
+            alt={article.coverImageAlt || article.title}
+            className="story-art-image"
+          />
         ) : null}
         <div className="story-art-label">{metaLabel}</div>
       </div>
-      <p className="kicker">{new Date(article.publishedAt).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}</p>
+      <div className="story-card-meta">
+        <p className="kicker">{new Date(article.publishedAt).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}</p>
+        <span className="story-card-accent" />
+      </div>
       <h3>
         <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
       </h3>
@@ -97,24 +102,12 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
   const t = getDictionary(locale);
   const fights = event.fights ?? [];
   const leadFight = fights[0];
-  const featuredPhoto =
-    leadFight?.fighterA.photoUrl ||
-    leadFight?.fighterB.photoUrl ||
-    fights[1]?.fighterA.photoUrl ||
-    fights[1]?.fighterB.photoUrl ||
-    null;
-  const secondaryPhoto =
-    leadFight?.fighterB.photoUrl ||
-    fights[1]?.fighterA.photoUrl ||
-    fights[1]?.fighterB.photoUrl ||
-    leadFight?.fighterA.photoUrl ||
-    null;
   const statusLabel =
     locale === "ru"
       ? event.status === "completed"
         ? "Прошедший турнир"
         : event.status === "live"
-          ? "Идёт сейчас"
+          ? "Идет сейчас"
           : "Ближайший турнир"
       : event.status === "completed"
         ? "Completed event"
@@ -124,33 +117,33 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
 
   return (
     <article className="event-card editorial-card event-card-rich">
-      <div className="event-card-media">
-        {isUsablePhoto(featuredPhoto) ? (
-          <img
-            src={String(featuredPhoto)}
-            alt={leadFight ? getDisplayName(leadFight.fighterA, locale) : event.name}
-            className="event-card-media-primary"
-          />
-        ) : (
-          <div className="event-card-media-primary event-card-media-placeholder" />
-        )}
-        {isUsablePhoto(secondaryPhoto) ? (
-          <img
-            src={String(secondaryPhoto)}
-            alt={leadFight ? getDisplayName(leadFight.fighterB, locale) : event.name}
-            className="event-card-media-secondary"
-          />
-        ) : null}
-        <div className="event-card-overlay">
+      <div className="event-card-poster">
+        <div className="event-card-poster-topline">
           <span className="event-card-status">{statusLabel}</span>
-          <p className="kicker">
-            {event.promotion?.shortName ?? "MMA"} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} ·{" "}
-            {event.city}
-          </p>
-          <h3>{event.name}</h3>
+          <span className="event-card-poster-meta">
+            {event.promotion?.shortName ?? "UFC"} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}
+          </span>
+        </div>
+
+        <div className="event-card-poster-body">
+          <p className="kicker event-card-city">{event.city}</p>
+          <h3 className="event-card-title">{event.name}</h3>
+
+          <div className="event-card-poster-stack">
+            {leadFight ? (
+              <div className="event-card-headliner">
+                <span className="event-card-headliner-label">{locale === "ru" ? "Главный бой" : "Main event"}</span>
+                <strong className="event-card-headliner-fight">
+                  {getDisplayName(leadFight.fighterA, locale)} vs {getDisplayName(leadFight.fighterB, locale)}
+                </strong>
+                <span className="event-card-headliner-note">{formatWeightClass(leadFight.weightClass, locale)}</span>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
-      <p className="copy">{event.summary}</p>
+
+      <p className="copy event-card-summary">{event.summary}</p>
 
       {fights.length > 0 ? (
         <div className="event-fight-list">
@@ -162,16 +155,22 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
                 </strong>
                 <span>{formatWeightClass(fight.weightClass, locale)}</span>
               </div>
-              <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-fight-link">
-                {t.common.openPrediction}
-              </Link>
+              {fight.predictionSnapshot ? (
+                <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-fight-link">
+                  {t.common.openPrediction}
+                </Link>
+              ) : (
+                <span className="event-fight-link event-fight-link--pending">
+                  {locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}
+                </span>
+              )}
             </div>
           ))}
         </div>
       ) : null}
 
       <div className="event-card-actions">
-        <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary">
+        <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary event-card-button">
           {t.common.eventCard}
         </Link>
       </div>
@@ -188,15 +187,15 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
   return (
     <article className="fighter-card editorial-card fighter-card-editorial">
       {hasUsablePhoto ? <img src={String(fighter.photoUrl)} alt={displayName} className="fighter-photo" /> : <div className="fighter-avatar" />}
-      <p className="kicker">{fighter.promotion?.shortName ?? "MMA"}</p>
+      <p className="kicker">{fighter.promotion?.shortName ?? "UFC"}</p>
       <h3>{displayName}</h3>
       <p className="copy">
         {hasRecord ? `${fighter.record} · ` : ""}
         {formatWeightClass(fighter.weightClass, locale)}
       </p>
       <span className="status-pill">{formatFighterStatus(fighter.status, locale)}</span>
-      <div style={{ marginTop: 18 }}>
-        <Link href={localizePath(`/fighters/${fighter.slug}`, locale)} className="button-secondary">
+      <div className="fighter-card-actions">
+        <Link href={localizePath(`/fighters/${fighter.slug}`, locale)} className="button-secondary fighter-card-button">
           {t.common.profile}
         </Link>
       </div>

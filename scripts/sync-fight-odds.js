@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
@@ -60,6 +61,12 @@ function namesMatch(a, b) {
     return true;
   }
   return na.includes(nb) || nb.includes(na);
+}
+
+function parseArgs(argv) {
+  return {
+    skipSnapshots: argv.includes("--skip-snapshots")
+  };
 }
 
 function averageDecimalOddsForFighter(event, fighterName) {
@@ -136,6 +143,7 @@ async function fetchOddsEvents(apiKey) {
 }
 
 async function main() {
+  const options = parseArgs(process.argv.slice(2));
   const apiKey = readEnv("ODDS_API_KEY", "").trim();
   if (!apiKey) {
     console.error("Set ODDS_API_KEY in .env");
@@ -193,6 +201,22 @@ async function main() {
   console.log("");
   console.log(`Updated: ${updated}`);
   console.log(`No API match: ${skipped}`);
+
+  if (!options.skipSnapshots) {
+    console.log("");
+    console.log("Refreshing prediction snapshots...");
+    execFileSync(process.execPath, [path.join(process.cwd(), "scripts", "generate-prediction-snapshots.js")], {
+      cwd: process.cwd(),
+      stdio: "inherit"
+    });
+
+    console.log("");
+    console.log("Sending pending prediction push notifications...");
+    execFileSync(process.execPath, [path.join(process.cwd(), "scripts", "send-pending-push-notifications.js"), "--type", "predictions"], {
+      cwd: process.cwd(),
+      stdio: "inherit"
+    });
+  }
 }
 
 main()

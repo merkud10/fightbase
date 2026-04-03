@@ -119,14 +119,6 @@ function buildOfficialProfileUrl(fighter) {
     return `https://www.ufc.com/athlete/${fighter.slug}`;
   }
 
-  if (fighter.promotion?.slug === "one") {
-    return `https://www.onefc.com/athletes/${fighter.slug}/`;
-  }
-
-  if (fighter.promotion?.slug === "pfl") {
-    return `https://pflmma.com/fighter/${fighter.slug}/`;
-  }
-
   return null;
 }
 

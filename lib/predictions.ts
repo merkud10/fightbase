@@ -1,4 +1,4 @@
-type Locale = "ru" | "en";
+import type { Locale } from "@/lib/locale-config";
 
 export type FighterPredictionData = {
   id: string;
@@ -123,9 +123,8 @@ export function getFightWinPercentages(
   };
 }
 
-export function getDisplayName(fighter: Pick<FighterPredictionData, "name" | "nameRu">, locale: Locale) {
-  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
-}
+import { getDisplayName } from "@/lib/display";
+export { getDisplayName };
 
 export function fighterHasComparableStats(fighter: FighterPredictionData): boolean {
   return (
@@ -261,8 +260,8 @@ export function buildPredictionCopy(
   const overview =
     implied && oddsCtx
       ? locale === "ru"
-        ? `По букмекерской линии (decimal ~${oddsCtx.oddsA!.toFixed(2)} / ${oddsCtx.oddsB!.toFixed(2)}) чуть выше шансы у ${favoriteName}. Это не гарантия исхода, а рыночная оценка перед боем; ${underdogName} остаётся опасным, если реализует свой сценарий.`
-        : `Market odds (~${oddsCtx.oddsA!.toFixed(2)} / ${oddsCtx.oddsB!.toFixed(2)}) lean toward ${favoriteName}. That is a market snapshot, not a lock — ${underdogName} can still win their fight.`
+        ? `${favoriteName} подходит к бою с небольшим преимуществом по общей картине матча. Это не гарантирует исход, и у ${underdogName} остаются рабочие пути к победе.`
+        : `${favoriteName} appears to hold a slight edge in the overall matchup picture. That is not a guarantee, and ${underdogName} still has viable paths to win.`
       : locale === "ru"
         ? `${favoriteName} по нашей модели чуть выгоднее на бумаге (рекорд, форма${statLines.length ? ", доступная статистика" : ""}). У ${underdogName} всё равно есть сценарии победы.`
         : `${favoriteName} looks slightly better on paper (record, form${statLines.length ? ", available stats" : ""}). ${underdogName} still has paths to win.`;
@@ -270,11 +269,11 @@ export function buildPredictionCopy(
   const keyEdge =
     implied && oddsCtx
       ? locale === "ru"
-        ? `Линия букмекеров отражает консенсус по исходу; разница в коэффициентах показывает, кого считают фаворитом перед боем.`
-        : `The betting line reflects consensus; the price gap shows who is favored before the fight.`
+        ? `Небольшое преимущество у ${favoriteName} есть уже до старта боя, но ключевым фактором все равно остается сам матчап.`
+        : `${favoriteName} may carry a slight edge before the opening bell, but the matchup itself remains the key factor.`
       : locale === "ru"
-        ? `Без линии букмекеров опираемся на рекорд, форму и UFC-статистику, где она заполнена.`
-        : `Without market odds we lean on record, form, and UFC stats where available.`;
+        ? `Оцениваем бой по рекорду, текущей форме и UFC-статистике, где она заполнена.`
+        : `We evaluate the fight through record, current form, and UFC stats where available.`;
 
   const fightScript =
     locale === "ru"
@@ -284,11 +283,11 @@ export function buildPredictionCopy(
   const pick =
     implied && oddsCtx
       ? locale === "ru"
-        ? `По линии: ${favoriteName} (${confidenceLabel}).`
-        : `Market lean: ${favoriteName} (${confidenceLabel}).`
+        ? favoriteName
+        : favoriteName
       : locale === "ru"
-        ? `Ориентир FightBase: ${favoriteName} — ${confidenceLabel}.`
-        : `FightBase lean: ${favoriteName} — ${confidenceLabel}.`;
+        ? favoriteName
+        : favoriteName;
 
   return {
     favorite,

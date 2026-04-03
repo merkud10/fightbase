@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { HeaderShell } from "@/components/header-shell";
+import { PushSubscribeButton } from "@/components/push-subscribe-button";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 
@@ -13,8 +14,8 @@ export async function Header() {
     { href: "/fighters", label: t.nav.fighters },
     { href: "/rankings", label: t.nav.rankings },
     { href: "/predictions", label: t.nav.predictions },
+    { href: "/analysis", label: locale === "ru" ? "Аналитика" : "Analysis" },
     { href: "/quotes", label: t.nav.quotes },
-    { href: "/videos", label: t.nav.videos },
     { href: "/about", label: t.nav.about }
   ];
 
@@ -30,20 +31,24 @@ export async function Header() {
             </span>
           </Link>
 
-          <nav className="nav-links" aria-label="Primary">
-            {navItems.map((item) => (
-              <Link key={item.href} href={localizePath(item.href, locale)} className="nav-link">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="header-nav-shell">
+            <span className="header-topline">
+              {locale === "ru"
+                ? "Новости, турнирные страницы, прогнозы и аналитика UFC"
+                : "UFC news, event pages, predictions, and analysis"}
+            </span>
+            <nav className="nav-links" aria-label="Primary">
+              {navItems.map((item) => (
+                <Link key={item.href} href={localizePath(item.href, locale)} className="nav-link">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
-        <div className="header-actions">
-          <span className="header-search-label">{t.common.search}</span>
-          <Link href={localizePath("/#subscribe", locale)} className="button">
-            {t.common.subscribe}
-          </Link>
-        </div>
+          <div className="header-actions">
+            <PushSubscribeButton label={t.common.subscribe} locale={locale} />
+          </div>
         </div>
       </header>
     </HeaderShell>

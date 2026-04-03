@@ -5,44 +5,41 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const opponentTranslations = {
-  "Brad Wheeler": "Брэд Уилер",
-  "Sean O'Malley": "Шон О'Мэлли"
+  "Brad Wheeler": "Р‘СЂСЌРґ РЈРёР»РµСЂ",
+  "Sean O'Malley": "РЁРѕРЅ Рћ'РњСЌР»Р»Рё"
 };
 
 const methodMap = new Map([
-  ["Soumission (étranglement arrière)", "Сабмишен (удушение сзади)"],
-  ["Soumission (clé de talon)", "Сабмишен (скручивание пятки)"],
-  ["TKO (удары and локти)", "TKO (удары и локти)"],
-  ["TKO (удары and soccer kicks)", "TKO (удары и соккер-кики)"]
+  ["Soumission (Г©tranglement arriГЁre)", "РЎР°Р±РјРёС€РµРЅ (СѓРґСѓС€РµРЅРёРµ СЃР·Р°РґРё)"],
+  ["Soumission (clГ© de talon)", "РЎР°Р±РјРёС€РµРЅ (СЃРєСЂСѓС‡РёРІР°РЅРёРµ РїСЏС‚РєРё)"],
+  ["TKO (СѓРґР°СЂС‹ and Р»РѕРєС‚Рё)", "TKO (СѓРґР°СЂС‹ Рё Р»РѕРєС‚Рё)"],
+  ["TKO (СѓРґР°СЂС‹ and soccer kicks)", "TKO (СѓРґР°СЂС‹ Рё СЃРѕРєРєРµСЂ-РєРёРєРё)"]
 ]);
 
 const noteReplacements = [
-  [/Won the UFC Light Heavyweight Championship \./g, "Завоевал титул чемпиона UFC в полутяжелом весе."],
-  [/Lost the UFC Light Heavyweight Championship \./g, "Потерял титул чемпиона UFC в полутяжелом весе."],
-  [/Defended the UFC Light Heavyweight Championship \./g, "Защитил титул чемпиона UFC в полутяжелом весе."],
-  [/Won the UFC Welterweight Championship \./g, "Завоевал титул чемпиона UFC в полусреднем весе."],
-  [/Defended the UFC Lightweight Championship \./g, "Защитил титул чемпиона UFC в легком весе."],
-  [/Won the UFC Lightweight Championship \./g, "Завоевал титул чемпиона UFC в легком весе."],
-  [/Won the UFC Featherweight Championship \./g, "Завоевал титул чемпиона UFC в полулегком весе."],
-  [/Defended the UFC Featherweight Championship \./g, "Защитил титул чемпиона UFC в полулегком весе."],
-  [/Won the vacant UFC Lightweight Championship \./g, "Завоевал вакантный титул чемпиона UFC в легком весе."],
-  [/Won the interim UFC Heavyweight Championship \./g, "Завоевал временный титул чемпиона UFC в тяжелом весе."],
-  [/Lost the PFL Middleweight Championship \./g, "Потерял титул чемпиона PFL в среднем весе."],
-  [/Won the first PFL Lightweight Championship\./g, "Завоевал первый титул чемпиона PFL в легком весе."],
-  [/Won the 2024 PFL Women's Flyweight Tournament \./g, "Выиграла женский гран-при PFL 2024 в наилегчайшем весе."],
-  [/Performance of the Night\./g, "Получил бонус «Выступление вечера»."],
-  [/Fight of the Night\./g, "Получил бонус «Бой вечера»."],
-  [/Welterweight debut\./g, "Дебют в полусреднем весе."],
-  [/Middleweight debut\./g, "Дебют в среднем весе."],
-  [/Featherweight debut\./g, "Дебют в полулегком весе."],
-  [/Lightweight debut\./g, "Дебют в легком весе."],
-  [/Tied for the longest win streak in UFC history \(16\)\./g, "Повторил один из лучших победных отрезков в истории UFC."],
-  [/Broke the record for the most consecutive UFC Lightweight title defenses \(4\)\./g, "Установил рекорд дивизиона по успешным защитам титула."],
-  [/Later vacated the title on 28 June 2025\./g, "Позднее освободил титул."],
-  [/Début en poids moyen\./g, "Дебют в среднем весе."],
-  [/Devient le champion des poids moyens de l'ARES Fighting Championship\./g, "Завоевал титул чемпиона ARES FC в среднем весе."],
-  [/Soumission de la soirée/g, "Получил бонус за лучший сабмишен вечера."],
-  [/Combat en poids intermédiaire à 180 lb \(82 kg \)\./g, "Бой прошел в промежуточном весе."]
+  [/Won the UFC Light Heavyweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓС‚СЏР¶РµР»РѕРј РІРµСЃРµ."],
+  [/Lost the UFC Light Heavyweight Championship \./g, "РџРѕС‚РµСЂСЏР» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓС‚СЏР¶РµР»РѕРј РІРµСЃРµ."],
+  [/Defended the UFC Light Heavyweight Championship \./g, "Р—Р°С‰РёС‚РёР» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓС‚СЏР¶РµР»РѕРј РІРµСЃРµ."],
+  [/Won the UFC Welterweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓСЃСЂРµРґРЅРµРј РІРµСЃРµ."],
+  [/Defended the UFC Lightweight Championship \./g, "Р—Р°С‰РёС‚РёР» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ Р»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Won the UFC Lightweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ Р»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Won the UFC Featherweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓР»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Defended the UFC Featherweight Championship \./g, "Р—Р°С‰РёС‚РёР» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ РїРѕР»СѓР»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Won the vacant UFC Lightweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» РІР°РєР°РЅС‚РЅС‹Р№ С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ Р»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Won the interim UFC Heavyweight Championship \./g, "Р—Р°РІРѕРµРІР°Р» РІСЂРµРјРµРЅРЅС‹Р№ С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° UFC РІ С‚СЏР¶РµР»РѕРј РІРµСЃРµ."],
+  [/Performance of the Night\./g, "РџРѕР»СѓС‡РёР» Р±РѕРЅСѓСЃ В«Р’С‹СЃС‚СѓРїР»РµРЅРёРµ РІРµС‡РµСЂР°В»."],
+  [/Fight of the Night\./g, "РџРѕР»СѓС‡РёР» Р±РѕРЅСѓСЃ В«Р‘РѕР№ РІРµС‡РµСЂР°В»."],
+  [/Welterweight debut\./g, "Р”РµР±СЋС‚ РІ РїРѕР»СѓСЃСЂРµРґРЅРµРј РІРµСЃРµ."],
+  [/Middleweight debut\./g, "Р”РµР±СЋС‚ РІ СЃСЂРµРґРЅРµРј РІРµСЃРµ."],
+  [/Featherweight debut\./g, "Р”РµР±СЋС‚ РІ РїРѕР»СѓР»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Lightweight debut\./g, "Р”РµР±СЋС‚ РІ Р»РµРіРєРѕРј РІРµСЃРµ."],
+  [/Tied for the longest win streak in UFC history \(16\)\./g, "РџРѕРІС‚РѕСЂРёР» РѕРґРёРЅ РёР· Р»СѓС‡С€РёС… РїРѕР±РµРґРЅС‹С… РѕС‚СЂРµР·РєРѕРІ РІ РёСЃС‚РѕСЂРёРё UFC."],
+  [/Broke the record for the most consecutive UFC Lightweight title defenses \(4\)\./g, "РЈСЃС‚Р°РЅРѕРІРёР» СЂРµРєРѕСЂРґ РґРёРІРёР·РёРѕРЅР° РїРѕ СѓСЃРїРµС€РЅС‹Рј Р·Р°С‰РёС‚Р°Рј С‚РёС‚СѓР»Р°."],
+  [/Later vacated the title on 28 June 2025\./g, "РџРѕР·РґРЅРµРµ РѕСЃРІРѕР±РѕРґРёР» С‚РёС‚СѓР»."],
+  [/DГ©but en poids moyen\./g, "Р”РµР±СЋС‚ РІ СЃСЂРµРґРЅРµРј РІРµСЃРµ."],
+  [/Devient le champion des poids moyens de l'ARES Fighting Championship\./g, "Р—Р°РІРѕРµРІР°Р» С‚РёС‚СѓР» С‡РµРјРїРёРѕРЅР° ARES FC РІ СЃСЂРµРґРЅРµРј РІРµСЃРµ."],
+  [/Soumission de la soirГ©e/g, "РџРѕР»СѓС‡РёР» Р±РѕРЅСѓСЃ Р·Р° Р»СѓС‡С€РёР№ СЃР°Р±РјРёС€РµРЅ РІРµС‡РµСЂР°."],
+  [/Combat en poids intermГ©diaire Г  180 lb \(82 kg \)\./g, "Р‘РѕР№ РїСЂРѕС€РµР» РІ РїСЂРѕРјРµР¶СѓС‚РѕС‡РЅРѕРј РІРµСЃРµ."]
 ];
 
 function normalizeWhitespace(value) {
@@ -55,12 +52,12 @@ function normalizeWhitespace(value) {
 
 function normalizeNotes(value, fallbackResult) {
   if (!value) {
-    return fallbackResult === "Победа"
-      ? "Победа в последнем зафиксированном бою."
-      : fallbackResult === "Поражение"
-        ? "Поражение в последнем зафиксированном бою."
-        : fallbackResult === "Несостоявшийся бой"
-          ? "Бой был признан несостоявшимся."
+    return fallbackResult === "РџРѕР±РµРґР°"
+      ? "РџРѕР±РµРґР° РІ РїРѕСЃР»РµРґРЅРµРј Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅРЅРѕРј Р±РѕСЋ."
+      : fallbackResult === "РџРѕСЂР°Р¶РµРЅРёРµ"
+        ? "РџРѕСЂР°Р¶РµРЅРёРµ РІ РїРѕСЃР»РµРґРЅРµРј Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅРЅРѕРј Р±РѕСЋ."
+        : fallbackResult === "РќРµСЃРѕСЃС‚РѕСЏРІС€РёР№СЃСЏ Р±РѕР№"
+          ? "Р‘РѕР№ Р±С‹Р» РїСЂРёР·РЅР°РЅ РЅРµСЃРѕСЃС‚РѕСЏРІС€РёРјСЃСЏ."
           : null;
   }
 

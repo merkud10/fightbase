@@ -27,10 +27,14 @@ export async function generateMetadata({
   }
 
   const { event } = data;
-  const description = `${event.promotion.shortName} · ${event.city} · ${event.venue} · ${event.summary}`;
+  const fightCount = event.fights.length;
+  const description =
+    locale === "ru"
+      ? `${event.name}: турнир UFC, дата, место проведения, кард из ${fightCount} боев, прогнозы и связанные материалы FightBase Media.`
+      : `${event.name}: UFC event page with date, venue, ${fightCount}-fight card, predictions, and related coverage from FightBase Media.`;
 
   return {
-    title: event.name,
+    title: locale === "ru" ? `${event.name}: кард турнира UFC, дата и прогнозы` : `${event.name}: UFC card, date, and predictions`,
     description,
     alternates: {
       ...buildLocaleAlternates(`/events/${event.slug}`),
@@ -38,13 +42,13 @@ export async function generateMetadata({
     },
     openGraph: {
       type: "website",
-      title: event.name,
+      title: locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`,
       description,
       url: localizePath(`/events/${event.slug}`, locale)
     },
     twitter: {
       card: "summary",
-      title: event.name,
+      title: locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`,
       description
     }
   };
@@ -102,7 +106,8 @@ export default async function EventPage({
       "@type": "SportsOrganization",
       name: event.promotion.name
     },
-    url: eventUrl
+    url: eventUrl,
+    inLanguage: locale === "ru" ? "ru-RU" : "en-US"
   };
 
   return (
@@ -111,7 +116,7 @@ export default async function EventPage({
       <JsonLd data={eventJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
-        eyebrow={`/events/${event.slug}`}
+        eyebrow={event.promotion.shortName}
         title={event.name}
         description={`${event.promotion.shortName} · ${event.city} · ${event.venue} · ${event.summary}`}
       />
@@ -123,8 +128,8 @@ export default async function EventPage({
               <h3>{locale === "ru" ? "Кард турнира" : "Fight card"}</h3>
               <p className="copy">
                 {locale === "ru"
-                  ? "У каждого боя теперь есть отдельная страница прогноза с раскладом по матчапу."
-                  : "Every matchup now has a dedicated prediction page with a focused preview."}
+                  ? "Готовая страница прогноза появляется после суточного обновления коэффициентов и snapshot-данных."
+                  : "A dedicated prediction page appears after the daily odds and snapshot update."}
               </p>
             </div>
             <Link href={localizePath("/predictions", locale)} className="button-secondary">
@@ -158,9 +163,13 @@ export default async function EventPage({
                     <td>{formatWeightClass(fight.weightClass, locale)}</td>
                     <td>{formatFightStatus(fight.status, locale)}</td>
                     <td>
-                      <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-table-link">
-                        {locale === "ru" ? "Открыть прогноз" : "Open prediction"}
-                      </Link>
+                      {fight.predictionSnapshot ? (
+                        <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-table-link">
+                          {locale === "ru" ? "Открыть прогноз" : "Open prediction"}
+                        </Link>
+                      ) : (
+                        <span className="event-table-pending">{locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -174,21 +183,24 @@ export default async function EventPage({
             <h3>{locale === "ru" ? "Фокус на главных матчапах" : "Focus on the key matchups"}</h3>
             <p className="copy">
               {locale === "ru"
-                ? "Вместо пустых заглушек здесь теперь логика просмотра карда: кто задаёт темп, где стилистический конфликт и какие бои важнее всего для дивизиона."
-                : "This sidebar now pushes the practical watchpoints: pace-setters, style clashes, and the fights that matter most for the division."}
+                ? "На странице турнира собран весь основной контекст: кард, готовые прогнозы и материалы, которые помогают быстро оценить важнейшие бои вечера."
+                : "The event page gathers the practical context that matters most: fight card, prediction pages, and coverage around the key matchups."}
             </p>
           </div>
           <div className="policy-card">
             <h3>{locale === "ru" ? "Быстрые переходы к прогнозам" : "Quick prediction links"}</h3>
             <ul className="event-side-list">
-              {event.fights.slice(0, 6).map((fight) => (
-                <li key={fight.id}>
-                  <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)}>
-                    {locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name} vs{" "}
-                    {locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name}
-                  </Link>
-                </li>
-              ))}
+              {event.fights
+                .filter((fight) => fight.predictionSnapshot)
+                .slice(0, 6)
+                .map((fight) => (
+                  <li key={fight.id}>
+                    <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)}>
+                      {locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name} vs{" "}
+                      {locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name}
+                    </Link>
+                  </li>
+                ))}
             </ul>
           </div>
           <div className="policy-card">

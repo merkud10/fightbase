@@ -1,8 +1,4 @@
-import {
-  createEventAction,
-  deleteEventAction,
-  updateEventAction
-} from "@/app/admin/actions";
+import { createEventAction, deleteEventAction, updateEventAction } from "@/app/admin/actions";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type PromotionOption = {

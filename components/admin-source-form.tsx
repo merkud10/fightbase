@@ -1,8 +1,4 @@
-import {
-  createSourceAction,
-  deleteSourceAction,
-  updateSourceAction
-} from "@/app/admin/actions";
+import { createSourceAction, deleteSourceAction, updateSourceAction } from "@/app/admin/actions";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type SourceDraft = {

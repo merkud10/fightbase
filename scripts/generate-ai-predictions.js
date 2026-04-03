@@ -60,6 +60,34 @@ function looksMostlyRussian(value) {
   return stats.cyrillic / stats.total >= 0.55;
 }
 
+const RED_FLAG_RULES = [
+  { label: "leftover_english_term", pattern: /\b(?:eligible|athletic commission)\b/i },
+  {
+    label: "raw_weight_class_english",
+    pattern: /\b(?:featherweight|bantamweight|welterweight|middleweight|lightweight|heavyweight|flyweight)\b/i
+  },
+  { label: "bad_name_variant", pattern: /\b(?:\u0410\u0439\u0441\u0443\u043b\u0442\u0430\u043d|\u0426\u0441\u0430\u0440\u0443\u043a\u044f\u043d)\b/i },
+  { label: "bad_chris_variant", pattern: /\b\u0427\u0440\u0438\u0441(?:\u0430|\u0443|\u043e\u043c|\u0435)?\b/i },
+  {
+    label: "bad_editorial_wording",
+    pattern: /\b(?:\u043c\u0430\u0440\u0448\u0438\u0441\u0442|\u0432\u0435\u043b\u043e\u0432\u0435\u0441|\u0444\u044d\u0437\u0435\u0440\u0432\u0435\u0439\u0442)\b/i
+  },
+  { label: "multi_option_answer", pattern: /(?:^|\n)\s*(?:\*\*)?\u0412\u0430\u0440\u0438\u0430\u043d\u0442\s+\d/i }
+];
+
+function collectRedFlags(value) {
+  return RED_FLAG_RULES.filter((rule) => rule.pattern.test(String(value || ""))).map((rule) => rule.label);
+}
+
+function enforceNameCorrections(value) {
+  return String(value || "")
+    .replace(/\bЧриса\b/gi, "Криса")
+    .replace(/\bЧрису\b/gi, "Крису")
+    .replace(/\bЧрисом\b/gi, "Крисом")
+    .replace(/\bЧрисе\b/gi, "Крисе")
+    .replace(/\bЧрис\b/gi, "Крис");
+}
+
 function buildFighterStatLine(fighter) {
   const parts = [
     `рекорд ${fighter.record || "—"}`,
@@ -70,13 +98,6 @@ function buildFighterStatLine(fighter) {
   return `${fighter.name}: ${parts.join(", ")}`;
 }
 
-function buildOddsLine(fight) {
-  if (fight.oddsA != null && fight.oddsB != null && fight.oddsA > 1 && fight.oddsB > 1) {
-    return `Букмекерская линия (decimal, усреднённо): ${fight.fighterA.name} — ${fight.oddsA.toFixed(2)}, ${fight.fighterB.name} — ${fight.oddsB.toFixed(2)}. Меньший коэффициент = фаворит по рынку.`;
-  }
-  return "Линия букмекеров в базе не синхронизирована — опирайся на рекорд и стиль.";
-}
-
 async function generateBody(fight) {
   const url = readEnv("OLLAMA_URL", DEFAULT_OLLAMA_URL);
   const model = readEnv("OLLAMA_MODEL", readEnv("PREDICTION_REWRITE_MODEL", DEFAULT_MODEL));
@@ -84,8 +105,10 @@ async function generateBody(fight) {
   const prompt = [
     "Ты редактор русскоязычного MMA-медиа.",
     "Напиши прогноз и разбор ТОЛЬКО этого боя — 4–6 абзацев естественного русского текста без markdown.",
-    "Используй только факты из блока данных ниже. Не выдумывай травмы, точные коэффициенты букмекеров кроме переданных, инсайды и цитаты.",
-    "Если даны decimal odds — объясни, кого считают фаворитом на рынке, но подчеркни, что это не гарантия результата.",
+    "Используй только факты из блока данных ниже. Не выдумывай травмы, инсайды и цитаты.",
+    "Не упоминай никакие букмекерские коэффициенты, числовые линии или рыночные цены.",
+    "Используй нормальные русские редакционные формулировки без смеси языков.",
+    "Не искажай имена и термины. Нельзя писать Айсултан Махачев, Цсарукян, маршист, веловес, фэзервейт.",
     "Верни строго JSON с одним ключом: body (строка с переносами \\n\\n между абзацами).",
     "",
     `Турнир: ${fight.event.name}`,
@@ -93,13 +116,12 @@ async function generateBody(fight) {
     `Дата события: ${fight.event.date.toISOString().slice(0, 10)}`,
     `Весовая: ${fight.weightClass}`,
     "",
-    buildOddsLine(fight),
-    "",
     buildFighterStatLine(fight.fighterA),
     buildFighterStatLine(fight.fighterB),
     "",
     "Пиши связный материал: вступление, сильные стороны каждого, как может развиться бой, осторожный вывод."
   ].join("\n");
+  const normalizedPrompt = `${prompt}\n\nРРјСЏ Chris РІСЃРµРіРґР° РїРёС€Рё РєР°Рє РљСЂРёСЃ, Р° РЅРµ Р§СЂРёСЃ.`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -109,7 +131,7 @@ async function generateBody(fight) {
       stream: false,
       format: "json",
       options: { temperature: 0.35 },
-      prompt
+      prompt: normalizedPrompt
     })
   });
 
@@ -148,7 +170,31 @@ async function generateBody(fight) {
     body = String(fixParsed.body || "").trim();
   }
 
-  return body.slice(0, MAX_BODY_LENGTH);
+  const redFlags = collectRedFlags(body);
+  if (redFlags.length > 0) {
+    const fix = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        format: "json",
+        options: { temperature: 0.15 },
+        prompt: [
+          "Перепиши текст для серьезного русскоязычного MMA-медиа.",
+          "Сохрани все факты, но убери мусорные термины, иноязычные вставки и кривые имена.",
+          `Найденные проблемы: ${redFlags.join(", ")}`,
+          "Верни JSON с ключом body.",
+          body.slice(0, 8000)
+        ].join("\n\n")
+      })
+    });
+    const fixPayload = await fix.json();
+    const fixParsed = parseJsonObject(fixPayload.response || "");
+    body = String(fixParsed.body || "").trim();
+  }
+
+  return enforceNameCorrections(body).slice(0, MAX_BODY_LENGTH);
 }
 
 async function fightAlreadyCovered(fight) {
@@ -216,6 +262,8 @@ async function main() {
 
   const fights = await prisma.fight.findMany({
     where: {
+      oddsA: { not: null },
+      oddsB: { not: null },
       status: "scheduled",
       event: {
         status: "upcoming",

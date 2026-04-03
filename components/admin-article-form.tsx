@@ -1,5 +1,6 @@
 import { createArticleAction, deleteArticleAction, updateArticleAction } from "@/app/admin/actions";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { SearchableMultiSelect } from "@/components/searchable-multi-select";
 
 type Option = {
   id: string;
@@ -123,7 +124,7 @@ export function AdminArticleForm({
 
         <div className="admin-grid">
           <label className="admin-field">
-            <span>AI confidence</span>
+            <span>{locale === "ru" ? "Уверенность AI" : "AI confidence"}</span>
             <input
               type="number"
               name="aiConfidence"
@@ -137,12 +138,23 @@ export function AdminArticleForm({
 
           <label className="admin-field">
             <span>{locale === "ru" ? "Режим модерации" : "Moderation mode"}</span>
-            <input value={article?.aiConfidence != null ? "AI-assisted draft" : "Manual / standard"} readOnly />
+            <input
+              value={
+                locale === "ru"
+                  ? article?.aiConfidence != null
+                    ? "AI-черновик"
+                    : "Ручной материал"
+                  : article?.aiConfidence != null
+                    ? "AI-assisted draft"
+                    : "Manual article"
+              }
+              readOnly
+            />
           </label>
         </div>
 
         <label className="admin-field">
-          <span>{locale === "ru" ? "Сводка ingestion" : "Ingestion summary"}</span>
+          <span>{locale === "ru" ? "Сводка источника" : "Ingestion summary"}</span>
           <textarea name="ingestionSourceSummary" defaultValue={article?.ingestionSourceSummary ?? ""} rows={3} />
         </label>
 
@@ -178,46 +190,36 @@ export function AdminArticleForm({
         </div>
 
         <div className="admin-grid">
-          <fieldset className="admin-fieldset">
-            <legend>{locale === "ru" ? "Теги" : "Tags"}</legend>
-            {tags.map((tag) => (
-              <label key={tag.id} className="admin-check">
-                <input type="checkbox" name="tagIds" value={tag.id} defaultChecked={selectedTagIds.has(tag.id)} />
-                <span>{tag.label}</span>
-              </label>
-            ))}
-          </fieldset>
+          <SearchableMultiSelect
+            name="tagIds"
+            label={locale === "ru" ? "Теги" : "Tags"}
+            options={tags}
+            defaultValue={Array.from(selectedTagIds)}
+            searchPlaceholder={locale === "ru" ? "Поиск тегов" : "Search tags"}
+            helperText={locale === "ru" ? "Теги не выбраны" : "No tags selected"}
+            emptyText={locale === "ru" ? "Теги не найдены" : "No tags found"}
+          />
 
-          <fieldset className="admin-fieldset">
-            <legend>{locale === "ru" ? "Бойцы" : "Fighters"}</legend>
-            {fighters.map((fighter) => (
-              <label key={fighter.id} className="admin-check">
-                <input
-                  type="checkbox"
-                  name="fighterIds"
-                  value={fighter.id}
-                  defaultChecked={selectedFighterIds.has(fighter.id)}
-                />
-                <span>{fighter.label}</span>
-              </label>
-            ))}
-          </fieldset>
+          <SearchableMultiSelect
+            name="fighterIds"
+            label={locale === "ru" ? "Бойцы" : "Fighters"}
+            options={fighters}
+            defaultValue={Array.from(selectedFighterIds)}
+            searchPlaceholder={locale === "ru" ? "Поиск бойцов" : "Search fighters"}
+            helperText={locale === "ru" ? "Бойцы не выбраны" : "No fighters selected"}
+            emptyText={locale === "ru" ? "Бойцы не найдены" : "No fighters found"}
+          />
         </div>
 
-        <fieldset className="admin-fieldset">
-          <legend>{locale === "ru" ? "Источники" : "Sources"}</legend>
-          {sources.map((source) => (
-            <label key={source.id} className="admin-check">
-              <input
-                type="checkbox"
-                name="sourceIds"
-                value={source.id}
-                defaultChecked={selectedSourceIds.has(source.id)}
-              />
-              <span>{source.label}</span>
-            </label>
-          ))}
-        </fieldset>
+        <SearchableMultiSelect
+          name="sourceIds"
+          label={locale === "ru" ? "Источники" : "Sources"}
+          options={sources}
+          defaultValue={Array.from(selectedSourceIds)}
+          searchPlaceholder={locale === "ru" ? "Поиск источников" : "Search sources"}
+          helperText={locale === "ru" ? "Источники не выбраны" : "No sources selected"}
+          emptyText={locale === "ru" ? "Источники не найдены" : "No sources found"}
+        />
 
         <div className="admin-actions">
           <button type="submit" className="button">

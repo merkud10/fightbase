@@ -1,22 +1,13 @@
 [
   {
-    "headline": "UFC confirms new booking for Alex Pereira's division",
-    "body": "UFC confirmed a fresh booking that reshapes the light heavyweight title picture around Alex Pereira. Officials noted the matchup would influence the next contender conversation after the upcoming event cycle.",
-    "publishedAt": "2026-03-29T12:00:00.000Z",
+    "headline": "UFC confirms a new main event for the upcoming Fight Night card",
+    "publishedAt": "2026-04-02T12:00:00.000Z",
+    "body": "UFC confirmed a new headliner for the upcoming Fight Night event after changes to the original booking. The update affects the top of the card and reshapes the immediate title picture in the division.",
     "sourceLabel": "UFC",
-    "sourceUrl": "https://ufc.com/news/light-heavyweight-booking",
+    "sourceUrl": "https://www.ufc.com/news/sample-fight-night-main-event",
+    "sourceType": "official",
     "promotionSlug": "ufc",
-    "fighterSlugs": ["alex-pereira"],
-    "tagSlugs": ["announcements"]
-  },
-  {
-    "headline": "ONE champion hints at quick return after Tokyo win",
-    "body": "Following the Tokyo event, Anatoly Malykhin suggested he wants a quick turnaround and another major assignment before summer. The post-fight comments immediately fueled matchmaking chatter inside ONE Championship.",
-    "publishedAt": "2026-03-29T13:30:00.000Z",
-    "sourceLabel": "ONE Championship",
-    "sourceUrl": "https://onefc.com/news/malykhin-return",
-    "promotionSlug": "one",
-    "fighterSlugs": ["anatoly-malykhin"],
-    "tagSlugs": ["post-fight"]
+    "sourceLanguage": "en",
+    "status": "draft"
   }
 ]

@@ -110,6 +110,8 @@ function translateFightMethod(method: string | null | undefined, locale: "ru" | 
 
   const decisionMatch = value.match(/^(three|five)\s+round\s+(unanimous|split|majority)\s+decision$/i);
   if (decisionMatch) {
+    const roundValue = decisionMatch[1] ?? "";
+    const decisionValue = decisionMatch[2] ?? "";
     const roundLabel = decisionMatch[1].toLowerCase() === "five" ? "пятираундовое" : "трехраундовое";
     const decisionType =
       decisionMatch[2].toLowerCase() === "split"
@@ -316,24 +318,22 @@ export async function generateMetadata({
 
   const { fighter } = data;
   const title = fighter.nameRu ? `${fighter.nameRu} (${fighter.name})` : fighter.name;
-  const descriptionParts = [
-    fighter.promotion?.shortName || fighter.promotion?.name,
-    fighter.weightClass,
-    fighter.record && !/^0-0(?:-0)?$/.test(fighter.record) ? fighter.record : null,
-    fighter.country
-  ].filter(Boolean);
+  const description =
+    locale === "ru"
+      ? `${title}: профиль бойца UFC, рекорд ${fighter.record || "не указан"}, весовая категория ${formatWeightClass(fighter.weightClass, locale).toLowerCase()}, статистика, последние бои и связанные материалы.`
+      : `${title}: UFC fighter profile with record ${fighter.record || "not listed"}, weight class, statistics, recent fights, and related coverage.`;
 
   return {
-    title,
-    description: descriptionParts.join(" • "),
+    title: locale === "ru" ? `${title}: статистика, рекорд и профиль UFC` : `${title}: UFC stats, record, and profile`,
+    description,
     alternates: {
       ...buildLocaleAlternates(`/fighters/${fighter.slug}`),
       canonical: localizePath(`/fighters/${fighter.slug}`, locale)
     },
     openGraph: {
       type: "profile",
-      title,
-      description: descriptionParts.join(" • "),
+      title: locale === "ru" ? `${title}: профиль бойца UFC` : `${title}: UFC fighter profile`,
+      description,
       url: localizePath(`/fighters/${fighter.slug}`, locale),
       images: fighter.photoUrl
         ? [
@@ -346,8 +346,8 @@ export async function generateMetadata({
     },
     twitter: {
       card: fighter.photoUrl ? "summary_large_image" : "summary",
-      title,
-      description: descriptionParts.join(" • "),
+      title: locale === "ru" ? `${title}: профиль бойца UFC` : `${title}: UFC fighter profile`,
+      description,
       images: fighter.photoUrl ? [fighter.photoUrl] : undefined
     }
   };
@@ -399,7 +399,8 @@ export default async function FighterPage({
           "@type": "SportsOrganization",
           name: fighter.promotion.name
         }
-      : undefined
+      : undefined,
+    jobTitle: fighter.promotion?.shortName ? `${fighter.promotion.shortName} fighter` : "MMA fighter"
   };
   const localizedBio =
     locale === "ru"
@@ -437,7 +438,7 @@ export default async function FighterPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={personJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero eyebrow={`/fighters/${fighter.slug}`} title={displayName} description={descriptionBits.join(" - ")} />
+      <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" - ")} />
 
       <section className="detail-grid">
         <article className="stack">

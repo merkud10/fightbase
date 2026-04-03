@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const https = require("https");
+const ufcNameDictionary = require("../lib/ufc-name-dictionary.json");
 
 const countryMap = {
   Armenia: "Армения",
@@ -74,9 +75,7 @@ const weightClassMap = {
 };
 
 const promotionLabelMap = {
-  ufc: "UFC",
-  one: "ONE Championship",
-  pfl: "PFL"
+  ufc: "UFC"
 };
 
 const monthMap = {
@@ -208,7 +207,7 @@ function hasMeaningfulRecord(value) {
 
 function hasMeaningfulTeam(value) {
   const clean = stripTags(value);
-  return Boolean(clean) && !/^(unknown|one championship|ufc performance institute)$/i.test(clean);
+  return Boolean(clean) && !/^(unknown|ufc performance institute)$/i.test(clean);
 }
 
 function parseArgs(argv) {
@@ -245,6 +244,10 @@ function extractMetaContent(html, key) {
 }
 
 function transliterateToken(token) {
+  if (token === "Alexander") {
+    return "Александр";
+  }
+
   const special = {
     Jones: "Джонс",
     Johnson: "Джонсон",
@@ -507,8 +510,16 @@ function transliterateToken(token) {
   const original = stripTags(token);
   const cleanToken = normalizeLatinToken(original);
 
-  if (["Da", "da", "De", "de"].includes(original)) {
-    return original;
+  const particleMap = ufcNameDictionary.particles || {};
+
+  if (particleMap[original]) {
+    return particleMap[original];
+  }
+
+  const directTokenMap = ufcNameDictionary.tokens || {};
+
+  if (directTokenMap[cleanToken]) {
+    return directTokenMap[cleanToken];
   }
 
   if (transliterationTokenMap[original]) {
@@ -583,6 +594,14 @@ function transliterateName(name) {
   const cleanName = stripTags(name).replace(/\s+/g, " ").trim();
   const normalizedName = normalizeLatinToken(cleanName);
 
+  if (ufcNameDictionary.fullNames?.[cleanName]) {
+    return ufcNameDictionary.fullNames[cleanName];
+  }
+
+  if (ufcNameDictionary.fullNames?.[normalizedName]) {
+    return ufcNameDictionary.fullNames[normalizedName];
+  }
+
   if (transliterationNameMap[cleanName]) {
     return transliterationNameMap[cleanName];
   }
@@ -599,8 +618,15 @@ function transliterateName(name) {
 }
 
 const preferredRussianNameMap = {
+  "Alexander Volkov": "Александр Волков",
+  "Ariane da Silva": "Ариане да Силва",
+  "Charles Oliveira": "Чарльз Оливейра",
+  "Ciryl Gane": "Сирил Ган",
+  "Eryk Anders": "Эрик Андерс",
+  "Germaine de Randamie": "Жермейн де Рандами",
   "Maycee Barber": "Мэйси Барбер",
   "Reinier de Ridder": "Ренье де Риддер",
+  "Sergei Pavlovich": "Сергей Павлович",
   "Manon Fiorot": "Манон Фиоро",
   "Kayla Harrison": "Кайла Харрисон",
   "Belal Muhammad": "Белал Мухаммад",
@@ -616,7 +642,12 @@ const preferredRussianNameMap = {
 
 function getPreferredRussianName(name, existingNameRu) {
   const cleanName = stripTags(name);
-  return preferredRussianNameMap[cleanName] || existingNameRu || transliterateName(cleanName);
+  return (
+    preferredRussianNameMap[cleanName] ||
+    ufcNameDictionary.fullNames?.[cleanName] ||
+    existingNameRu ||
+    transliterateName(cleanName)
+  );
 }
 
 function parseMetricNumber(rawValue) {

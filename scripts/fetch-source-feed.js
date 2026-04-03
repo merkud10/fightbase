@@ -125,6 +125,7 @@ async function main() {
         publishedAt: item.publishedAt,
         sourceLabel: item.sourceLabel,
         sourceUrl: item.url,
+        status: item.status,
         sourceType: item.sourceType,
         category: item.category,
         promotionSlug: item.promotionSlug,

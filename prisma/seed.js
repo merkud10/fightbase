@@ -15,11 +15,9 @@ async function main() {
   await prisma.tag.deleteMany();
   await prisma.promotion.deleteMany();
 
-  const [ufc, pfl, one] = await Promise.all([
-    prisma.promotion.create({ data: { slug: "ufc", name: "Ultimate Fighting Championship", shortName: "UFC" } }),
-    prisma.promotion.create({ data: { slug: "pfl", name: "Professional Fighters League", shortName: "PFL" } }),
-    prisma.promotion.create({ data: { slug: "one", name: "ONE Championship", shortName: "ONE" } })
-  ]);
+  const ufc = await prisma.promotion.create({
+    data: { slug: "ufc", name: "Ultimate Fighting Championship", shortName: "UFC" }
+  });
 
   const [tagAnnouncements, tagResults, tagPreview, tagPostFight] = await Promise.all([
     prisma.tag.create({ data: { slug: "announcements", label: "Announcements" } }),
@@ -40,7 +38,7 @@ async function main() {
     })
   ]);
 
-  const [islam, alex, shavkat, anatoly] = await Promise.all([
+  const [islam, alex, shavkat, dricus] = await Promise.all([
     prisma.fighter.create({
       data: {
         slug: "islam-makhachev",
@@ -95,24 +93,25 @@ async function main() {
     }),
     prisma.fighter.create({
       data: {
-        slug: "anatoly-malykhin",
-        name: "Anatoly Malykhin",
-        country: "Russia",
-        weightClass: "Heavyweight",
+        slug: "dricus-du-plessis",
+        name: "Dricus du Plessis",
+        nickname: "Stillknocks",
+        country: "South Africa",
+        weightClass: "Middleweight",
         status: "champion",
-        record: "15-1",
-        age: 37,
-        heightCm: 180,
-        reachCm: 190,
-        team: "Golden Team",
-        style: "Wrestle-boxing",
-        bio: "Compact heavyweight champion with pressure and layered finishing ability.",
-        promotionId: one.id
+        record: "23-2",
+        age: 32,
+        heightCm: 185,
+        reachCm: 193,
+        team: "CIT Performance Institute",
+        style: "Pressure striking",
+        bio: "An aggressive middleweight champion who turns awkward pressure into sustained control.",
+        promotionId: ufc.id
       }
     })
   ]);
 
-  const eventUfc = await prisma.event.create({
+  const eventUfc314 = await prisma.event.create({
     data: {
       slug: "ufc-314",
       name: "UFC 314",
@@ -125,29 +124,16 @@ async function main() {
     }
   });
 
-  const eventPfl = await prisma.event.create({
+  const eventFightNight = await prisma.event.create({
     data: {
-      slug: "pfl-champions-series",
-      name: "PFL Champions Series",
-      date: new Date("2026-04-18T19:00:00.000Z"),
-      city: "Riyadh",
-      venue: "Kingdom Arena",
+      slug: "ufc-fight-night-june-contenders",
+      name: "UFC Fight Night: Contenders",
+      date: new Date("2026-06-07T19:00:00.000Z"),
+      city: "Austin",
+      venue: "Moody Center",
       status: "upcoming",
-      summary: "A showcase event built around contender movement and international market expansion.",
-      promotionId: pfl.id
-    }
-  });
-
-  const eventOne = await prisma.event.create({
-    data: {
-      slug: "one-fight-night",
-      name: "ONE Fight Night",
-      date: new Date("2026-03-22T19:00:00.000Z"),
-      city: "Tokyo",
-      venue: "Ariake Arena",
-      status: "completed",
-      summary: "A completed event feeding the rankings, post-fight quotes, and next-fight matchmaking.",
-      promotionId: one.id
+      summary: "A contender-focused card built around divisional movement and matchup clarity.",
+      promotionId: ufc.id
     }
   });
 
@@ -155,34 +141,20 @@ async function main() {
     prisma.fight.create({
       data: {
         stage: "main_card",
-        weightClass: "Catchweight",
+        weightClass: "Welterweight",
         status: "scheduled",
-        eventId: eventUfc.id,
+        eventId: eventUfc314.id,
         fighterAId: shavkat.id,
-        fighterBId: alex.id
+        fighterBId: islam.id
       }
     }),
     prisma.fight.create({
       data: {
-        stage: "main_card",
-        weightClass: "Openweight",
+        stage: "main_event",
+        weightClass: "Middleweight",
         status: "scheduled",
-        eventId: eventPfl.id,
-        fighterAId: anatoly.id,
-        fighterBId: shavkat.id
-      }
-    }),
-    prisma.fight.create({
-      data: {
-        stage: "main_card",
-        weightClass: "Light Heavyweight",
-        status: "completed",
-        winnerFighterId: anatoly.id,
-        method: "TKO",
-        resultRound: 3,
-        resultTime: "2:41",
-        eventId: eventOne.id,
-        fighterAId: anatoly.id,
+        eventId: eventFightNight.id,
+        fighterAId: dricus.id,
         fighterBId: alex.id
       }
     })
@@ -198,7 +170,7 @@ async function main() {
       status: "published",
       publishedAt: new Date("2026-03-29T09:00:00.000Z"),
       promotionId: ufc.id,
-      eventId: eventUfc.id,
+      eventId: eventUfc314.id,
       sections: {
         create: [
           { heading: "What happened", body: "The promotion locked in a fight with direct title implications.", sortOrder: 1 },
@@ -210,7 +182,7 @@ async function main() {
         create: [{ tagId: tagAnnouncements.id }, { tagId: tagPreview.id }]
       },
       fighterMap: {
-        create: [{ fighterId: shavkat.id }, { fighterId: alex.id }]
+        create: [{ fighterId: shavkat.id }, { fighterId: islam.id }]
       },
       sourceMap: {
         create: [{ sourceId: srcOfficial.id }, { sourceId: srcSocial.id }]
@@ -237,7 +209,7 @@ async function main() {
         create: [{ tagId: tagPreview.id }]
       },
       fighterMap: {
-        create: [{ fighterId: alex.id }, { fighterId: anatoly.id }]
+        create: [{ fighterId: alex.id }, { fighterId: dricus.id }]
       },
       sourceMap: {
         create: [{ sourceId: srcPress.id }]
@@ -254,8 +226,8 @@ async function main() {
       category: "interview",
       status: "published",
       publishedAt: new Date("2026-03-27T14:00:00.000Z"),
-      promotionId: one.id,
-      eventId: eventOne.id,
+      promotionId: ufc.id,
+      eventId: eventFightNight.id,
       sections: {
         create: [
           { heading: "What was said", body: "The champion publicly floated a bigger matchup after the win.", sortOrder: 1 },
@@ -266,7 +238,7 @@ async function main() {
         create: [{ tagId: tagPostFight.id }, { tagId: tagResults.id }]
       },
       fighterMap: {
-        create: [{ fighterId: anatoly.id }]
+        create: [{ fighterId: dricus.id }]
       },
       sourceMap: {
         create: [{ sourceId: srcPress.id }, { sourceId: srcSocial.id }]

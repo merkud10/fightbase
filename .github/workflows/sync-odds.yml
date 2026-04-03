@@ -1,0 +1,36 @@
+name: Sync Fight Odds
+
+on:
+  schedule:
+    # Запуск каждый день в 06:00 UTC (09:00 МСК)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual trigger'
+        required: false
+        default: 'Manual sync'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger odds sync via cron endpoint
+        run: |
+          response=$(curl -sf -w "\n%{http_code}" -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/ingest" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
+            -d '{"job":"sync-odds"}')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "HTTP status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Odds sync failed with HTTP $http_code"
+            exit 1
+          fi

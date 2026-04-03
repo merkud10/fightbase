@@ -63,3 +63,7 @@ export function formatFightStatus(value: string, locale: Locale) {
 export function formatFightStage(value: string, locale: Locale) {
   return localizeFromMap(fightStageMap, value, locale);
 }
+
+export function getDisplayName(fighter: { name: string; nameRu?: string | null }, locale: Locale) {
+  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+}

@@ -1,4 +1,4 @@
-import http from "node:http";
+﻿import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
@@ -6,6 +6,18 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import type { IngestDraftInput } from "@/lib/ingestion";
+import {
+  buildUfcNameGuide,
+  collectUfcNameRedFlags,
+  UFC_NAME_RED_FLAG_RULES,
+  normalizeUfcNameText
+} from "@/lib/ufc-name-normalizer";
+import {
+  buildMmaGlossaryHints,
+  collectMmaEditorialRedFlags,
+  enforceMmaTerminology,
+  MMA_EDITORIAL_RED_FLAG_RULES
+} from "@/lib/mma-terminology";
 
 type LocalizedIngestionResult = {
   headline: string;
@@ -70,11 +82,11 @@ function getAlibabaModel() {
 }
 
 function looksRussian(value: string) {
-  return /[А-Яа-яЁё]/.test(value);
+  return /\p{Script=Cyrillic}/u.test(value);
 }
 
 function getLetterStats(value: string) {
-  const cyrillic = (value.match(/[А-Яа-яЁё]/g) || []).length;
+  const cyrillic = (value.match(/\p{Script=Cyrillic}/gu) || []).length;
   const latin = (value.match(/[A-Za-z]/g) || []).length;
   return {
     cyrillic,
@@ -94,7 +106,7 @@ function isPredominantlyRussian(value: string) {
 
 function looksUkrainian(value: string) {
   const lower = value.toLowerCase();
-  return /[іїєґ]/i.test(value) || /\b(та|після|переміг|відбувся|глядачі|поєдинок|судді|головному|висвітлення|результати)\b/i.test(lower);
+  return /[\u0456\u0457\u0454\u0491]/i.test(value) || /\b(?:\u0442\u0430|\u043f\u0456\u0441\u043b\u044f|\u043f\u0435\u0440\u0435\u043c\u0456\u0433|\u0432\u0456\u0434\u0431\u0443\u0432\u0441\u044f|\u0433\u043b\u044f\u0434\u0430\u0447\u0456|\u043f\u043e\u0454\u0434\u0438\u043d\u043e\u043a|\u0441\u0443\u0434\u0434\u0456|\u0433\u043e\u043b\u043e\u0432\u043d\u043e\u043c\u0443|\u0432\u0438\u0441\u0432\u0456\u0442\u043b\u0435\u043d\u043d\u044f|\u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u0438)\b/i.test(lower);
 }
 
 function sanitizeJsonPayload(value: string) {
@@ -102,14 +114,38 @@ function sanitizeJsonPayload(value: string) {
   return fenced?.[1]?.trim() ?? value.trim();
 }
 
+function coerceLocalizedString(value: string | string[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value.join("\n\n").trim();
+  }
+
+  return String(value || "").trim();
+}
+
 function parseLocalizationResponse(rawText: string) {
-  const parsed = JSON.parse(sanitizeJsonPayload(rawText)) as {
+  const sanitized = sanitizeJsonPayload(rawText);
+  const parsed = JSON.parse(sanitized) as {
     headline?: string | string[];
+    title?: string | string[];
     body?: string | string[];
+    text?: string | string[];
+    sectionBody?: string | string[];
   };
 
-  const headline = Array.isArray(parsed.headline) ? parsed.headline.join(" ") : parsed.headline;
-  const body = Array.isArray(parsed.body) ? parsed.body.join("\n\n") : parsed.body;
+  const headline =
+    coerceLocalizedString(parsed.headline) ||
+    coerceLocalizedString(parsed.title) ||
+    sanitized.match(/"headline"\s*:\s*"([\s\S]*?)"/i)?.[1]?.trim() ||
+    sanitized.match(/"title"\s*:\s*"([\s\S]*?)"/i)?.[1]?.trim() ||
+    "";
+  const body =
+    coerceLocalizedString(parsed.body) ||
+    coerceLocalizedString(parsed.text) ||
+    coerceLocalizedString(parsed.sectionBody) ||
+    sanitized.match(/"body"\s*:\s*"([\s\S]*?)"/i)?.[1]?.trim() ||
+    sanitized.match(/"text"\s*:\s*"([\s\S]*?)"/i)?.[1]?.trim() ||
+    sanitized.match(/"sectionBody"\s*:\s*"([\s\S]*?)"/i)?.[1]?.trim() ||
+    "";
 
   if (!headline || !body) {
     throw new Error("Localization response is missing headline or body");
@@ -119,64 +155,6 @@ function parseLocalizationResponse(rawText: string) {
     headline: headline.trim(),
     body: body.trim()
   };
-}
-
-function applyCaseAwareReplacement(value: string, replacements: Array<[RegExp, string]>) {
-  let next = value;
-
-  for (const [pattern, replacement] of replacements) {
-    next = next.replace(pattern, replacement);
-  }
-
-  return next;
-}
-
-function enforceWeightClassTerminology(sourceText: string, localizedText: string) {
-  const lowerSource = sourceText.toLowerCase();
-  let next = localizedText;
-
-  const correctionRules: Array<{ term: string; replacements: Array<[RegExp, string]> }> = [
-    {
-      term: "featherweight",
-      replacements: [
-        [/\bлегкий вес\b/gi, "полулегкий вес"],
-        [/\bлегкого веса\b/gi, "полулегкого веса"],
-        [/\bлегком весе\b/gi, "полулегком весе"]
-      ]
-    },
-    {
-      term: "lightweight",
-      replacements: [
-        [/\bполулегкий вес\b/gi, "легкий вес"],
-        [/\bполулегкого веса\b/gi, "легкого веса"],
-        [/\bполулегком весе\b/gi, "легком весе"]
-      ]
-    },
-    {
-      term: "welterweight",
-      replacements: [
-        [/\bсредний вес\b/gi, "полусредний вес"],
-        [/\bсреднего веса\b/gi, "полусреднего веса"],
-        [/\bсреднем весе\b/gi, "полусреднем весе"]
-      ]
-    },
-    {
-      term: "light heavyweight",
-      replacements: [
-        [/\bтяжелый вес\b/gi, "полутяжелый вес"],
-        [/\bтяжелого веса\b/gi, "полутяжелого веса"],
-        [/\bтяжелом весе\b/gi, "полутяжелом весе"]
-      ]
-    }
-  ];
-
-  for (const rule of correctionRules) {
-    if (lowerSource.includes(rule.term)) {
-      next = applyCaseAwareReplacement(next, rule.replacements);
-    }
-  }
-
-  return next;
 }
 
 function enforcePromotionLabel(input: IngestDraftInput, localizedHeadline: string) {
@@ -193,6 +171,11 @@ function enforcePromotionLabel(input: IngestDraftInput, localizedHeadline: strin
   return remainder ? `${sourceLabel} ${remainder}` : sourceLabel;
 }
 
+function enforceNameCorrections(value: string) {
+  return normalizeUfcNameText(value);
+}
+
+
 function normalizeLocalizedOutput(
   input: IngestDraftInput,
   localized: { headline: string; body: string }
@@ -200,37 +183,37 @@ function normalizeLocalizedOutput(
   const sourceText = `${input.headline}\n${input.body}`;
 
   return {
-    headline: enforceWeightClassTerminology(sourceText, enforcePromotionLabel(input, localized.headline)),
-    body: enforceWeightClassTerminology(sourceText, localized.body)
+    headline: enforceNameCorrections(
+      enforceMmaTerminology(sourceText, enforcePromotionLabel(input, localized.headline))
+    ),
+    body: enforceNameCorrections(enforceMmaTerminology(sourceText, localized.body))
   };
 }
 
-function buildGlossaryHints(input: IngestDraftInput) {
-  const sourceText = `${input.headline}\n${input.body}`.toLowerCase();
-  const glossary = [
-    ["light heavyweight", "полутяжелый вес"],
-    ["featherweight", "полулегкий вес"],
-    ["lightweight", "легкий вес"],
-    ["welterweight", "полусредний вес"],
-    ["middleweight", "средний вес"],
-    ["heavyweight", "тяжелый вес"],
-    ["bantamweight", "легчайший вес"],
-    ["flyweight", "наилегчайший вес"],
-    ["main card", "основной кард"],
-    ["prelims", "предварительный кард"],
-    ["showcase", "шоу или турнир по контексту, не выставка"],
-    ["rematch", "реванш"]
-  ];
+const LOCALIZATION_RED_FLAG_RULES: Array<{ label: string; pattern: RegExp }> = [
+  ...UFC_NAME_RED_FLAG_RULES,
+  ...MMA_EDITORIAL_RED_FLAG_RULES,
+  { label: "multi_option_ui_answer", pattern: /(?:^|\n)\s*(?:\*\*)?\u0412\u0430\u0440\u0438\u0430\u043d\u0442\s+\d/i }
+];
 
-  const matched = glossary.filter(([term]) => sourceText.includes(term));
-  if (matched.length === 0) {
-    return [];
+function collectLocalizationRedFlags(value: string) {
+  const flags = new Set(
+    LOCALIZATION_RED_FLAG_RULES.filter((rule) => rule.pattern.test(value)).map((rule) => rule.label)
+  );
+
+  for (const label of collectUfcNameRedFlags(value)) {
+    flags.add(label);
   }
 
-  return [
-    "Use this MMA glossary exactly when the source implies these terms:",
-    ...matched.map(([term, translation]) => `- ${term} => ${translation}`)
-  ];
+  for (const label of collectMmaEditorialRedFlags(value)) {
+    flags.add(label);
+  }
+
+  return [...flags];
+}
+
+function buildGlossaryHints(input: IngestDraftInput) {
+  return buildMmaGlossaryHints(`${input.headline}\n${input.body}`);
 }
 
 function extractOpenAiOutputText(payload: unknown) {
@@ -342,6 +325,7 @@ $response | ConvertTo-Json -Depth 100
 }
 
 function buildPrompt(input: IngestDraftInput) {
+  const nameGuide = buildUfcNameGuide();
   const glossaryHints = buildGlossaryHints(input);
 
   return [
@@ -349,11 +333,17 @@ function buildPrompt(input: IngestDraftInput) {
     "Translate the source material into natural Russian and lightly rewrite it into clean newsroom style.",
     "Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text.",
     "Use vocabulary common in Russian MMA media, not literal word-for-word calques.",
-    "Translate promotional words contextually: event/card/showcase usually becomes турнир, кард, or шоу depending on meaning.",
+    "Translate promotional words contextually: event/card/showcase usually becomes С‚СѓСЂРЅРёСЂ, РєР°СЂРґ, or С€РѕСѓ depending on meaning.",
     "Preserve facts, names, dates, organizations, and uncertainty exactly.",
     "Preserve weight classes and card terminology exactly. Do not confuse featherweight with lightweight or other divisions.",
     "Do not invent any details.",
     "Do not aggressively summarize. Preserve the substance and most factual detail of the original article.",
+    "Use standard Russian MMA terminology and standard fighter names already established in Russian media.",
+    nameGuide.tokenLine,
+    nameGuide.fullNameLine,
+    "Do not leave raw English terms such as eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences.",
+    "Do not invent or distort fighter names. For example, do not write РђР№СЃСѓР»С‚Р°РЅ РњР°С…Р°С‡РµРІ or Р¦СЃР°СЂСѓРєСЏРЅ.",
+    "Do not use awkward words such as РјР°СЂС€РёСЃС‚, РІРµР»РѕРІРµСЃ, or С„СЌР·РµСЂРІРµР№С‚.",
     "Return strict JSON with keys headline and body.",
     "Both headline and body must be in Russian.",
     "Body should usually stay close to the source in informational density and can be 4-8 short paragraphs without markdown when needed.",
@@ -368,11 +358,15 @@ function buildPrompt(input: IngestDraftInput) {
 }
 
 function buildRussianRepairPrompt(localized: { headline: string; body: string }) {
+  const nameGuide = buildUfcNameGuide();
   return [
     "You are fixing a draft for a Russian-language MMA media outlet.",
     "Rewrite the text into clean natural Russian only.",
     "Do not use Ukrainian words, Ukrainian grammar, Ukrainian spelling, or mixed-language output.",
     "Keep names, promotions, dates, and facts intact.",
+    nameGuide.tokenLine,
+    nameGuide.fullNameLine,
+    "Remove awkward wording, raw English insertions, and malformed fighter names.",
     "Return strict JSON with keys headline and body.",
     "",
     `Headline: ${localized.headline}`,
@@ -381,10 +375,36 @@ function buildRussianRepairPrompt(localized: { headline: string; body: string })
   ].join("\n");
 }
 
-const FIGHT_RESULT_PATTERN =
-  /(?:победил|победила|нокаутировал|нокаутировала|выиграл|выиграла|одолел|одолела|одержал|одержала|завершили|сабмишен|техническим нокаутом|единогласным решением|решением большинства|раздельным решением|вничью)/i;
+function buildRedFlagRepairPrompt(
+  input: IngestDraftInput,
+  localized: { headline: string; body: string },
+  flags: string[]
+) {
+  const nameGuide = buildUfcNameGuide();
+  return [
+    "You are fixing a draft for a Russian-language MMA media outlet.",
+    "Rewrite the text into clean newsroom Russian while preserving every fact from the source.",
+    "Keep names, dates, promotions, organizations, records, and uncertainty intact.",
+    nameGuide.tokenLine,
+    nameGuide.fullNameLine,
+    "Do not invent details and do not summarize aggressively.",
+    "Remove malformed names, raw English fragments, mixed-language output, and awkward literal calques.",
+    "Return strict JSON with keys headline and body.",
+    "",
+    `Detected issues: ${flags.join(", ")}`,
+    `Original source headline: ${input.headline}`,
+    "Draft headline:",
+    localized.headline,
+    "",
+    "Draft body:",
+    localized.body
+  ].join("\n");
+}
 
-const CARD_HEADER_PATTERN = /^(?:главный кард|предварительный кард|основной кард|ранние прелимы)/i;
+const FIGHT_RESULT_PATTERN =
+  /(?:РїРѕР±РµРґРёР»|РїРѕР±РµРґРёР»Р°|РЅРѕРєР°СѓС‚РёСЂРѕРІР°Р»|РЅРѕРєР°СѓС‚РёСЂРѕРІР°Р»Р°|РІС‹РёРіСЂР°Р»|РІС‹РёРіСЂР°Р»Р°|РѕРґРѕР»РµР»|РѕРґРѕР»РµР»Р°|РѕРґРµСЂР¶Р°Р»|РѕРґРµСЂР¶Р°Р»Р°|Р·Р°РІРµСЂС€РёР»Рё|СЃР°Р±РјРёС€РµРЅ|С‚РµС…РЅРёС‡РµСЃРєРёРј РЅРѕРєР°СѓС‚РѕРј|РµРґРёРЅРѕРіР»Р°СЃРЅС‹Рј СЂРµС€РµРЅРёРµРј|СЂРµС€РµРЅРёРµРј Р±РѕР»СЊС€РёРЅСЃС‚РІР°|СЂР°Р·РґРµР»СЊРЅС‹Рј СЂРµС€РµРЅРёРµРј|РІРЅРёС‡СЊСЋ)/i;
+
+const CARD_HEADER_PATTERN = /^(?:РіР»Р°РІРЅС‹Р№ РєР°СЂРґ|РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅС‹Р№ РєР°СЂРґ|РѕСЃРЅРѕРІРЅРѕР№ РєР°СЂРґ|СЂР°РЅРЅРёРµ РїСЂРµР»РёРјС‹)/i;
 
 function splitNarrativeAndResults(body: string) {
   const paragraphs = body.split(/\n\n+/);
@@ -417,7 +437,7 @@ function buildRewritePrompt(input: IngestDraftInput) {
     "Change sentence structure, wording, and phrasing while keeping the same meaning.",
     "Preserve ALL facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly.",
     "Do not add any information that is not in the original article.",
-    "Do not aggressively summarize — keep the same informational density.",
+    "Do not aggressively summarize вЂ” keep the same informational density.",
     "Output must be in natural Russian only.",
     "Return strict JSON with keys headline and body.",
     "",
@@ -450,6 +470,14 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
     localized = normalizeLocalizedOutput(input, await sendPrompt(buildRussianRepairPrompt(localized)));
   }
 
+  const redFlags = collectLocalizationRedFlags(`${localized.headline}\n${localized.body}`);
+  if (redFlags.length > 0) {
+    localized = normalizeLocalizedOutput(
+      input,
+      await sendPrompt(buildRedFlagRepairPrompt(input, localized, redFlags))
+    );
+  }
+
   return {
     headline: localized.headline,
     body: localized.body,
@@ -461,6 +489,18 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
 async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const model = getOllamaModel();
   const url = getOllamaUrl();
+  const sendPrompt = async (prompt: string) => {
+    const requestBody = JSON.stringify({
+      model,
+      stream: false,
+      format: "json",
+      prompt
+    });
+
+    const rawPayload = await postJson(url, requestBody);
+    const payload = JSON.parse(rawPayload) as { response?: string };
+    return parseLocalizationResponse(payload.response ?? "");
+  };
 
   const { narrative, results } = splitNarrativeAndResults(input.body);
 
@@ -469,25 +509,29 @@ async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedInge
     body: narrative.join("\n\n")
   };
 
-  const requestBody = JSON.stringify({
-    model,
-    stream: false,
-    format: "json",
-    prompt: buildRewritePrompt(rewriteInput)
-  });
-
-  const rawPayload = await postJson(url, requestBody);
-  const payload = JSON.parse(rawPayload) as { response?: string };
-  const parsed = parseLocalizationResponse(payload.response ?? "");
+  const parsed = await sendPrompt(buildRewritePrompt(rewriteInput));
 
   const bodyParts = [parsed.body];
   if (results.length > 0) {
     bodyParts.push(results.join("\n\n"));
   }
 
-  return {
+  let localized = {
     headline: parsed.headline,
-    body: bodyParts.join("\n\n"),
+    body: bodyParts.join("\n\n")
+  };
+
+  const redFlags = collectLocalizationRedFlags(`${localized.headline}\n${localized.body}`);
+  if (redFlags.length > 0) {
+    localized = normalizeLocalizedOutput(
+      input,
+      await sendPrompt(buildRedFlagRepairPrompt(input, localized, redFlags))
+    );
+  }
+
+  return {
+    headline: localized.headline,
+    body: localized.body,
     localized: true,
     model
   };
@@ -509,7 +553,7 @@ async function localizeWithOpenAi(input: IngestDraftInput): Promise<LocalizedIng
           {
             type: "input_text",
             text:
-              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as турнир, кард, or шоу when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
+              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as С‚СѓСЂРЅРёСЂ, РєР°СЂРґ, or С€РѕСѓ when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
           }
         ]
       },
@@ -565,7 +609,7 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
       {
         role: "system",
         content:
-          "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
+          "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
       },
       {
         role: "user",
@@ -683,3 +727,4 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
     model: null
   };
 }
+

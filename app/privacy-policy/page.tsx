@@ -22,8 +22,8 @@ export default async function PrivacyPolicyPage() {
         title={locale === "ru" ? "Политика конфиденциальности" : "Privacy policy"}
         description={
           locale === "ru"
-            ? "На этой странице описано, какие технические и пользовательские данные может собирать FightBase Media, как они используются и как можно связаться с редакцией по вопросам обработки данных."
-            : "This page explains which technical and user data FightBase Media may collect, how it may be used, and how to contact the editorial team about data handling."
+            ? "На этой странице описано, какие технические и пользовательские данные может получать FightBase Media, как они используются и как связаться с редакцией по вопросам обработки данных."
+            : "This page explains which technical and user data FightBase Media may receive, how it may be used, and how to contact the editorial team about data handling."
         }
       />
       <section className="page-grid policy-grid">
@@ -71,7 +71,7 @@ export default async function PrivacyPolicyPage() {
           <h3>{locale === "ru" ? "Файлы cookie и аналитика" : "Cookies and analytics"}</h3>
           <p>
             {locale === "ru"
-              ? "FightBase Media может использовать cookie и стандартные инструменты веб-аналитики для сохранения языковых настроек, оценки производительности и анализа навигации по сайту. Если в будущем появятся рекламные или подписочные механики, эта политика будет обновлена отдельно."
+              ? "FightBase Media может использовать cookie и стандартные инструменты веб-аналитики для сохранения языковых настроек, оценки производительности и анализа навигации по сайту. При появлении новых рекламных или подписных функций эта политика будет обновлена отдельно."
               : "FightBase Media may use cookies and standard analytics tools to remember language settings, measure performance, and analyze on-site navigation. If advertising or subscription features are introduced later, this policy will be updated accordingly."}
           </p>
         </article>
@@ -79,7 +79,7 @@ export default async function PrivacyPolicyPage() {
           <h3>{locale === "ru" ? "Контакты и обновления" : "Contact and updates"}</h3>
           <p>
             {locale === "ru"
-              ? "Политика может обновляться по мере запуска новых функций сайта. Если у вас есть вопросы по конфиденциальности или обработке данных, используйте редакционные контакты, указанные на странице About."
+              ? "Политика может обновляться по мере развития сайта. Если у вас есть вопросы о конфиденциальности или обработке данных, используйте редакционные контакты, указанные на странице About."
               : "This policy may be updated as new site features are introduced. If you have privacy or data handling questions, use the editorial contacts listed on the About page."}
           </p>
         </article>

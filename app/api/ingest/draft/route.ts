@@ -1,23 +1,35 @@
 import { NextResponse } from "next/server";
 
-import { createDraftFromIngestion, type IngestDraftInput } from "@/lib/ingestion";
+import { createDraftFromIngestion } from "@/lib/ingestion";
+import { IngestDraftInputSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as IngestDraftInput;
+  let raw: unknown;
 
-  if (!body.headline || !body.body || !body.sourceLabel || !body.sourceUrl) {
+  try {
+    raw = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = IngestDraftInputSchema.safeParse(raw);
+
+  if (!parsed.success) {
     return NextResponse.json(
-      {
-        error: "headline, body, sourceLabel, and sourceUrl are required"
-      },
+      { error: "Validation failed", details: parsed.error.flatten().fieldErrors },
       { status: 400 }
     );
   }
 
-  const draft = await createDraftFromIngestion(body);
+  try {
+    const draft = await createDraftFromIngestion(parsed.data);
 
-  return NextResponse.json({
-    ok: true,
-    draft
-  });
+    return NextResponse.json({ ok: true, draft });
+  } catch (error) {
+    console.error("Draft ingestion failed:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Draft ingestion failed" },
+      { status: 500 }
+    );
+  }
 }

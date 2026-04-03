@@ -5,17 +5,16 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
-import { getFightPredictionPageData } from "@/lib/db";
+import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
-import {
-  buildPredictionCopy,
-  fighterHasComparableStats,
-  getDisplayName,
-  getFightWinPercentages
-} from "@/lib/predictions";
+import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
+import { getSnapshotContent } from "@/lib/prediction-snapshot";
 import { getSiteUrl } from "@/lib/site";
+
+export const revalidate = 86400;
+export const dynamicParams = false;
 
 function splitIntoParagraphs(text: string) {
   const normalized = text
@@ -70,24 +69,45 @@ export async function generateMetadata({
 
   if (!data) {
     return {
-      title: locale === "ru" ? "Прогноз не найден" : "Prediction not found"
+      title: locale === "ru" ? "Прогноз ожидается" : "Prediction pending"
     };
   }
 
-  const { fight } = data;
-  const title = `${fight.fighterA.name} vs ${fight.fighterB.name} - ${locale === "ru" ? "прогноз" : "prediction"}`;
+  const { snapshot } = data;
+  const snapshotContent = getSnapshotContent(snapshot, locale);
 
   return {
-    title,
-    description:
-      locale === "ru"
-        ? `Прогноз на бой ${fight.fighterA.name} против ${fight.fighterB.name} на турнире ${fight.event.name}.`
-        : `Prediction for ${fight.fighterA.name} vs ${fight.fighterB.name} at ${fight.event.name}.`,
+    title: snapshotContent.titleTag,
+    description: snapshotContent.metaDescription,
     alternates: {
       ...buildLocaleAlternates(`/predictions/${eventSlug}/${fightId}`),
       canonical: localizePath(`/predictions/${eventSlug}/${fightId}`, locale)
+    },
+    openGraph: {
+      type: "article",
+      title: snapshotContent.titleTag,
+      description: snapshotContent.metaDescription,
+      url: localizePath(`/predictions/${eventSlug}/${fightId}`, locale)
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: snapshotContent.titleTag,
+      description: snapshotContent.metaDescription
+    },
+    robots: {
+      index: true,
+      follow: true
     }
   };
+}
+
+export async function generateStaticParams() {
+  const params = await getPredictionPageParams();
+
+  return params.map((entry) => ({
+    eventSlug: entry.fight.event.slug,
+    fightId: entry.fightId
+  }));
 }
 
 export default async function FightPredictionPage({
@@ -103,14 +123,10 @@ export default async function FightPredictionPage({
     notFound();
   }
 
-  const { fight, relatedArticles, relatedPredictionArticles, fightPredictionArticle } = data;
-  const oddsCtx = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
-  const prediction = buildPredictionCopy(locale, fight.fighterA, fight.fighterB, oddsCtx);
-  const { percentA: fighterAPercent, percentB: fighterBPercent, source: winPctSource } = getFightWinPercentages(
-    fight.fighterA,
-    fight.fighterB,
-    oddsCtx
-  );
+  const { fight, snapshot, relatedArticles, relatedPredictionArticles, fightPredictionArticle } = data;
+  const prediction = getSnapshotContent(snapshot, locale);
+  const fighterAPercent = snapshot.percentA;
+  const fighterBPercent = snapshot.percentB;
   const showStatsCompare =
     fighterHasComparableStats(fight.fighterA) || fighterHasComparableStats(fight.fighterB);
   const sidebarPredictionLinks = fightPredictionArticle
@@ -124,7 +140,7 @@ export default async function FightPredictionPage({
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
     { label: locale === "ru" ? "Прогнозы" : "Predictions", href: "/predictions" },
     { label: fight.event.name, href: `/events/${fight.event.slug}` },
-    { label: `${fighterAName} vs ${fighterBName}` }
+    { label: prediction.headline }
   ];
 
   return (
@@ -134,13 +150,25 @@ export default async function FightPredictionPage({
           "@context": "https://schema.org",
           "@type": "SportsEvent",
           name: `${fight.event.name}: ${fight.fighterA.name} vs ${fight.fighterB.name}`,
-          url: pageUrl
+          url: pageUrl,
+          description: prediction.metaDescription
+        }}
+      />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Article",
+          headline: prediction.headline,
+          description: prediction.metaDescription,
+          datePublished: snapshot.generatedAt.toISOString(),
+          dateModified: snapshot.updatedAt.toISOString(),
+          mainEntityOfPage: pageUrl,
+          about: [fight.fighterA.name, fight.fighterB.name, fight.event.name]
         }}
       />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
-        eyebrow={`/predictions/${fight.event.slug}/${fight.id}`}
-        title={`${fighterAName} vs ${fighterBName}`}
+        title={prediction.headline}
         description={`${fight.event.promotion.shortName} · ${fight.event.name} · ${formatWeightClass(fight.weightClass, locale)}`}
       />
 
@@ -161,15 +189,6 @@ export default async function FightPredictionPage({
         <div className="prediction-hero-center">
           <span className="prediction-label">{locale === "ru" ? "Выбор" : "Pick"}</span>
           <strong>{prediction.pick}</strong>
-          {prediction.hasOdds && fight.oddsA != null && fight.oddsB != null ? (
-            <p className="copy prediction-odds-line">
-              {locale === "ru" ? "Линия (decimal)" : "Line (decimal)"}: {fighterAName}{" "}
-              <strong>{fight.oddsA.toFixed(2)}</strong> · {fighterBName} <strong>{fight.oddsB.toFixed(2)}</strong>
-              {fight.oddsSource ? (
-                <span className="prediction-odds-source"> · {fight.oddsSource}</span>
-              ) : null}
-            </p>
-          ) : null}
           <div className="prediction-meter">
             <div className="prediction-meter-fill" style={{ width: `${fighterAPercent}%` }} />
           </div>
@@ -177,15 +196,13 @@ export default async function FightPredictionPage({
             <span>{fighterAPercent}%</span>
             <span>{fighterBPercent}%</span>
           </div>
-          <p className="copy prediction-meter-caption">
-            {winPctSource === "odds"
-              ? locale === "ru"
-                ? "Доли шансов по букмекерской линии (без учёта маржи букмекера как «истины»)."
-                : "Win shares from the betting line (not a claim the market is always right)."
-              : locale === "ru"
-                ? "Оценка FightBase по рекорду, форме и статистике — линии букмекеров пока нет."
-                : "FightBase estimate from record, form, and stats — no market line loaded yet."}
-          </p>
+          {snapshot.source === "heuristic" ? (
+            <p className="copy prediction-meter-caption">
+              {locale === "ru"
+                ? "Снимок прогноза собран по рекорду, текущей форме и доступной статистике бойцов."
+                : "This prediction snapshot is built from fighter record, current form, and available stats."}
+            </p>
+          ) : null}
         </div>
 
         <div className="prediction-hero-fighter prediction-hero-fighter--reverse">

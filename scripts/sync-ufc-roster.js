@@ -40,6 +40,54 @@ function pickBioField(html, label) {
   return stripTags(match?.[1] || "");
 }
 
+function sanitizeTeam(value) {
+  const clean = stripTags(String(value || ""))
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*,/g, ", ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
+    .replace(/\bMikwaukee\b/gi, "Milwaukee")
+    .replace(/\bFintess\b/gi, "Fitness")
+    .trim();
+
+  if (!clean || /^(unknown|n\/a|none|tbd|not available|ufc performance institute)$/i.test(clean)) {
+    return "";
+  }
+
+  return clean;
+}
+
+function sanitizeStyle(value) {
+  const clean = stripTags(String(value || ""))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!clean || /stats|profile|news|read more|view complete/i.test(clean) || clean.length > 80) {
+    return "MMA";
+  }
+
+  return clean;
+}
+
+function shouldReuseExistingBioRu(value) {
+  const clean = stripTags(String(value || "")).replace(/\s+/g, " ").trim();
+  if (!clean) {
+    return false;
+  }
+
+  return clean.length > 220 && !/\(В-П-Н\)|сохраняет заметную позицию в дивизионе|на текущий момент входит в число чемпионов своей организации|сейчас значится вне активных выступлений/i.test(clean);
+}
+
+function shouldReuseExistingBioEn(value) {
+  const clean = stripTags(String(value || "")).replace(/\s+/g, " ").trim();
+  if (!clean) {
+    return false;
+  }
+
+  return clean.length > 220 && !/[А-Яа-яЁё]/.test(clean) && !/stats, fight results, news|currently holds championship status in the promotion|currently listed outside active competition/i.test(clean);
+}
+
 function parseInchesToCm(rawValue) {
   const match = String(rawValue || "").match(/(\d+(?:\.\d+)?)/);
   if (!match) {
@@ -179,6 +227,36 @@ function normalizeOpponentName(value) {
     .trim();
 }
 
+function isPlaceholderRecentFightValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    "opponent not listed",
+    "result pending",
+    "соперник не указан",
+    "результат уточняется"
+  ].includes(normalized);
+}
+
+function isValidRecentFight(fight) {
+  if (!fight) {
+    return false;
+  }
+
+  if (isPlaceholderRecentFightValue(fight.opponentName) || isPlaceholderRecentFightValue(fight.result)) {
+    return false;
+  }
+
+  if (!String(fight.eventName || "").trim()) {
+    return false;
+  }
+
+  return true;
+}
+
 function inferResultFromNotes(notes) {
   const text = String(notes || "").toLowerCase();
 
@@ -284,8 +362,8 @@ function parseUfcProfile(html, slug, existing) {
   const reachCm = parseInchesToCm(pickBioField(html, "Reach")) || existing?.reachCm || 0;
   const placeOfBirth = pickBioField(html, "Place of Birth");
   const country = placeOfBirth.split(",").pop()?.trim() || existing?.country || "";
-  const team = pickBioField(html, "Trains at") || existing?.team || "";
-  const style = pickBioField(html, "Fighting style") || existing?.style || "MMA";
+  const team = sanitizeTeam(pickBioField(html, "Trains at")) || sanitizeTeam(existing?.team) || "";
+  const style = sanitizeStyle(pickBioField(html, "Fighting style")) || sanitizeStyle(existing?.style) || "MMA";
   const description = extractMetaContent(html, "description");
   const photoUrl = normalizePhotoUrl(extractMetaContent(html, "og:image")) || normalizePhotoUrl(pick(html, /hero-profile__image"[^>]+src="([^"]+)"/i)) || existing?.photoUrl || null;
   const koWins = pick(html, /hero-profile__stat-numb">(\d+)<\/p>\s*<p class="hero-profile__stat-text">Wins by Knockout/i);
@@ -326,7 +404,7 @@ function parseUfcProfile(html, slug, existing) {
     team,
     style,
     bio:
-      existing?.bio && existing.bio.length > 220 && !existing.bio.includes('"')
+      shouldReuseExistingBioRu(existing?.bio)
         ? existing.bio
         : buildGenericBio({
             nameRu: getPreferredRussianName(name, existing?.nameRu),
@@ -340,18 +418,21 @@ function parseUfcProfile(html, slug, existing) {
             highlights,
             description
           }),
-    bioEn: buildGenericBioEn({
-      name,
-      promotionSlug: "ufc",
-      country,
-      weightClass: division,
-      status: parseStatusTag(html, existing?.status),
-      nickname,
-      record: normalizedRecord,
-      team,
-      highlights: null,
-      description
-    })
+    bioEn:
+      shouldReuseExistingBioEn(existing?.bioEn)
+        ? existing.bioEn
+        : buildGenericBioEn({
+            name,
+            promotionSlug: "ufc",
+            country,
+            weightClass: division,
+            status: parseStatusTag(html, existing?.status),
+            nickname,
+            record: normalizedRecord,
+            team,
+            highlights: null,
+            description
+          })
   };
 }
 
@@ -405,7 +486,7 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
         /win/i.test(outcome) ? "Победа" : /loss/i.test(outcome) ? "Поражение" : /draw/i.test(outcome) ? "Ничья" : /nc/i.test(outcome) ? "Несостоявшийся бой" : "Результат уточняется";
 
       const resultMap = new Map(resultRows.map((match) => [stripTags(match[1]).toLowerCase(), stripTags(match[2])]));
-      parsedCardFights.push({
+      const parsedFight = {
         opponentName,
         eventName,
         result: mappedResult,
@@ -415,7 +496,11 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
         time: resultMap.get("time") || null,
         weightClass,
         notes: null
-      });
+      };
+
+      if (isValidRecentFight(parsedFight)) {
+        parsedCardFights.push(parsedFight);
+      }
     }
   }
 
@@ -475,7 +560,7 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       derivedTime = "5:00";
     }
 
-    fights.push({
+    const parsedFight = {
       opponentName,
       eventName,
       result,
@@ -490,7 +575,11 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       time: derivedTime,
       weightClass,
       notes: body
-    });
+    };
+
+    if (isValidRecentFight(parsedFight)) {
+      fights.push(parsedFight);
+    }
   }
 
   const deduped = new Map();
@@ -508,11 +597,13 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
     deduped.set(key, existing ? mergeParsedRecentFight(existing, fight) : fight);
   }
 
-  return [...deduped.values()].sort((left, right) => {
+  return [...deduped.values()]
+    .filter((fight) => isValidRecentFight(fight))
+    .sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;
-  });
+    });
 }
 
 async function main() {
@@ -550,21 +641,6 @@ async function main() {
     } catch (error) {
       console.error(`Failed UFC sync for ${entry.url || entry.slug}: ${error.message || error}`);
     }
-  }
-
-  if (!singleSlug) {
-    const currentRosterSlugs = entries.map((entry) => entry.slug);
-    const retired = await prisma.fighter.updateMany({
-      where: {
-        promotionId: promotion.id,
-        slug: { notIn: currentRosterSlugs },
-        status: { in: ["active", "prospect", "champion"] }
-      },
-      data: {
-        status: "retired"
-      }
-    });
-    console.log(`Marked ${retired.count} UFC fighters outside the current roster as retired.`);
   }
 
   console.log(`UFC sync complete. Created: ${created}. Updated: ${updated}.`);

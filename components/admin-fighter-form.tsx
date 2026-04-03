@@ -1,8 +1,4 @@
-import {
-  createFighterAction,
-  deleteFighterAction,
-  updateFighterAction
-} from "@/app/admin/actions";
+import { createFighterAction, deleteFighterAction, updateFighterAction } from "@/app/admin/actions";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 type PromotionOption = {
@@ -82,7 +78,7 @@ export function AdminFighterForm({
           </label>
 
           <label className="admin-field">
-            <span>{locale === "ru" ? "Весовая" : "Weight class"}</span>
+            <span>{locale === "ru" ? "Весовая категория" : "Weight class"}</span>
             <input name="weightClass" defaultValue={fighter?.weightClass ?? ""} required />
           </label>
         </div>

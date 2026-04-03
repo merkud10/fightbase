@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticlePageData } from "@/lib/db";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -151,7 +152,7 @@ export default async function ArticlePage({
           {article.coverImageUrl ? (
             <div className="article-cover-shell">
               <img
-                src={article.coverImageUrl}
+                src={getDisplayImageUrl(article.coverImageUrl)}
                 alt={article.coverImageAlt || article.title}
                 className="article-cover-image"
               />

@@ -22,7 +22,7 @@ export default async function TermsPage() {
         title={locale === "ru" ? "Условия использования" : "Terms of use"}
         description={
           locale === "ru"
-            ? "Условия использования описывают правила доступа к материалам FightBase Media, порядок цитирования и ограничения ответственности редакции."
+            ? "Условия использования определяют правила доступа к материалам FightBase Media, порядок цитирования и пределы ответственности редакции."
             : "These terms describe how FightBase Media content may be accessed, cited, and used, along with editorial liability limits."
         }
       />
@@ -31,7 +31,7 @@ export default async function TermsPage() {
           <h3>{locale === "ru" ? "Редакционные материалы" : "Editorial materials"}</h3>
           <p>
             {locale === "ru"
-              ? "Новости, рейтинги, профили бойцов, турнирные карточки и аналитика публикуются для информационных целей. FightBase Media стремится к точности, но не гарантирует, что каждая статистическая деталь или расписание останутся неизменными после публикации."
+              ? "Новости, рейтинги, профили бойцов, турнирные страницы и аналитика публикуются в информационных целях. FightBase Media стремится к точности, но не может гарантировать, что каждая статистическая деталь или расписание останутся неизменными после публикации."
               : "News, rankings, fighter profiles, event cards, and analysis are published for informational purposes. FightBase Media aims for accuracy but cannot guarantee that every statistic or schedule detail will remain unchanged after publication."}
           </p>
         </article>

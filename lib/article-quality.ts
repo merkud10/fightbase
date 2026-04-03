@@ -108,8 +108,6 @@ function applyCommonReplacements(value: string) {
     .replace(/\(\s+/g, "(")
     .replace(/\s+\)/g, ")")
     .replace(/\s+-\s+/g, " — ")
-    .replace(/\bPFL Chicago will air in the U\.S\.[^.]*\.\s*/gi, "")
-    .replace(/\bPFL Chicago\b/g, "турнир PFL Chicago")
     .replace(/\bUFC London\b/g, "турнир UFC London")
     .replace(/\bUFC Fight Night:\s*Evloev\s+против\s+Murphy\b/gi, "UFC Fight Night: Евлоев против Мерфи")
     .replace(/\bUFC 328:\s*ЧИМАЕВ\s+против\.\s+СТРИКЛЕНД\b/gi, "UFC 328: Чимаев против Стрикленда");
@@ -165,9 +163,6 @@ export function cleanNewsTitle(value: string, fighters: RelatedFighter[] = []) {
     .replace(/\bПолный результат турнира\b/gi, "Полные результаты турнира")
     .replace(/\bРезультаты турнира UFC London: главные итоги\b/gi, "Результаты турнира UFC London: главные итоги")
     .replace(/\bРезультаты UFC London: .*главные итоги турнира\b/gi, "Результаты турнира UFC London: главные итоги")
-    .replace(/\bПолные результаты турнира PFL в Питтсбурге и фотографии\b/gi, "Полные результаты турнира PFL в Питтсбурге")
-    .replace(/\bОбъявлен полный кард для турнир PFL Chicago 11 апреля в Wintrust Arena\b/gi, "Объявлен полный кард турнира PFL Chicago на 11 апреля")
-    .replace(/\bОбъявлен полный кард для PFL Chicago 11 апреля в Wintrust Arena\b/gi, "Объявлен полный кард турнира PFL Chicago на 11 апреля")
     .replace(/\bБоевой поход за титул среднего веса: Чимаев против Стрикленда возглавит UFC 328\b/gi, "Чимаев и Стрикленд возглавят UFC 328")
     .replace(/\bUFC объявляет ABC в качестве консультантов по регулированию исторического турнира UFC в Белом доме\b/gi, "ABC станет регуляторным консультантом турнира UFC в Белом доме");
 

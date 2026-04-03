@@ -4,6 +4,8 @@ import { promisify } from "node:util";
 
 import { NextResponse } from "next/server";
 
+import { CronIngestInputSchema } from "@/lib/validation";
+
 const execFileAsync = promisify(execFile);
 
 function isAuthorized(request: Request) {
@@ -44,24 +46,43 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    file?: string;
-    dryRun?: boolean;
-    job?: "watchlist" | "ai-discovery";
-    lookbackHours?: number;
-    limit?: number;
-    status?: "draft" | "review" | "published";
-  };
+  const rawBody = await request.json().catch(() => ({}));
+  const parsed = CronIngestInputSchema.safeParse(rawBody);
 
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Validation failed", details: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
+  const body = parsed.data;
   const origin = new URL(request.url).origin;
-  const job = body.job === "watchlist" ? "watchlist" : "ai-discovery";
-  const scriptName = job === "watchlist" ? "fetch-source-feed.js" : "discover-ai-news.js";
+  const job =
+    body.job === "watchlist"
+      ? "watchlist"
+      : body.job === "sync-odds"
+        ? "sync-odds"
+        : body.job === "weekly-analysis"
+          ? "weekly-analysis"
+          : "ai-discovery";
+  const scriptName =
+    job === "watchlist"
+      ? "fetch-source-feed.js"
+      : job === "sync-odds"
+        ? "sync-fight-odds.js"
+        : job === "weekly-analysis"
+          ? "discover-weekly-analysis.js"
+          : "discover-ai-news-repaired.js";
   const scriptPath = path.resolve(process.cwd(), "scripts", scriptName);
-  const args = [scriptPath, "--base-url", origin];
+  const args = [scriptPath];
 
   if (job === "watchlist") {
+    args.push("--base-url", origin);
     args.push("--file", body.file ?? "ingestion/sample-watchlist.json");
-  } else {
+  } else if (job === "ai-discovery") {
+    args.push("--base-url", origin);
+
     if (typeof body.lookbackHours === "number" && Number.isFinite(body.lookbackHours)) {
       args.push("--lookback-hours", String(body.lookbackHours));
     }
@@ -73,16 +94,22 @@ export async function POST(request: Request) {
     if (body.status) {
       args.push("--status", body.status);
     }
+  } else if (job === "weekly-analysis") {
+    args.push("--base-url", origin);
+
+    if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
+      args.push("--limit-per-source", String(body.limit));
+    }
   }
 
-  if (body.dryRun) {
+  if (body.dryRun && job !== "sync-odds") {
     args.push("--dry-run");
   }
 
   try {
     const result = await execFileAsync(process.execPath, args, {
       cwd: process.cwd(),
-      timeout: 120_000
+      timeout: job === "weekly-analysis" ? 480_000 : 120_000
     });
 
     return NextResponse.json({

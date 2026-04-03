@@ -24,7 +24,7 @@ const PREDICTION_SOURCES = [
   },
   {
     label: "Sherdog Features",
-    promotionSlugs: ["ufc", "one", "pfl"],
+    promotionSlugs: ["ufc"],
     listingUrl: "https://www.sherdog.com/news/articles/list",
     articlePattern: /^https:\/\/www\.sherdog\.com\/news\/articles\/[^?#]+$/i,
     keywords: ["preview", "breakdown", "picks", "analysis", "matchup", "by-the-numbers"],
@@ -32,19 +32,11 @@ const PREDICTION_SOURCES = [
   },
   {
     label: "MMA Fighting",
-    promotionSlugs: ["ufc", "one", "pfl"],
+    promotionSlugs: ["ufc"],
     listingUrl: "https://www.mmafighting.com/latest-news",
     articlePattern: /^https:\/\/www\.mmafighting\.com\/\d{4}\/\d{1,2}\/\d{1,2}\/[^?#]+$/i,
     keywords: ["preview", "predictions", "analysis", "breakdown", "picks", "best-bets", "fight-card-preview"],
     sourceType: "press_release"
-  },
-  {
-    label: "ONE Championship Features",
-    promotionSlugs: ["one"],
-    listingUrl: "https://www.onefc.com/category/features/",
-    articlePattern: /^https:\/\/www\.onefc\.com\/(?:features|news)\/[^?#]+\/?$/i,
-    keywords: ["preview", "breakdown", "analysis", "keys-to-victory", "steal-the-show", "things-to-know", "at-stake"],
-    sourceType: "official"
   }
 ];
 
@@ -151,6 +143,24 @@ function looksMostlyRussian(value) {
   }
 
   return stats.cyrillic / stats.total >= 0.6;
+}
+
+const RED_FLAG_RULES = [
+  { label: "leftover_english_term", pattern: /\b(?:eligible|athletic commission)\b/i },
+  {
+    label: "raw_weight_class_english",
+    pattern: /\b(?:featherweight|bantamweight|welterweight|middleweight|lightweight|heavyweight|flyweight)\b/i
+  },
+  { label: "bad_name_variant", pattern: /\b(?:\u0410\u0439\u0441\u0443\u043b\u0442\u0430\u043d|\u0426\u0441\u0430\u0440\u0443\u043a\u044f\u043d)\b/i },
+  {
+    label: "bad_editorial_wording",
+    pattern: /\b(?:\u043c\u0430\u0440\u0448\u0438\u0441\u0442|\u0432\u0435\u043b\u043e\u0432\u0435\u0441|\u0444\u044d\u0437\u0435\u0440\u0432\u0435\u0439\u0442)\b/i
+  },
+  { label: "multi_option_answer", pattern: /(?:^|\n)\s*(?:\*\*)?\u0412\u0430\u0440\u0438\u0430\u043d\u0442\s+\d/i }
+];
+
+function collectRedFlags(value) {
+  return RED_FLAG_RULES.filter((rule) => rule.pattern.test(String(value || ""))).map((rule) => rule.label);
 }
 
 function normalizeForMatch(value) {
@@ -576,6 +586,7 @@ async function generateRussianRepair(body, context) {
         "Rewrite the text into clean natural Russian only.",
         "Do not leave English sentences except for official names, fighter names, and promotion names.",
         "Keep facts intact and do not invent new details.",
+        "Remove malformed fighter names, awkward literal calques, and mixed-language fragments.",
         "Return strict JSON with one key only: body.",
         "",
         `Fight: ${context.fightLabel}`,
@@ -618,6 +629,7 @@ async function refineFightSpecificDraft(fight, body) {
         "Mention only the target fighters by name unless an official event name is required.",
         "Use a compact editorial tone: intro, angle for fighter A, angle for fighter B, likely scenario.",
         "Do not invent facts or statistics.",
+        "Do not leave malformed names or awkward terms such as Айсултан, Цсарукян, маршист, веловес, or фэзервейт.",
         "Return strict JSON with one key only: body.",
         "",
         `Target fight: ${fight.fighterA.name} vs ${fight.fighterB.name}`,
@@ -664,7 +676,9 @@ async function rewriteFightPrediction(fight, article) {
         "Write a fight-specific preview article in Russian for the exact bout below using only the source material.",
         "This is a rewrite, not a translation. Keep it factual, compact, and natural for Russian MMA media.",
         "Focus on this fight only, even if the source article covers the full card.",
-        "Do not invent statistics, injuries, quotes, odds, or rumors that are not clearly present in the source.",
+        "Do not mention bookmaker odds, numeric betting lines, or market prices, even if they appear in the source.",
+        "Do not invent statistics, injuries, quotes, or rumors that are not clearly present in the source.",
+        "Use standard Russian MMA terminology only. Do not distort fighter names or leave awkward raw English terms inside Russian sentences.",
         "Return strict JSON with one key only: body.",
         "The body should be 4-6 concise paragraphs without markdown.",
         "",
@@ -699,6 +713,22 @@ async function rewriteFightPrediction(fight, article) {
     });
   }
 
+  const redFlags = collectRedFlags(body);
+  if (redFlags.length > 0) {
+    body = await generateRussianRepair(
+      [
+        `Detected issues: ${redFlags.join(", ")}`,
+        "",
+        body
+      ].join("\n")
+      ,
+      {
+        fightLabel: `${fight.fighterA.name} vs ${fight.fighterB.name}`,
+        eventName: fight.event.name
+      }
+    );
+  }
+
   body = await refineFightSpecificDraft(fight, body).catch(() => body);
 
   if (mentionsUnrelatedEventFighters(body, fight)) {
@@ -716,6 +746,8 @@ async function fetchUpcomingFights(options) {
   const threshold = new Date(Date.now() + options.days * 24 * 60 * 60 * 1000);
   return prisma.fight.findMany({
     where: {
+      oddsA: { not: null },
+      oddsB: { not: null },
       status: "scheduled",
       event: {
         status: "upcoming",

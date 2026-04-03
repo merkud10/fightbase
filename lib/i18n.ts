@@ -8,55 +8,55 @@ export const dictionary = {
   ru: {
     languageName: "RU",
     otherLanguageName: "EN",
-    brandTagline: "ММА-медиа платформа",
+    brandTagline: "UFC-медиа",
     nav: {
       news: "Новости",
       events: "Турниры",
       fighters: "Бойцы",
       rankings: "Рейтинги",
       predictions: "Прогнозы",
-      quotes: "Цитаты",
+      quotes: "Интервью",
       videos: "Видео",
       about: "О сайте"
     },
     common: {
       search: "Поиск",
-      subscribe: "Подписаться",
+      subscribe: "Подписка",
       all: "Все",
       sources: "Источники",
       profile: "Профиль",
-      eventCard: "Карточка турнира",
+      eventCard: "Турнир",
       readArticle: "Читать материал",
-      viewEvents: "Смотреть турниры",
+      viewEvents: "Все турниры",
       openCoverage: "Открыть материал",
-      openPrediction: "Прогноз"
+      openPrediction: "Превью боя"
     }
   },
   en: {
     languageName: "EN",
     otherLanguageName: "RU",
-    brandTagline: "MMA media platform",
+    brandTagline: "UFC media",
     nav: {
       news: "News",
       events: "Events",
       fighters: "Fighters",
       rankings: "Rankings",
       predictions: "Predictions",
-      quotes: "Quotes",
+      quotes: "Interviews",
       videos: "Videos",
       about: "About"
     },
     common: {
       search: "Search",
-      subscribe: "Subscribe",
+      subscribe: "Subscription",
       all: "All",
       sources: "Sources",
       profile: "Profile",
-      eventCard: "Event card",
+      eventCard: "Event",
       readArticle: "Read feature",
-      viewEvents: "View events",
-      openCoverage: "Open coverage",
-      openPrediction: "Prediction"
+      viewEvents: "All events",
+      openCoverage: "Read story",
+      openPrediction: "Fight preview"
     }
   }
 } as const;

@@ -3,10 +3,10 @@ import { ingestDraftArticleAction } from "@/app/admin/actions";
 export function AdminIngestForm({ locale }: { locale: "ru" | "en" }) {
   return (
     <article className="policy-card">
-      <h3>{locale === "ru" ? "AI-импорт в draft" : "AI draft ingestion"}</h3>
+      <h3>{locale === "ru" ? "AI-импорт в черновик" : "AI draft ingestion"}</h3>
       <p>
         {locale === "ru"
-          ? "Вставь заголовок, исходный текст и ссылку на источник. Система создаст draft-статью в базе и попытается сама привязать бойцов, турнир и теги."
+          ? "Вставь заголовок, текст источника и ссылку. Система создаст черновик статьи и попытается автоматически определить бойцов, турнир и теги."
           : "Paste a headline, source text, and source URL. The system will create a draft article and infer fighters, event, and tags where possible."}
       </p>
 
@@ -57,19 +57,19 @@ export function AdminIngestForm({ locale }: { locale: "ru" | "en" }) {
 
         <div className="admin-grid">
           <label className="admin-field">
-            <span>{locale === "ru" ? "Бойцы (slug, через запятую)" : "Fighters (slug list)"}</span>
+            <span>{locale === "ru" ? "Бойцы (slug через запятую)" : "Fighters (slug list)"}</span>
             <input name="fighterSlugs" placeholder="alex-pereira, magomed-ankalaev" />
           </label>
 
           <label className="admin-field">
-            <span>{locale === "ru" ? "Теги (slug, через запятую)" : "Tags (slug list)"}</span>
+            <span>{locale === "ru" ? "Теги (slug через запятую)" : "Tags (slug list)"}</span>
             <input name="tagSlugs" placeholder="ufc, title-fight" />
           </label>
         </div>
 
         <div className="admin-actions">
           <button type="submit" className="button">
-            {locale === "ru" ? "Создать draft" : "Create draft"}
+            {locale === "ru" ? "Создать черновик" : "Create draft"}
           </button>
         </div>
       </form>

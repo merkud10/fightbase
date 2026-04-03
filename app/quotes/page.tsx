@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
 import { getQuotesPageData } from "@/lib/db";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 
@@ -10,8 +11,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const quotes = await getQuotesPageData();
 
   return {
-    title: "Цитаты и интервью MMA",
-    description: "Ключевые цитаты, интервью и источниковые материалы по MMA.",
+    title: "Интервью и прямая речь UFC",
+    description:
+      "Интервью, заявления и материалы FightBase Media, построенные вокруг прямой речи бойцов, тренеров и участников UFC-повестки.",
     alternates: buildLocaleAlternates("/quotes"),
     robots: quotes.length
       ? undefined
@@ -30,24 +32,46 @@ export default async function QuotesPage() {
     <main className="container">
       <PageHero
         eyebrow="/quotes"
-        title={locale === "ru" ? "Цитаты и интервью" : "Quotes and interviews"}
+        title={locale === "ru" ? "Интервью и прямая речь" : "Interviews and direct quotes"}
         description={
           locale === "ru"
-            ? "Раздел для пресс-конференций, интервью, подкастов и материалов с явными ссылками на источники."
-            : "A safer format for press conferences, interviews, podcasts, and social-media monitoring with explicit source links."
+            ? "Раздел для интервью, пресс-конференций и материалов, где особенно важны точные формулировки и смысл сказанного."
+            : "A desk for interviews, press conferences, and quote-driven pieces where phrasing and meaning matter most."
         }
       />
 
-      <section className="feature-grid">
-        {quotes.map((article) => (
-          <article key={article.id} className="feature-card">
-            <p className="eyebrow">{locale === "ru" ? "Цитата" : "Quote"}</p>
-            <h3>{article.title}</h3>
-            <p className="copy">{article.meaning}</p>
-            <Link href={localizePath(`/news/${article.slug}`, locale)}>{locale === "ru" ? "Открыть материал" : "Open coverage"}</Link>
-          </article>
-        ))}
-      </section>
+      {quotes.length > 0 ? (
+        <section className="feature-grid">
+          {quotes.map((article) => (
+            <article key={article.id} className="feature-card editorial-card">
+              {article.coverImageUrl ? (
+                <div className="editorial-card-cover">
+                  <img
+                    src={getDisplayImageUrl(article.coverImageUrl)}
+                    alt={article.coverImageAlt || article.title}
+                    className="editorial-card-cover-image"
+                  />
+                </div>
+              ) : null}
+              <p className="eyebrow">{locale === "ru" ? "Прямая речь" : "Direct quote"}</p>
+              <h3>{article.title}</h3>
+              <p className="copy">{article.excerpt || article.meaning}</p>
+              <Link href={localizePath(`/news/${article.slug}`, locale)}>
+                {locale === "ru" ? "Читать материал" : "Read story"}
+              </Link>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section className="filter-empty-state">
+          <h3>{locale === "ru" ? "Раздел интервью пока пуст" : "The interview desk is currently empty"}</h3>
+          <p className="copy">
+            {locale === "ru"
+              ? "После загрузки интервью и пресс-конференций они будут собираться здесь как отдельная редакционная витрина."
+              : "Once interviews and press-conference coverage are published, they will appear here as a separate editorial desk."}
+          </p>
+        </section>
+      )}
     </main>
   );
 }

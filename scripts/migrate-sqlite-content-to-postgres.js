@@ -1,16 +1,37 @@
 #!/usr/bin/env node
 
+const fs = require("fs");
+const path = require("path");
 const { spawnSync } = require("child_process");
 
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+function resolveSqliteSourcePath() {
+  const sourcePath = process.env.SQLITE_IMPORT_PATH;
+
+  if (!sourcePath) {
+    throw new Error(
+      "SQLITE_IMPORT_PATH is not set. Point it to a legacy SQLite export file before running this migration."
+    );
+  }
+
+  const resolvedPath = path.resolve(process.cwd(), sourcePath);
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`SQLite source file was not found: ${resolvedPath}`);
+  }
+
+  return resolvedPath;
+}
+
 function loadSqliteExport() {
+  const sqliteSourcePath = resolveSqliteSourcePath();
   const pythonScript = `
 import sqlite3, json
 
-conn = sqlite3.connect('prisma/dev.db')
+conn = sqlite3.connect(${JSON.stringify(sqliteSourcePath)})
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 

@@ -29,60 +29,81 @@ const SOURCES = [
 
       return entries.slice(0, 8);
     }
-  },
-  {
-    promotionSlug: "one",
-    listingUrl: "https://www.onefc.com/events/",
-    collectListingEntries(html) {
-      const entries = [];
-      const seen = new Set();
-      const pattern = /<a class="title" href="(https:\/\/www\.onefc\.com\/events\/[^"]+\/)" title="([^"]+)"/gi;
-
-      for (const match of html.matchAll(pattern)) {
-        const url = match[1];
-        const title = decodeHtmlEntities(match[2]);
-        if (seen.has(url)) {
-          continue;
-        }
-        seen.add(url);
-        entries.push({ url, title, dateText: "" });
-      }
-
-      return entries.slice(0, 8);
-    }
-  },
-  {
-    promotionSlug: "pfl",
-    listingUrl: "https://pflmma.com/events",
-    collectListingEntries(html) {
-      const entries = [];
-      const seen = new Set();
-      const pattern =
-        /window\.location\.href = '([^']+)'[\s\S]*?<h6 class="mb-1 text-uppercase">([^<]+)<\/h6>[\s\S]*?<h3 class="mb-2">([^<]+)<\/h3>[\s\S]*?<p class="mb-4">([^<]+)<\/p>/gi;
-
-      for (const match of html.matchAll(pattern)) {
-        const url = new URL(match[1], "https://pflmma.com").toString();
-        if (seen.has(url)) {
-          continue;
-        }
-        seen.add(url);
-        entries.push({
-          url,
-          title: stripTags(match[3]),
-          dateText: stripTags(match[2]),
-          locationText: stripTags(match[4])
-        });
-      }
-
-      return entries.slice(0, 8);
-    }
   }
 ];
+
+const locationTranslations = new Map([
+  ["Bangkok", "Бангкок"],
+  ["Tokyo", "Токио"],
+  ["Las Vegas", "Лас-Вегас"],
+  ["Miami", "Майами"],
+  ["Winnipeg", "Виннипег"],
+  ["Riyadh", "Эр-Рияд"],
+  ["Singapore", "Сингапур"],
+  ["Lumpinee Stadium", "Lumpinee Stadium"],
+  ["Meta APEX", "Meta APEX"],
+  ["Kaseya Center", "Kaseya Center"],
+  ["Canada Life Centre", "Canada Life Centre"],
+  ["Ariake Arena", "Ariake Arena"],
+  ["United States", "США"],
+  ["Canada", "Канада"],
+  ["Thailand", "Таиланд"],
+  ["Japan", "Япония"]
+]);
 
 function slugFromUrl(url) {
   const parsed = new URL(url);
   const parts = parsed.pathname.split("/").filter(Boolean);
   return parts[parts.length - 1] || "";
+}
+
+function formatRussianDate(date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date);
+}
+
+function translateLocationLabel(value) {
+  const clean = String(value || "").trim();
+  if (!clean || clean === "TBD") {
+    return "";
+  }
+
+  return clean
+    .split(/\s*,\s*|\s{2,}/)
+    .flatMap((part) => part.split(/\s+(?=United States|Canada|Thailand|Japan)\b/))
+    .map((part) => locationTranslations.get(part.trim()) || part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildRussianEventSummary(promotion, facts, fallbackTitle) {
+  const eventName = facts.name || fallbackTitle;
+  const dateLabel = facts.date ? formatRussianDate(facts.date) : null;
+  const locationBits = [translateLocationLabel(facts.venue), translateLocationLabel(facts.city)].filter(Boolean);
+  const locationLabel = locationBits.join(", ");
+  const shortName = String(promotion?.shortName || "").trim();
+  const lead =
+    shortName && !eventName.toLowerCase().startsWith(shortName.toLowerCase())
+      ? `${shortName}: ${eventName}`
+      : eventName;
+
+  if (dateLabel && locationLabel) {
+    return `${lead} пройдет ${dateLabel} на арене ${locationLabel}.`;
+  }
+
+  if (dateLabel) {
+    return `${lead} пройдет ${dateLabel}.`;
+  }
+
+  if (locationLabel) {
+    return `${lead} состоится на арене ${locationLabel}.`;
+  }
+
+  return `${lead}.`;
 }
 
 function inferYearFromUrl(url) {
@@ -173,8 +194,6 @@ function extractEventName(html, fallbackTitle) {
 
   return stripTags(title)
     .replace(/\s+\|\s+UFC$/i, "")
-    .replace(/\s+\|\s+ONE Championship[\s\S]*$/i, "")
-    .replace(/\s+\|\s+PFL$/i, "")
     .trim();
 }
 
@@ -248,7 +267,7 @@ async function upsertEvent(promotion, source, entry) {
     city: facts.city,
     venue: facts.venue,
     status: "upcoming",
-    summary: facts.summary,
+    summary: buildRussianEventSummary(promotion, facts, entry.title || slug.replace(/-/g, " ")),
     promotionId: promotion.id
   };
 

@@ -48,6 +48,15 @@ function uniqueItems(items: string[]) {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
 }
 
+function isPredominantlyRussianText(value: string) {
+  const text = String(value || "");
+  const cyrillic = (text.match(/\p{Script=Cyrillic}/gu) || []).length;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  const total = cyrillic + latin;
+
+  return total > 0 && cyrillic / total >= 0.55;
+}
+
 function normalizeAbsoluteUrl(value: string | null | undefined) {
   const normalized = String(value || "").trim();
 
@@ -200,6 +209,7 @@ function stripTags(value: string) {
 
 function isolateArticleBody(html: string) {
   const containers = [
+    /<div[^>]+class="[^"]*content\s+body_content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     /<div[^>]+class="[^"]*news-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<div[^>]+class="[^"]*article[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
@@ -233,7 +243,32 @@ function extractParagraphBody(html: string, limit = 30) {
     )
     .slice(0, limit);
 
-  return paragraphs.join("\n\n").trim();
+  if (paragraphs.length > 0) {
+    return paragraphs.join("\n\n").trim();
+  }
+
+  return body
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(h2|h3|center|blockquote|iframe)>/gi, "\n")
+    .replace(/<(h2|h3)[^>]*>/gi, "\n")
+    .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, "$1")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .split(/\n\s*\n+/)
+    .map((paragraph) => stripTags(paragraph))
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter((paragraph) => paragraph.length >= 30)
+    .filter(
+      (paragraph) =>
+        !/cookie|newsletter|subscribe|sign up|download the app|follow us|read more|advertisement|РїРѕРґРїРёСЃ|СЂРµРєР»Р°Рј/i.test(
+          paragraph
+        )
+    )
+    .slice(0, limit)
+    .join("\n\n")
+    .trim();
 }
 
 async function hydrateBodyFromSource(sourceUrl: string, fallbackBody: string) {
@@ -498,7 +533,8 @@ function buildIngestionNotes(
   confidence: number,
   relations: Awaited<ReturnType<typeof inferRelations>>,
   duplicateReason?: string,
-  localization?: { localized: boolean; model: string | null }
+  localization?: { localized: boolean; model: string | null },
+  forcedDraftReason?: string
 ) {
   const notes = [
     "AI draft created from source ingestion.",
@@ -516,6 +552,10 @@ function buildIngestionNotes(
 
   if (duplicateReason) {
     notes.push(`Duplicate guard: ${duplicateReason}.`);
+  }
+
+  if (forcedDraftReason) {
+    notes.push(`Publication guard: ${forcedDraftReason}.`);
   }
 
   if (input.fighterSlugs?.length) {
@@ -697,86 +737,104 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const cleanedTitle = cleanNewsTitle(normalized.articleDraft.title, qualityFighters);
   const cleanedExcerpt = cleanNewsText(normalized.articleDraft.excerpt, qualityFighters);
   const cleanedBody = cleanNewsText(normalized.articleDraft.body, qualityFighters);
-  const duplicateCandidate = await findDuplicateCandidate(
-    normalizeComparableText(normalized.articleDraft.title),
-    source.id,
-    relations,
-    input.category ?? normalized.articleDraft.category
-  );
-  const confidence = adjustConfidence(normalized.confidence, relations, Boolean(duplicateCandidate));
-
-  if (duplicateCandidate) {
-    return {
-      articleId: duplicateCandidate.article.id,
-      slug: duplicateCandidate.article.slug,
-      status: duplicateCandidate.article.status,
-      confidence,
-      duplicate: true,
-      sourceId: source.id,
-      fighterSlugs: duplicateCandidate.article.fighterMap.map((item) => item.fighter.slug),
-      tagSlugs: duplicateCandidate.article.tagMap.map((item) => item.tag.slug),
-      eventSlug: duplicateCandidate.article.event?.slug ?? null,
-      promotionSlug: duplicateCandidate.article.promotion?.slug ?? null
-    };
-  }
-
   const articleCover = await extractArticleCoverImage(source.url);
   const providedCoverImageUrl = normalizeAbsoluteUrl(input.coverImageUrl);
   const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
+  const requestedStatus = hydratedInput.status ?? "draft";
+  const localizedText = `${localizedInput.headline}\n${localizedInput.body}`;
+  const forcedDraftReason =
+    (input.category ?? normalized.articleDraft.category) === "news" &&
+    requestedStatus === "published" &&
+    !isPredominantlyRussianText(localizedText)
+      ? "English or mixed-language output detected after localization; saved as draft instead of published."
+      : null;
+  const finalStatus = forcedDraftReason ? "draft" : requestedStatus;
 
-  const article = await prisma.article.create({
-    data: {
-      slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
-      title: cleanedTitle,
-      coverImageUrl: providedCoverImageUrl ?? articleCover?.url ?? null,
-      coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,
-      excerpt: cleanedExcerpt,
-      meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),
-      category: input.category ?? normalized.articleDraft.category,
-      status: hydratedInput.status ?? "draft",
-      aiConfidence: confidence,
-      ingestionSourceSummary: buildIngestionSourceSummary(hydratedInput, relations),
-      ingestionNotes: buildIngestionNotes(hydratedInput, confidence, relations, undefined, localizedInput),
-      publishedAt: new Date(normalized.articleDraft.publishedAt),
-      promotionId: relations.promotion?.id ?? null,
-      eventId: relations.event?.id ?? null,
-      sections: {
-        create: [
-          {
-            heading: "AI draft",
-            body: cleanedBody,
-            sortOrder: 1
-          }
-        ]
-      },
-      fighterMap: {
-        create: relations.fighters.map((fighter) => ({ fighterId: fighter.id }))
-      },
-      tagMap: {
-        create: relations.tags.map((tag) => ({ tagId: tag.id }))
-      },
-      sourceMap: {
-        create: [{ sourceId: source.id }]
-      }
-    },
-    include: {
-      promotion: { select: { slug: true } },
-      event: { select: { slug: true } },
-      fighterMap: { include: { fighter: { select: { slug: true } } } },
-      tagMap: { include: { tag: { select: { slug: true } } } }
+  return prisma.$transaction(async (tx) => {
+    const duplicateCandidate = await findDuplicateCandidate(
+      normalizeComparableText(normalized.articleDraft.title),
+      source.id,
+      relations,
+      input.category ?? normalized.articleDraft.category
+    );
+    const confidence = adjustConfidence(normalized.confidence, relations, Boolean(duplicateCandidate));
+
+    if (duplicateCandidate) {
+      return {
+        articleId: duplicateCandidate.article.id,
+        slug: duplicateCandidate.article.slug,
+        status: duplicateCandidate.article.status,
+        confidence,
+        duplicate: true,
+        sourceId: source.id,
+        fighterSlugs: duplicateCandidate.article.fighterMap.map((item) => item.fighter.slug),
+        tagSlugs: duplicateCandidate.article.tagMap.map((item) => item.tag.slug),
+        eventSlug: duplicateCandidate.article.event?.slug ?? null,
+        promotionSlug: duplicateCandidate.article.promotion?.slug ?? null
+      };
     }
-  });
 
-  return {
-    articleId: article.id,
-    slug: article.slug,
-    status: article.status,
-    confidence: article.aiConfidence,
-    duplicate: false,
-    sourceId: source.id,
-    fighterSlugs: article.fighterMap.map((item) => item.fighter.slug),
-    tagSlugs: article.tagMap.map((item) => item.tag.slug),
-    eventSlug: article.event?.slug ?? null,
-    promotionSlug: article.promotion?.slug ?? null
-  };
+    const article = await tx.article.create({
+      data: {
+        slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
+        title: cleanedTitle,
+        coverImageUrl: providedCoverImageUrl ?? articleCover?.url ?? null,
+        coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,
+        excerpt: cleanedExcerpt,
+        meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),
+        category: input.category ?? normalized.articleDraft.category,
+        status: finalStatus,
+        aiConfidence: confidence,
+        ingestionSourceSummary: buildIngestionSourceSummary(hydratedInput, relations),
+        ingestionNotes: buildIngestionNotes(
+          hydratedInput,
+          confidence,
+          relations,
+          undefined,
+          localizedInput,
+          forcedDraftReason ?? undefined
+        ),
+        publishedAt: new Date(normalized.articleDraft.publishedAt),
+        promotionId: relations.promotion?.id ?? null,
+        eventId: relations.event?.id ?? null,
+        sections: {
+          create: [
+            {
+              heading: "AI draft",
+              body: cleanedBody,
+              sortOrder: 1
+            }
+          ]
+        },
+        fighterMap: {
+          create: relations.fighters.map((fighter) => ({ fighterId: fighter.id }))
+        },
+        tagMap: {
+          create: relations.tags.map((tag) => ({ tagId: tag.id }))
+        },
+        sourceMap: {
+          create: [{ sourceId: source.id }]
+        }
+      },
+      include: {
+        promotion: { select: { slug: true } },
+        event: { select: { slug: true } },
+        fighterMap: { include: { fighter: { select: { slug: true } } } },
+        tagMap: { include: { tag: { select: { slug: true } } } }
+      }
+    });
+
+    return {
+      articleId: article.id,
+      slug: article.slug,
+      status: article.status,
+      confidence: article.aiConfidence,
+      duplicate: false,
+      sourceId: source.id,
+      fighterSlugs: article.fighterMap.map((item) => item.fighter.slug),
+      tagSlugs: article.tagMap.map((item) => item.tag.slug),
+      eventSlug: article.event?.slug ?? null,
+      promotionSlug: article.promotion?.slug ?? null
+    };
+  });
 }

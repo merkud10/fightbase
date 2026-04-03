@@ -6,6 +6,13 @@ import { redirect } from "next/navigation";
 import { asOptionalNumber, asOptionalString, asRequiredNumber, asRequiredString, asStringArray, slugify } from "@/lib/admin";
 import { createDraftFromIngestion } from "@/lib/ingestion";
 import { prisma } from "@/lib/prisma";
+import {
+  ArticleCategorySchema,
+  ArticleStatusSchema,
+  EventStatusSchema,
+  FighterStatusSchema,
+  SourceTypeSchema
+} from "@/lib/validation";
 
 function articleSectionsFromBody(body: string) {
   return [
@@ -22,8 +29,8 @@ export async function createArticleAction(formData: FormData) {
   const excerpt = asRequiredString(formData.get("excerpt"), "excerpt");
   const meaning = asRequiredString(formData.get("meaning"), "meaning");
   const body = asRequiredString(formData.get("body"), "body");
-  const category = asRequiredString(formData.get("category"), "category");
-  const status = asRequiredString(formData.get("status"), "status");
+  const category = ArticleCategorySchema.parse(formData.get("category"));
+  const status = ArticleStatusSchema.parse(formData.get("status"));
   const publishedAt = asRequiredString(formData.get("publishedAt"), "publishedAt");
   const aiConfidence = asOptionalNumber(formData.get("aiConfidence"));
   const ingestionSourceSummary = asOptionalString(formData.get("ingestionSourceSummary"));
@@ -43,8 +50,8 @@ export async function createArticleAction(formData: FormData) {
       title,
       excerpt,
       meaning,
-      category: category as never,
-      status: status as never,
+      category,
+      status,
       aiConfidence,
       ingestionSourceSummary,
       ingestionNotes,
@@ -77,8 +84,8 @@ export async function updateArticleAction(articleId: string, formData: FormData)
   const excerpt = asRequiredString(formData.get("excerpt"), "excerpt");
   const meaning = asRequiredString(formData.get("meaning"), "meaning");
   const body = asRequiredString(formData.get("body"), "body");
-  const category = asRequiredString(formData.get("category"), "category");
-  const status = asRequiredString(formData.get("status"), "status");
+  const category = ArticleCategorySchema.parse(formData.get("category"));
+  const status = ArticleStatusSchema.parse(formData.get("status"));
   const publishedAt = asRequiredString(formData.get("publishedAt"), "publishedAt");
   const aiConfidence = asOptionalNumber(formData.get("aiConfidence"));
   const ingestionSourceSummary = asOptionalString(formData.get("ingestionSourceSummary"));
@@ -104,8 +111,8 @@ export async function updateArticleAction(articleId: string, formData: FormData)
         title,
         excerpt,
         meaning,
-        category: category as never,
-        status: status as never,
+        category,
+        status,
         aiConfidence,
         ingestionSourceSummary,
         ingestionNotes,
@@ -148,7 +155,7 @@ export async function deleteArticleAction(formData: FormData) {
 
 export async function bulkUpdateArticleStatusAction(formData: FormData) {
   const articleIds = asStringArray(formData.getAll("articleIds"));
-  const targetStatus = asRequiredString(formData.get("targetStatus"), "targetStatus");
+  const targetStatus = ArticleStatusSchema.parse(formData.get("targetStatus"));
   const currentStatus = asOptionalString(formData.get("currentStatus"));
 
   if (articleIds.length === 0) {
@@ -162,7 +169,7 @@ export async function bulkUpdateArticleStatusAction(formData: FormData) {
       }
     },
     data: {
-      status: targetStatus as never
+      status: targetStatus
     }
   });
 
@@ -181,19 +188,35 @@ export async function bulkUpdateArticleStatusAction(formData: FormData) {
 
 export async function quickUpdateArticleStatusAction(formData: FormData) {
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
-  const targetStatus = asRequiredString(formData.get("targetStatus"), "targetStatus");
+  const targetStatus = ArticleStatusSchema.parse(formData.get("targetStatus"));
   const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
 
   await prisma.article.update({
     where: { id: articleId },
     data: {
-      status: targetStatus as never
+      status: targetStatus
     }
   });
 
   revalidatePath("/admin");
   revalidatePath("/news");
   revalidatePath("/");
+  redirect(returnTo);
+}
+
+export async function deactivateBrowserPushSubscriptionAction(formData: FormData) {
+  const subscriptionId = asRequiredString(formData.get("subscriptionId"), "subscriptionId");
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
+
+  await prisma.browserPushSubscription.update({
+    where: { id: subscriptionId },
+    data: {
+      isActive: false,
+      lastSeenAt: new Date()
+    }
+  });
+
+  revalidatePath("/admin");
   redirect(returnTo);
 }
 
@@ -221,7 +244,7 @@ export async function ingestDraftArticleAction(formData: FormData) {
     publishedAt,
     sourceLabel,
     sourceUrl,
-    category: category as never,
+    category: ArticleCategorySchema.parse(category),
     fighterSlugs,
     tagSlugs
   });
@@ -234,7 +257,7 @@ export async function ingestDraftArticleAction(formData: FormData) {
 
 export async function createSourceAction(formData: FormData) {
   const label = asRequiredString(formData.get("label"), "label");
-  const type = asRequiredString(formData.get("type"), "type");
+  const type = SourceTypeSchema.parse(formData.get("type"));
   const url = asRequiredString(formData.get("url"), "url");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(label);
 
@@ -242,7 +265,7 @@ export async function createSourceAction(formData: FormData) {
     data: {
       slug,
       label,
-      type: type as never,
+      type,
       url
     }
   });
@@ -253,7 +276,7 @@ export async function createSourceAction(formData: FormData) {
 
 export async function updateSourceAction(sourceId: string, formData: FormData) {
   const label = asRequiredString(formData.get("label"), "label");
-  const type = asRequiredString(formData.get("type"), "type");
+  const type = SourceTypeSchema.parse(formData.get("type"));
   const url = asRequiredString(formData.get("url"), "url");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(label);
 
@@ -262,7 +285,7 @@ export async function updateSourceAction(sourceId: string, formData: FormData) {
     data: {
       slug,
       label,
-      type: type as never,
+      type,
       url
     }
   });
@@ -289,7 +312,7 @@ export async function createFighterAction(formData: FormData) {
   const photoUrl = asOptionalString(formData.get("photoUrl"));
   const country = asRequiredString(formData.get("country"), "country");
   const weightClass = asRequiredString(formData.get("weightClass"), "weightClass");
-  const status = asRequiredString(formData.get("status"), "status");
+  const status = FighterStatusSchema.parse(formData.get("status"));
   const record = asRequiredString(formData.get("record"), "record");
   const age = asRequiredNumber(formData.get("age"), "age");
   const heightCm = asRequiredNumber(formData.get("heightCm"), "heightCm");
@@ -309,7 +332,7 @@ export async function createFighterAction(formData: FormData) {
       photoUrl,
       country,
       weightClass,
-      status: status as never,
+      status,
       record,
       age,
       heightCm,
@@ -333,7 +356,7 @@ export async function updateFighterAction(fighterId: string, formData: FormData)
   const photoUrl = asOptionalString(formData.get("photoUrl"));
   const country = asRequiredString(formData.get("country"), "country");
   const weightClass = asRequiredString(formData.get("weightClass"), "weightClass");
-  const status = asRequiredString(formData.get("status"), "status");
+  const status = FighterStatusSchema.parse(formData.get("status"));
   const record = asRequiredString(formData.get("record"), "record");
   const age = asRequiredNumber(formData.get("age"), "age");
   const heightCm = asRequiredNumber(formData.get("heightCm"), "heightCm");
@@ -354,7 +377,7 @@ export async function updateFighterAction(fighterId: string, formData: FormData)
       photoUrl,
       country,
       weightClass,
-      status: status as never,
+      status,
       record,
       age,
       heightCm,
@@ -397,7 +420,7 @@ export async function createEventAction(formData: FormData) {
   const date = asRequiredString(formData.get("date"), "date");
   const city = asRequiredString(formData.get("city"), "city");
   const venue = asRequiredString(formData.get("venue"), "venue");
-  const status = asRequiredString(formData.get("status"), "status");
+  const status = EventStatusSchema.parse(formData.get("status"));
   const summary = asRequiredString(formData.get("summary"), "summary");
   const promotionId = asRequiredString(formData.get("promotionId"), "promotionId");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(name);
@@ -409,7 +432,7 @@ export async function createEventAction(formData: FormData) {
       date: new Date(date),
       city,
       venue,
-      status: status as never,
+      status,
       summary,
       promotionId
     }
@@ -425,7 +448,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
   const date = asRequiredString(formData.get("date"), "date");
   const city = asRequiredString(formData.get("city"), "city");
   const venue = asRequiredString(formData.get("venue"), "venue");
-  const status = asRequiredString(formData.get("status"), "status");
+  const status = EventStatusSchema.parse(formData.get("status"));
   const summary = asRequiredString(formData.get("summary"), "summary");
   const promotionId = asRequiredString(formData.get("promotionId"), "promotionId");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(name);
@@ -438,7 +461,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
       date: new Date(date),
       city,
       venue,
-      status: status as never,
+      status,
       summary,
       promotionId
     }

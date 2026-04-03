@@ -1,6 +1,6 @@
 # FightBase Media
 
-Next.js App Router foundation for an MMA media platform with entity-based content, internal linking, and an AI-assisted publishing pipeline.
+Next.js App Router foundation for a UFC-focused MMA media platform with entity-based content, internal linking, and an AI-assisted publishing pipeline.
 
 ## Stack
 
@@ -32,7 +32,7 @@ Next.js App Router foundation for an MMA media platform with entity-based conten
 
 ## Database
 
-Prisma is connected with SQLite for local development.
+The active local setup uses Postgres. Prisma also includes a SQLite schema for isolated local or CI runs when a disposable database is more convenient.
 
 Important files:
 
@@ -53,7 +53,6 @@ npm run content:seed-fighters
 npm run content:enrich-fighters
 npm run content:refresh-fighters
 npm run content:sync-ufc-roster
-npm run content:sync-one-roster
 npm run content:refresh-fighters-full
 npm run ingest:feed -- --dry-run
 npm run ingest:fetch -- --dry-run
@@ -99,7 +98,6 @@ Current Prisma-backed additions:
 - expanded fighter roster seeding with Russian names and live photo resolution
 - fighter profile enrichment and normalization pipeline for biographies and recent fights
 - official UFC roster sync via sitemap-driven athlete import
-- official ONE MMA roster sync via athlete archive crawling
 
 ## Routes included
 
@@ -149,13 +147,13 @@ npm run db:push
 npm run db:seed
 ```
 
-To prepare a local Postgres database:
+To prepare the local Postgres database:
 
 ```bash
 npm run db:start:pg
 ```
 
-Then temporarily point `DATABASE_URL` to the value from `POSTGRES_DATABASE_URL` and run:
+Then ensure `DATABASE_URL` points to Postgres and run:
 
 ```bash
 npm run prisma:generate:pg
@@ -233,9 +231,9 @@ Weekly fighter refresh helper:
 .\ops\update-fighters-weekly.ps1
 ```
 
-The weekly helper now runs the full curated roster refresh plus official UFC and ONE sync.
+The weekly helper now runs the full curated UFC roster refresh.
 
-Full fighter refresh with official UFC and ONE roster sync:
+Full fighter refresh with official UFC roster sync:
 
 ```bash
 npm run content:refresh-fighters-full
@@ -309,35 +307,41 @@ docker run --rm -p 3000:3000 ^
   fightbase-media
 ```
 
-For public hosting, replace local SQLite with Postgres before deployment.
+For public hosting, use Postgres as the primary runtime database.
 
-## Postgres migration path
+## Database options
 
-The project now includes a parallel Postgres-ready Prisma schema:
+The project includes both Prisma schemas:
 
 - `prisma/schema.postgres.prisma`
 - `docker-compose.postgres.yml`
 - `ops/start-postgres-local.ps1`
 - `ops/stop-postgres-local.ps1`
 
-Recommended migration sequence:
+Recommended Postgres workflow:
 
 1. Start local Postgres with `npm run db:start:pg`
-2. Switch `DATABASE_URL` to a Postgres URL
+2. Set `DATABASE_URL` to a Postgres URL
 3. Run `npm run prisma:generate:pg`
 4. Run `npm run db:push:pg`
 5. Run `npm run db:seed`
 6. Smoke-test the app and `/api/health`
 
-Current app runtime still uses SQLite by default for local work, but the Postgres path is now prepared for the next deployment step.
+SQLite remains available for disposable local or CI databases, but the primary project setup is Postgres.
+
+Legacy SQLite imports are supported only through an explicit source path:
+
+```bash
+SQLITE_IMPORT_PATH="C:/path/to/legacy.db" npm run content:migrate-sqlite-content
+```
 
 ## Recommended next step
 
-Build on the deployment-ready ingestion workflow by adding:
+Build on the UFC-focused ingestion workflow by adding:
 
 - more source-specific fetchers/parsers before JSON normalization
 - GitHub remote and production hosting setup
-- production Postgres instead of local SQLite
+- production hardening around the Postgres pipeline
 
 ## GitHub CI
 

@@ -14,6 +14,7 @@ const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
 const DEFAULT_MODEL = "qwen35-aggressive:latest";
 const VALID_SOURCE_TYPES = new Set(["official", "interview", "social", "press_release", "stats"]);
 const VALID_STATUSES = new Set(["draft", "review", "published"]);
+const ALLOWED_PROMOTION_SLUGS = new Set(["", "ufc"]);
 
 function readEnvValueFromFile(name) {
   try {
@@ -179,11 +180,12 @@ function normalizeList(values) {
 }
 
 function sanitizeDiscoveredUrl(item) {
+  const normalizedPromotionSlug = String(item.promotionSlug || "").trim().toLowerCase();
   return {
     sourceUrl: normalizeUrl(item.sourceUrl),
     sourceLabel: String(item.sourceLabel || "").trim(),
     sourceType: VALID_SOURCE_TYPES.has(item.sourceType) ? item.sourceType : "press_release",
-    promotionSlug: String(item.promotionSlug || "").trim() || undefined,
+    promotionSlug: ALLOWED_PROMOTION_SLUGS.has(normalizedPromotionSlug) ? normalizedPromotionSlug || undefined : undefined,
     sourceLanguage: String(item.sourceLanguage || "").trim() || undefined,
     publishedAt: normalizeDate(item.publishedAt)
   };
@@ -466,7 +468,7 @@ function buildPrompt(options) {
     `Find up to ${options.limit} article URLs total across Russian- and English-language coverage.`,
     `Language scope: ${options.languageScope}.`,
     "Prioritize real news, not evergreen explainers, rankings pages, or old recaps.",
-    "Prioritize UFC, PFL, ONE, Bellator/PFL-related news, ACA, major title fights, injuries, bookings, results, weigh-in issues, official announcements, and high-signal fighter statements.",
+    "Prioritize UFC news only: bookings, injuries, results, weigh-in issues, official announcements, title implications, and high-signal fighter statements tied to UFC.",
     "The source URL must be the real article page URL that you actually opened successfully, not a guessed path and not a homepage.",
     "Only include an item if you personally confirmed that the article page loads and contains a news article.",
     "Do NOT write headlines or article body text. The application will scrape and process the content itself.",
@@ -480,7 +482,7 @@ function buildPrompt(options) {
     '      "sourceUrl": "https://...",',
     '      "sourceLabel": "Outlet or source name",',
     '      "sourceType": "official | interview | social | press_release | stats",',
-    '      "promotionSlug": "ufc | pfl | one | empty string if unknown",',
+    '      "promotionSlug": "ufc | empty string if unknown",',
     '      "sourceLanguage": "ru or en",',
     '      "publishedAt": "ISO-8601 timestamp from the source page"',
     "    }",

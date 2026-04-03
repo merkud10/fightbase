@@ -35,7 +35,7 @@ function looksLikeLowQualitySlug(value: string) {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
-  const [articles, events, fighters, predictionFights] = await Promise.all([
+  const [articles, events, fighters, predictionSnapshots] = await Promise.all([
     prisma.article.findMany({
       where: {
         status: "published"
@@ -63,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: {
         promotion: {
           slug: {
-            in: ["ufc", "pfl", "one"]
+            in: ["ufc"]
           }
         },
         status: {
@@ -83,20 +83,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       take: 2000
     }),
-    prisma.fight.findMany({
-      where: {
-        event: {
-          status: {
-            in: ["upcoming", "live"]
-          }
-        }
-      },
+    prisma.fightPredictionSnapshot.findMany({
       select: {
-        id: true,
         updatedAt: true,
-        event: {
+        fightId: true,
+        fight: {
           select: {
-            slug: true
+            event: {
+              select: {
+                slug: true
+              }
+            }
           }
         }
       },
@@ -130,11 +127,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8
     })),
-    ...predictionFights.map((fight) => ({
-      url: `${siteUrl}/ru/predictions/${fight.event.slug}/${fight.id}`,
-      lastModified: fight.updatedAt,
+    ...predictionSnapshots.map((snapshot) => ({
+      url: `${siteUrl}/ru/predictions/${snapshot.fight.event.slug}/${snapshot.fightId}`,
+      lastModified: snapshot.updatedAt,
       changeFrequency: "daily" as const,
-      priority: 0.7
+      priority: 0.85
     })),
     ...fighterEntries.map((fighter) => ({
       url: `${siteUrl}/ru/fighters/${fighter.slug}`,

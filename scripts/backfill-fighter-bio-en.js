@@ -6,8 +6,6 @@ const path = require("path");
 const cwd = path.resolve(__dirname, "..");
 const commands = [
   ["node", ["scripts/sync-ufc-roster.js"]],
-  ["node", ["scripts/sync-pfl-roster.js"]],
-  ["node", ["scripts/sync-one-roster.js"]],
   ["node", ["scripts/enrich-fighter-profiles.js"]]
 ];
 

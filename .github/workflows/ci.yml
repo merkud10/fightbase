@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL: file:./prisma/dev.db
+      DATABASE_URL: file:./prisma/ci.db
       DEPLOYMENT_ENV: preview
       INGEST_CRON_SECRET: ci-secret
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
@@ -38,7 +38,7 @@ jobs:
       - name: Generate Prisma client
         run: npm run prisma:generate
 
-      - name: Push SQLite schema
+      - name: Push temporary CI schema
         run: npm run db:push
 
       - name: Build app

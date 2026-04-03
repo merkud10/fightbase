@@ -2,6 +2,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Primary runtime schema for local development and deployment.
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -170,6 +171,7 @@ model Event {
   promotionId String
   promotion   Promotion   @relation(fields: [promotionId], references: [id], onDelete: Restrict)
   fights      Fight[]
+  predictionSnapshots FightPredictionSnapshot[]
   articles    Article[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -198,6 +200,7 @@ model Fight {
   event           Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   fighterA        Fighter     @relation("FightA", fields: [fighterAId], references: [id], onDelete: Restrict)
   fighterB        Fighter     @relation("FightB", fields: [fighterBId], references: [id], onDelete: Restrict)
+  predictionSnapshot FightPredictionSnapshot?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -205,6 +208,70 @@ model Fight {
   @@index([fighterAId])
   @@index([fighterBId])
   @@index([status])
+}
+
+model FightPredictionSnapshot {
+  id                String   @id @default(cuid())
+  fightId           String   @unique
+  eventId           String
+  headlineRu        String
+  headlineEn        String
+  titleTagRu        String
+  titleTagEn        String
+  metaDescriptionRu String
+  metaDescriptionEn String
+  excerptRu         String
+  excerptEn         String
+  pickRu            String
+  pickEn            String
+  confidenceLabelRu String
+  confidenceLabelEn String
+  overviewRu        String
+  overviewEn        String
+  keyEdgeRu         String
+  keyEdgeEn         String
+  fightScriptRu     String
+  fightScriptEn     String
+  formARu           String
+  formAEn           String
+  formBRu           String
+  formBEn           String
+  pathARu           String
+  pathAEn           String
+  pathBRu           String
+  pathBEn           String
+  statLinesRu       String
+  statLinesEn       String
+  percentA          Int
+  percentB          Int
+  source            String
+  sourceOddsUpdatedAt DateTime?
+  generatedAt       DateTime @default(now())
+  browserPushNotifiedAt DateTime?
+  updatedAt         DateTime @updatedAt
+  fight             Fight    @relation(fields: [fightId], references: [id], onDelete: Cascade)
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([generatedAt])
+  @@index([browserPushNotifiedAt])
+  @@index([updatedAt])
+}
+
+model BrowserPushSubscription {
+  id         String   @id @default(cuid())
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  locale     String?
+  userAgent  String?
+  isActive   Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([lastSeenAt])
 }
 
 model Article {
@@ -221,6 +288,7 @@ model Article {
   ingestionSourceSummary String?
   ingestionNotes         String?
   publishedAt            DateTime
+  browserPushNotifiedAt  DateTime?
   promotionId            String?
   eventId                String?
   promotion              Promotion?       @relation(fields: [promotionId], references: [id], onDelete: SetNull)
@@ -233,6 +301,7 @@ model Article {
   updatedAt              DateTime         @updatedAt
 
   @@index([status, publishedAt])
+  @@index([browserPushNotifiedAt])
   @@index([category])
   @@index([promotionId])
   @@index([eventId])

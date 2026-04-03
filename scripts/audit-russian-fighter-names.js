@@ -18,7 +18,7 @@ async function main() {
     where: {
       promotion: {
         slug: {
-          in: ["ufc", "pfl", "one"]
+          in: ["ufc"]
         }
       }
     },
