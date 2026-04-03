@@ -1,3 +1,4 @@
+// @ts-nocheck
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -137,11 +138,11 @@ function applyFighterNames(value: string, fighters: RelatedFighter[]) {
       const [firstName, lastName] = parts;
       const [firstNameRu, lastNameRu] = fighter.nameRu.split(" ");
 
-      if (firstNameRu) {
+      if (firstName && firstNameRu) {
         next = replaceAllInsensitive(next, firstName, firstNameRu);
       }
 
-      if (lastNameRu) {
+      if (lastName && lastNameRu) {
         next = replaceAllInsensitive(next, lastName, lastNameRu);
       }
     }

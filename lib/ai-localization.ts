@@ -28,6 +28,8 @@ type LocalizedIngestionResult = {
 
 const openAiApiUrl = "https://api.openai.com/v1/responses";
 const defaultOpenAiModel = "gpt-4o-mini";
+const defaultDeepSeekBaseUrl = "https://api.deepseek.com";
+const defaultDeepSeekModel = "deepseek-chat";
 const defaultOllamaUrl = "http://127.0.0.1:11434/api/generate";
 const defaultOllamaModel = "aya:8b-23";
 const defaultAlibabaBaseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
@@ -55,6 +57,18 @@ function getOpenAiApiKey() {
 
 function getOpenAiModel() {
   return getEnvValue("OPENAI_INGEST_MODEL", defaultOpenAiModel);
+}
+
+function getDeepSeekApiKey() {
+  return getEnvValue("DEEPSEEK_API_KEY");
+}
+
+function getDeepSeekBaseUrl() {
+  return getEnvValue("DEEPSEEK_BASE_URL", defaultDeepSeekBaseUrl);
+}
+
+function getDeepSeekModel() {
+  return getEnvValue("DEEPSEEK_MODEL", defaultDeepSeekModel);
 }
 
 function getOllamaUrl() {
@@ -247,6 +261,32 @@ function extractOpenAiOutputText(payload: unknown) {
     });
 
     return chunks.join("\n").trim();
+  }
+
+  return "";
+}
+
+function extractChatCompletionText(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  if ("choices" in payload && Array.isArray(payload.choices)) {
+    return payload.choices
+      .map((choice: unknown) => {
+        if (!choice || typeof choice !== "object" || !("message" in choice) || !choice.message || typeof choice.message !== "object") {
+          return "";
+        }
+
+        if ("content" in choice.message && typeof choice.message.content === "string") {
+          return choice.message.content;
+        }
+
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n")
+      .trim();
   }
 
   return "";
@@ -449,6 +489,39 @@ function buildRewritePrompt(input: IngestDraftInput) {
   ].join("\n");
 }
 
+async function sendOpenAiCompatibleJsonPrompt(options: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature?: number;
+}) {
+  const requestBody = JSON.stringify({
+    model: options.model,
+    messages: [
+      {
+        role: "system",
+        content: options.systemPrompt
+      },
+      {
+        role: "user",
+        content: options.userPrompt
+      }
+    ],
+    response_format: {
+      type: "json_object"
+    },
+    temperature: options.temperature ?? 0.2
+  });
+
+  const rawPayload = await postJson(`${options.baseUrl.replace(/\/$/, "")}/chat/completions`, requestBody, {
+    Authorization: `Bearer ${options.apiKey}`
+  });
+  const payload = JSON.parse(rawPayload) as unknown;
+  return parseLocalizationResponse(extractChatCompletionText(payload));
+}
+
 async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const model = getOllamaModel();
   const url = getOllamaUrl();
@@ -475,6 +548,65 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
     localized = normalizeLocalizedOutput(
       input,
       await sendPrompt(buildRedFlagRepairPrompt(input, localized, redFlags))
+    );
+  }
+
+  return {
+    headline: localized.headline,
+    body: localized.body,
+    localized: true,
+    model
+  };
+}
+
+async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY is not configured");
+  }
+
+  const model = getDeepSeekModel();
+  const baseUrl = getDeepSeekBaseUrl();
+  let localized = normalizeLocalizedOutput(
+    input,
+    await sendOpenAiCompatibleJsonPrompt({
+      baseUrl,
+      apiKey,
+      model,
+      systemPrompt:
+        "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed.",
+      userPrompt: buildPrompt(input)
+    })
+  );
+
+  if (looksUkrainian(`${localized.headline}\n${localized.body}`)) {
+    localized = normalizeLocalizedOutput(
+      input,
+      await sendOpenAiCompatibleJsonPrompt({
+        baseUrl,
+        apiKey,
+        model,
+        systemPrompt:
+          "You are fixing a draft for a Russian-language MMA media outlet. Rewrite the text into clean natural Russian only. Do not use Ukrainian words, Ukrainian grammar, Ukrainian spelling, or mixed-language output. Keep names, promotions, dates, and facts intact. Return strict JSON with keys headline and body.",
+        userPrompt: buildRussianRepairPrompt(localized),
+        temperature: 0.1
+      })
+    );
+  }
+
+  const redFlags = collectLocalizationRedFlags(`${localized.headline}\n${localized.body}`);
+  if (redFlags.length > 0) {
+    localized = normalizeLocalizedOutput(
+      input,
+      await sendOpenAiCompatibleJsonPrompt({
+        baseUrl,
+        apiKey,
+        model,
+        systemPrompt:
+          "You are fixing a Russian MMA media draft. Rewrite only where needed to remove name errors, broken terminology, unnatural literal calques, mixed-language phrases, and malformed newsroom wording. Preserve facts and keep the result fully in natural Russian. Return strict JSON with keys headline and body.",
+        userPrompt: buildRedFlagRepairPrompt(input, localized, redFlags),
+        temperature: 0.1
+      })
     );
   }
 
@@ -526,6 +658,65 @@ async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedInge
     localized = normalizeLocalizedOutput(
       input,
       await sendPrompt(buildRedFlagRepairPrompt(input, localized, redFlags))
+    );
+  }
+
+  return {
+    headline: localized.headline,
+    body: localized.body,
+    localized: true,
+    model
+  };
+}
+
+async function rewriteWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY is not configured");
+  }
+
+  const model = getDeepSeekModel();
+  const baseUrl = getDeepSeekBaseUrl();
+  const { narrative, results } = splitNarrativeAndResults(input.body);
+
+  const rewriteInput = {
+    ...input,
+    body: narrative.join("\n\n")
+  };
+
+  const parsed = await sendOpenAiCompatibleJsonPrompt({
+    baseUrl,
+    apiKey,
+    model,
+    systemPrompt:
+      "You are a Russian-language MMA news editor. Rewrite the article in your own words so the result is unique and not a copy of the original. Change sentence structure, wording, and phrasing while keeping the same meaning. Preserve all facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly. Do not add any information that is not in the original article. Do not aggressively summarize. Output natural Russian only. Return strict JSON with keys headline and body.",
+    userPrompt: buildRewritePrompt(rewriteInput),
+    temperature: 0.2
+  });
+
+  const bodyParts = [parsed.body];
+  if (results.length > 0) {
+    bodyParts.push(results.join("\n\n"));
+  }
+
+  let localized = normalizeLocalizedOutput(input, {
+    headline: parsed.headline,
+    body: bodyParts.join("\n\n")
+  });
+
+  const redFlags = collectLocalizationRedFlags(`${localized.headline}\n${localized.body}`);
+  if (redFlags.length > 0) {
+    localized = normalizeLocalizedOutput(
+      input,
+      await sendOpenAiCompatibleJsonPrompt({
+        baseUrl,
+        apiKey,
+        model,
+        systemPrompt:
+          "You are fixing a Russian MMA media draft. Rewrite only where needed to remove name errors, broken terminology, unnatural literal calques, mixed-language phrases, and malformed newsroom wording. Preserve facts and keep the result fully in natural Russian. Return strict JSON with keys headline and body.",
+        userPrompt: buildRedFlagRepairPrompt(input, localized, redFlags),
+        temperature: 0.1
+      })
     );
   }
 
@@ -682,6 +873,14 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
   }
 
   if (looksRussian(sourceText) && isPredominantlyRussian(sourceText)) {
+    if (getAiProvider() === "deepseek" && getDeepSeekApiKey()) {
+      try {
+        return await rewriteWithDeepSeek(input);
+      } catch (error) {
+        console.error("DeepSeek Russian rewrite failed, falling back to Ollama/original text", error);
+      }
+    }
+
     try {
       return await rewriteWithOllama(input);
     } catch (error) {
@@ -697,6 +896,14 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
   }
 
   const provider = getAiProvider();
+
+  if (provider === "deepseek" && getDeepSeekApiKey()) {
+    try {
+      return await localizeWithDeepSeek(input);
+    } catch (error) {
+      console.error("DeepSeek localization failed, falling back to Ollama/OpenAI/source language", error);
+    }
+  }
 
   if (provider === "alibaba" && getAlibabaApiKey()) {
     try {

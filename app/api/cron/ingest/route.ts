@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     job === "watchlist"
       ? "fetch-source-feed.js"
       : job === "sync-odds"
-        ? "sync-fight-odds.js"
+        ? "sync-upcoming-pipeline.js"
         : job === "weekly-analysis"
           ? "discover-weekly-analysis.js"
           : "discover-ai-news-repaired.js";

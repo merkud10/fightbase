@@ -4,6 +4,7 @@ import { Inter, Oswald, Russo_One } from "next/font/google";
 import "./globals.css";
 
 import { Footer } from "@/components/footer";
+import { FloatingSocialLinks } from "@/components/floating-social-links";
 import { Header } from "@/components/header";
 import { ScrollToTop } from "@/components/header-shell";
 import { JsonLd } from "@/components/json-ld";
@@ -134,6 +135,7 @@ export default async function RootLayout({
           {children}
           <Footer />
         </div>
+        <FloatingSocialLinks />
         <ScrollToTop />
       </body>
     </html>

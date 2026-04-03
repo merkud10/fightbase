@@ -290,6 +290,8 @@ model Article {
   ingestionNotes String?
   publishedAt DateTime
   browserPushNotifiedAt DateTime?
+  telegramPostedAt DateTime?
+  vkPostedAt DateTime?
   promotionId String?
   eventId     String?
   promotion   Promotion?       @relation(fields: [promotionId], references: [id], onDelete: SetNull)
@@ -303,6 +305,8 @@ model Article {
 
   @@index([status, publishedAt])
   @@index([browserPushNotifiedAt])
+  @@index([telegramPostedAt])
+  @@index([vkPostedAt])
   @@index([category])
   @@index([promotionId])
   @@index([eventId])

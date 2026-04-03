@@ -63,6 +63,19 @@ function namesMatch(a, b) {
   return na.includes(nb) || nb.includes(na);
 }
 
+function fighterNameCandidates(fighter) {
+  const candidates = [fighter?.name, fighter?.nameRu];
+  if (fighter?.slug) {
+    candidates.push(String(fighter.slug).replace(/-/g, " "));
+  }
+
+  return [...new Set(candidates.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function namesMatchAny(sourceName, candidates) {
+  return candidates.some((candidate) => namesMatch(sourceName, candidate));
+}
+
 function parseArgs(argv) {
   return {
     skipSnapshots: argv.includes("--skip-snapshots")
@@ -103,13 +116,13 @@ function tryMatchFightToEvent(fight, event) {
     return null;
   }
 
-  const fa = fight.fighterA.name;
-  const fb = fight.fighterB.name;
+  const fighterACandidates = fighterNameCandidates(fight.fighterA);
+  const fighterBCandidates = fighterNameCandidates(fight.fighterB);
 
-  const homeMatchesA = namesMatch(event.home_team, fa);
-  const awayMatchesB = namesMatch(event.away_team, fb);
-  const homeMatchesB = namesMatch(event.home_team, fb);
-  const awayMatchesA = namesMatch(event.away_team, fa);
+  const homeMatchesA = namesMatchAny(event.home_team, fighterACandidates);
+  const awayMatchesB = namesMatchAny(event.away_team, fighterBCandidates);
+  const homeMatchesB = namesMatchAny(event.home_team, fighterBCandidates);
+  const awayMatchesA = namesMatchAny(event.away_team, fighterACandidates);
 
   if (homeMatchesA && awayMatchesB) {
     return { oddsA: oh, oddsB: oa };

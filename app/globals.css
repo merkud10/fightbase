@@ -184,6 +184,61 @@ img {
   background: #ff1f28;
 }
 
+.floating-social-rail {
+  position: fixed;
+  right: 28px;
+  bottom: 92px;
+  z-index: 49;
+  display: grid;
+  gap: 10px;
+}
+
+.floating-social-link {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(10, 10, 10, 0.98));
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+  transition:
+    border-color var(--transition),
+    color var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
+}
+
+.floating-social-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.floating-social-link:hover {
+  color: var(--red);
+  border-color: rgba(227, 27, 35, 0.4);
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(227, 27, 35, 0.18);
+}
+
+.floating-social-link--vk {
+  font-family: var(--font-nav);
+}
+
+.floating-social-wordmark {
+  font-size: 0.8rem;
+  line-height: 1;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
 .site-header-inner,
 .header-actions,
 .nav-links,
@@ -1729,6 +1784,19 @@ th {
   align-items: center;
 }
 
+.admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-inline-button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .admin-tab-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2733,6 +2801,10 @@ th {
   .prediction-hero-fighter--reverse > div {
     text-align: left;
   }
+
+  .floating-social-rail {
+    right: 20px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2789,6 +2861,11 @@ th {
   .header-wrap {
     position: static;
     padding: 0;
+  }
+
+  .floating-social-rail {
+    right: 16px;
+    bottom: 88px;
   }
 
   .recent-fight-head,

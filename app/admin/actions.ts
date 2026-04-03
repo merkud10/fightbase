@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { asOptionalNumber, asOptionalString, asRequiredNumber, asRequiredString, asStringArray, slugify } from "@/lib/admin";
 import { createDraftFromIngestion } from "@/lib/ingestion";
 import { prisma } from "@/lib/prisma";
+import { publishArticleToTelegram, publishArticleToVk } from "@/lib/social-publish";
 import {
   ArticleCategorySchema,
   ArticleStatusSchema,
@@ -218,6 +219,38 @@ export async function deactivateBrowserPushSubscriptionAction(formData: FormData
 
   revalidatePath("/admin");
   redirect(returnTo);
+}
+
+function appendAdminResult(returnTo: string, key: string, value: string) {
+  const url = new URL(returnTo, "http://localhost");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}`;
+}
+
+export async function publishArticleToTelegramAction(formData: FormData) {
+  const articleId = asRequiredString(formData.get("articleId"), "articleId");
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
+
+  try {
+    await publishArticleToTelegram(articleId);
+    redirect(appendAdminResult(returnTo, "socialPost", "telegram:success"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Telegram publishing failed.";
+    redirect(appendAdminResult(returnTo, "socialPost", `telegram:error:${encodeURIComponent(message)}`));
+  }
+}
+
+export async function publishArticleToVkAction(formData: FormData) {
+  const articleId = asRequiredString(formData.get("articleId"), "articleId");
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
+
+  try {
+    await publishArticleToVk(articleId);
+    redirect(appendAdminResult(returnTo, "socialPost", "vk:success"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "VK publishing failed.";
+    redirect(appendAdminResult(returnTo, "socialPost", `vk:error:${encodeURIComponent(message)}`));
+  }
 }
 
 export async function ingestDraftArticleAction(formData: FormData) {

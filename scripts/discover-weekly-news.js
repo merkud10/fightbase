@@ -346,6 +346,64 @@ function inferContentCategory(source, headline, body) {
   return "news";
 }
 
+function isUtilityStory(headline, body) {
+  const text = `${headline} ${body}`.toLowerCase();
+  return /\b(how to watch|live results|live result|stream|broadcast|schedule|start time|watch live|tv channel|where to watch)\b/i.test(text) ||
+    /\b(schedule|broadcast|stream|watch|live|tv)\b/i.test(String(headline || "").toLowerCase()) ||
+    /[\u0440][\u0430][\u0441][\u043f][\u0438][\u0441][\u0430][\u043d][\u0438][\u0435]|[\u043f][\u0440][\u044f][\u043c][\u0430][\u044f]\s+[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]|[\u043e][\u043d][\u043b][\u0430][\u0439][\u043d]-?[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]|[\u0433][\u0434][\u0435]\s+[\u0441][\u043c][\u043e][\u0442][\u0440][\u0435][\u0442][\u044c]|[\u0432][\u043e]\s+[\u0441][\u043a][\u043e][\u043b][\u044c][\u043a][\u043e]|[\u044d][\u0444][\u0438][\u0440]|[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]/i.test(text);
+}
+
+function isClearlyOffTopicForUfc(headline, body, url) {
+  const text = `${headline} ${body} ${url}`.toLowerCase();
+  return /\b(boxing|amateur boxing|world boxing|asian championship|asian championships|olympic boxing|kickboxing|basketball|football|tennis)\b/i.test(text) ||
+    /\b(бокс|чемпионат азии|первенств|азиатск|олимпийск|футбол|теннис|баскетбол)\b/i.test(text);
+}
+
+function hasStrongUfcSignal(source, headline, body, url, aiTaxonomy) {
+  const text = `${source.label} ${source.promotionSlug || ""} ${headline} ${body} ${url}`.toLowerCase();
+
+  if (aiTaxonomy?.promotionSlug === "ufc") {
+    return true;
+  }
+
+  if ((aiTaxonomy?.fighterSlugs || []).length > 0) {
+    return true;
+  }
+
+  return /\bufc\b|fight night|ufc bjj|dwcs|contender series|dana white|apex|octagon|октагон|вегас|vegas|макао|macau/.test(
+    text
+  );
+}
+
+function isWeakGeneratedTitle(title) {
+  const clean = decodeHtml(title).trim();
+  return !clean || clean.length < 12 || /^\d+(?:-\d+)?$/.test(clean) || /^draft-\d+$/i.test(clean);
+}
+
+function shouldRejectDiscoveredItem(source, item, aiTaxonomy) {
+  if (isWeakGeneratedTitle(item.headline)) {
+    return "weak headline";
+  }
+
+  if (isClearlyOffTopicForUfc(item.headline, item.body, item.sourceUrl)) {
+    return "off-topic for UFC";
+  }
+
+  if (!hasStrongUfcSignal(source, item.headline, item.body, item.sourceUrl, aiTaxonomy)) {
+    return "missing strong UFC signal";
+  }
+
+  if (/schedule|watch|broadcast|stream|live/.test(String(item.sourceUrl || "").toLowerCase())) {
+    return "utility url";
+  }
+
+  if (item.category === "news" && isUtilityStory(item.headline, item.body)) {
+    return "utility or broadcast story";
+  }
+
+  return "";
+}
+
 function matchesTargetStream(source, target) {
   if (target === "all") {
     return true;
@@ -585,6 +643,12 @@ async function discoverSourceItems(source, options, taxonomyContext) {
         publishedAt: publishedAt.toISOString(),
         status: "published"
       };
+
+      const rejectionReason = shouldRejectDiscoveredItem(source, item, aiTaxonomy);
+      if (rejectionReason) {
+        console.log(`[FILTER] skipped ${url}: ${rejectionReason}`);
+        continue;
+      }
 
       if (!categoryMatchesTarget(item.category, options.target)) {
         continue;

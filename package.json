@@ -26,6 +26,8 @@
     "content:refresh-fighters": "node scripts/seed-fighter-cards.js && node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js && node scripts/normalize-imported-fighters.js",
     "content:sync-ufc-roster": "node scripts/sync-ufc-roster.js",
     "content:sync-upcoming-events": "node scripts/sync-upcoming-events.js",
+    "content:sync-event-fights": "node scripts/sync-event-fights.js",
+    "content:sync-upcoming-pipeline": "node scripts/sync-upcoming-pipeline.js",
     "content:sync-ufc-russian-names": "node scripts/sync-ufc-russian-names.js",
     "content:backfill-ufc-data": "node scripts/backfill-ufc-fighter-data.js",
     "content:cleanup-ufc-catalog": "node scripts/cleanup-ufc-catalog.js",

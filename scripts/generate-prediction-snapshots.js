@@ -1,9 +1,158 @@
 #!/usr/bin/env node
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const ufcNameDictionary = require("../lib/ufc-name-dictionary.json");
 
 const prisma = new PrismaClient();
+
+function readEnvValueFromFile(name) {
+  try {
+    const envPath = path.join(process.cwd(), ".env");
+    const contents = fs.readFileSync(envPath, "utf8");
+    const match = contents.match(new RegExp(`^${name}="?([^"\\r\\n]+)"?$`, "m"));
+    return match?.[1]?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+function readEnv(name, fallback = "") {
+  return process.env[name] || readEnvValueFromFile(name) || fallback;
+}
+
+function parseJsonObject(raw) {
+  const text = String(raw || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  if (fenced) {
+    try {
+      return JSON.parse(fenced.trim());
+    } catch {}
+  }
+
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last > first) {
+    try {
+      return JSON.parse(text.slice(first, last + 1));
+    } catch {}
+  }
+
+  return null;
+}
+
+function isDeepSeekEnabled() {
+  return readEnv("AI_PROVIDER", "").trim().toLowerCase() === "deepseek" && Boolean(readEnv("DEEPSEEK_API_KEY", "").trim());
+}
+
+async function expandRuSnapshotWithDeepSeek(fight, snapshot) {
+  if (!isDeepSeekEnabled()) {
+    return snapshot;
+  }
+
+  const apiKey = readEnv("DEEPSEEK_API_KEY", "").trim();
+  const baseUrl = readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").replace(/\/$/, "");
+  const model = readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim();
+  const fighterAName = getDisplayName(fight.fighterA, "ru");
+  const fighterBName = getDisplayName(fight.fighterB, "ru");
+  const weightClass = normalizeRussianMmaText(formatWeightLabelForPrompt(fight.weightClass));
+  const eventName = String(fight.event.name || "").trim();
+  const eventDate = new Date(fight.event.date).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+
+  const prompt = [
+    "Return strict JSON only.",
+    "Write polished Russian editorial copy for a UFC fight prediction snapshot.",
+    "Do not mention bookmakers, odds, market, line, percentages, or betting.",
+    "Do not invent facts. Use only the provided matchup context.",
+    "Be concise but richer than a short stub.",
+    "JSON keys: excerpt, overview, keyEdge, fightScript, formA, formB, pathA, pathB.",
+    "",
+    `Event: ${eventName}`,
+    `Date: ${eventDate}`,
+    `Weight class: ${weightClass}`,
+    `Fighter A: ${fighterAName} (${fight.fighterA.record || "record unavailable"})`,
+    `Fighter B: ${fighterBName} (${fight.fighterB.record || "record unavailable"})`,
+    "",
+    "Base snapshot:",
+    JSON.stringify({
+      excerpt: snapshot.excerpt,
+      overview: snapshot.overview,
+      keyEdge: snapshot.keyEdge,
+      fightScript: snapshot.fightScript,
+      formA: snapshot.formA,
+      formB: snapshot.formB,
+      pathA: snapshot.pathA,
+      pathB: snapshot.pathB
+    })
+  ].join("\n");
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal: AbortSignal.timeout(25000),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: "You are a senior Russian-language UFC editor. Return valid JSON only."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      return snapshot;
+    }
+
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content;
+    const parsed = parseJsonObject(content);
+    if (!parsed || typeof parsed !== "object") {
+      return snapshot;
+    }
+
+    const next = { ...snapshot };
+    for (const key of ["excerpt", "overview", "keyEdge", "fightScript", "formA", "formB", "pathA", "pathB"]) {
+      if (typeof parsed[key] === "string" && parsed[key].trim()) {
+        next[key] = normalizeRussianMmaText(parsed[key].trim());
+      }
+    }
+
+    return next;
+  } catch {
+    return snapshot;
+  }
+}
+
+function formatWeightLabelForPrompt(value) {
+  return String(value || "")
+    .replace(/&#0*39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function parseArgs(argv) {
   const options = {
@@ -406,7 +555,8 @@ async function main() {
   let upserted = 0;
 
   for (const fight of fights) {
-    const ru = normalizeRuSnapshot(buildSnapshotCopy("ru", fight));
+    const baseRu = normalizeRuSnapshot(buildSnapshotCopy("ru", fight));
+    const ru = await expandRuSnapshotWithDeepSeek(fight, baseRu);
     const en = buildSnapshotCopy("en", fight);
 
     const payload = {

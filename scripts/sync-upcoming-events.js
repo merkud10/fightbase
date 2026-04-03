@@ -2,7 +2,7 @@
 
 const { PrismaClient } = require("@prisma/client");
 
-const { decodeHtmlEntities, extractMetaContent, fetchText, parseTextDate, stripTags } = require("./fighter-import-utils");
+const { decodeHtmlEntities, extractMetaContent, fetchText, parseArgs, parseTextDate, stripTags } = require("./fighter-import-utils");
 
 const prisma = new PrismaClient();
 
@@ -282,6 +282,9 @@ async function upsertEvent(promotion, source, entry) {
 }
 
 async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const limit = Number(args.limit || 0) || null;
+  const eventSlug = String(args.event || "").trim();
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -294,7 +297,10 @@ async function main() {
     }
 
     const listingHtml = await fetchText(source.listingUrl);
-    const entries = source.collectListingEntries(listingHtml);
+    const entries = source
+      .collectListingEntries(listingHtml)
+      .filter((entry) => !eventSlug || slugFromUrl(entry.url) === eventSlug)
+      .slice(0, limit ?? undefined);
 
     console.log(`${source.promotionSlug.toUpperCase()}: found ${entries.length} listing entries`);
 

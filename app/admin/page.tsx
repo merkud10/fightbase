@@ -17,6 +17,7 @@ type AdminPageSearchParams = {
   eventDelete?: string | string[];
   tagDelete?: string | string[];
   bulkUpdate?: string | string[];
+  socialPost?: string | string[];
   aiOnly?: string | string[];
   minConfidence?: string | string[];
   sort?: string | string[];
@@ -115,6 +116,35 @@ function getBulkMessage(locale: "ru" | "en", value: string | string[] | undefine
   return null;
 }
 
+function getSocialPostMessage(locale: "ru" | "en", value: string | string[] | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const [target, status, encodedMessage] = value.split(":");
+  const label =
+    target === "telegram"
+      ? "Telegram"
+      : target === "vk"
+        ? "VK"
+        : null;
+
+  if (!label) {
+    return null;
+  }
+
+  if (status === "success") {
+    return locale === "ru" ? `Материал отправлен в ${label}.` : `Article sent to ${label}.`;
+  }
+
+  if (status === "error") {
+    const message = encodedMessage ? decodeURIComponent(encodedMessage) : locale === "ru" ? "Неизвестная ошибка." : "Unknown error.";
+    return locale === "ru" ? `${label}: ${message}` : `${label}: ${message}`;
+  }
+
+  return null;
+}
+
 function getSortLabel(locale: "ru" | "en", sort: "newest" | "aiDesc" | "aiAsc") {
   if (locale === "ru") {
     if (sort === "aiDesc") {
@@ -180,6 +210,7 @@ export default async function AdminPage({
   const sort = resolveSort(resolvedSearchParams?.sort);
   const minConfidence = resolveMinConfidence(resolvedSearchParams?.minConfidence);
   const bulkMessage = getBulkMessage(locale, resolvedSearchParams?.bulkUpdate);
+  const socialPostMessage = getSocialPostMessage(locale, resolvedSearchParams?.socialPost);
   const [data, options] = await Promise.all([
     getAdminDashboardData({
       status: activeStatus,
@@ -253,6 +284,7 @@ export default async function AdminPage({
               : "Showing articles from all statuses."}
         </p>
         {bulkMessage ? <p className="table-note">{bulkMessage}</p> : null}
+        {socialPostMessage ? <p className="table-note">{socialPostMessage}</p> : null}
         {fighterDeleteBlocked ? (
           <p className="table-note">
             {locale === "ru"

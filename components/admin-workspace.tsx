@@ -1,6 +1,12 @@
 import Link from "next/link";
 
-import { bulkUpdateArticleStatusAction, deactivateBrowserPushSubscriptionAction, quickUpdateArticleStatusAction } from "@/app/admin/actions";
+import {
+  bulkUpdateArticleStatusAction,
+  deactivateBrowserPushSubscriptionAction,
+  publishArticleToTelegramAction,
+  publishArticleToVkAction,
+  quickUpdateArticleStatusAction
+} from "@/app/admin/actions";
 import { AdminArticleForm } from "@/components/admin-article-form";
 import { AdminEventForm } from "@/components/admin-event-form";
 import { AdminFighterForm } from "@/components/admin-fighter-form";
@@ -373,7 +379,47 @@ export function AdminWorkspace({
                                   <td>{article.promotion?.shortName ?? "-"}</td>
                                   <td>{formatDate(article.publishedAt, locale)}</td>
                                   <td>
-                                    <Link href={`/admin/articles/${article.id}`}>{locale === "ru" ? "Редактировать" : "Edit"}</Link>
+                                    <div className="admin-inline-actions">
+                                      <Link href={`/admin/articles/${article.id}`}>{locale === "ru" ? "Редактировать" : "Edit"}</Link>
+                                      {article.category === "news" && article.status === "published" ? (
+                                        <>
+                                          <form action={publishArticleToVkAction}>
+                                            <input type="hidden" name="articleId" value={article.id} />
+                                            <input type="hidden" name="returnTo" value={currentAdminHref} />
+                                            <button
+                                              type="submit"
+                                              className="button-ghost admin-inline-button"
+                                              disabled={Boolean(article.vkPostedAt)}
+                                            >
+                                              {article.vkPostedAt
+                                                ? locale === "ru"
+                                                  ? "ВК: отправлено"
+                                                  : "VK: sent"
+                                                : locale === "ru"
+                                                  ? "Отправить в ВК"
+                                                  : "Send to VK"}
+                                            </button>
+                                          </form>
+                                          <form action={publishArticleToTelegramAction}>
+                                            <input type="hidden" name="articleId" value={article.id} />
+                                            <input type="hidden" name="returnTo" value={currentAdminHref} />
+                                            <button
+                                              type="submit"
+                                              className="button-ghost admin-inline-button"
+                                              disabled={Boolean(article.telegramPostedAt)}
+                                            >
+                                              {article.telegramPostedAt
+                                                ? locale === "ru"
+                                                  ? "ТГ: отправлено"
+                                                  : "TG: sent"
+                                                : locale === "ru"
+                                                  ? "Отправить в ТГ"
+                                                  : "Send to TG"}
+                                            </button>
+                                          </form>
+                                        </>
+                                      ) : null}
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
