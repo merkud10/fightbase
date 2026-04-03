@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getUfcOfficialRankingLinks } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { readParam } from "@/lib/search-params";
 import { getSiteUrl } from "@/lib/site";
 import { fetchUfcOfficialRankings } from "@/lib/ufc-rankings";
 
@@ -34,10 +36,20 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RankingsPage() {
+type RankingsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function RankingsPage({ searchParams }: RankingsPageProps) {
   const locale = await getLocale();
   const siteUrl = getSiteUrl();
-  const [groups, rankingLinks] = await Promise.all([fetchUfcOfficialRankings(), getUfcOfficialRankingLinks()]);
+  const params = (await searchParams) ?? {};
+  const divisionParam = readParam(params.division);
+  const [allGroups, rankingLinks] = await Promise.all([fetchUfcOfficialRankings(), getUfcOfficialRankingLinks()]);
+
+  const divisionOptions = allGroups.map((g) => g.title);
+  const activeDivision = divisionOptions.includes(divisionParam) ? divisionParam : "";
+  const groups = activeDivision ? allGroups.filter((g) => g.title === activeDivision) : allGroups;
 
   const rankingListElements = groups
     .flatMap((group) =>
@@ -93,6 +105,15 @@ export default async function RankingsPage() {
         <div className="rankings-stack">
           <section className="ranking-intro-card">
             <h2>{locale === "ru" ? "Официальные рейтинги UFC по дивизионам" : "Official UFC divisional rankings"}</h2>
+            <FilterSection
+              title={locale === "ru" ? "Дивизион" : "Division"}
+              items={divisionOptions.map((d) => ({ value: d, label: formatWeightClass(d, locale) }))}
+              activeValue={activeDivision}
+              basePath={localizePath("/rankings", locale)}
+              current={{ division: activeDivision }}
+              param="division"
+              allLabel={locale === "ru" ? "Все" : "All"}
+            />
           </section>
 
           {groups.map((group) => {

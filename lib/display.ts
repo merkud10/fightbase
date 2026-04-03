@@ -128,3 +128,12 @@ export function formatFightStage(value: string, locale: Locale) {
 export function getDisplayName(fighter: { name: string; nameRu?: string | null }, locale: Locale) {
   return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
 }
+
+export function isUsablePhoto(url?: string | null) {
+  const raw = String(url || "").trim();
+  if (!raw) {
+    return false;
+  }
+
+  return !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(raw);
+}

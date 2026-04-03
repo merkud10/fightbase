@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -6,6 +6,7 @@ import { FighterCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { Pagination } from "@/components/pagination";
 import { getFightersPageData } from "@/lib/db";
 import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
@@ -22,7 +23,8 @@ export async function generateMetadata({ searchParams }: FightersPageProps): Pro
   const params = (await searchParams) ?? {};
   const status = readParam(params.status);
   const weightClass = readParam(params.weightClass);
-  const hasFilters = Boolean(status || weightClass);
+  const metaPage = readParam(params.page);
+  const hasFilters = Boolean(status || weightClass || metaPage);
   const localizedUrl = localizePath("/fighters", locale);
   const title = locale === "ru" ? "Бойцы UFC" : "UFC Fighters";
   const description =
@@ -54,10 +56,13 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
   const params = (await searchParams) ?? {};
   const status = readParam(params.status);
   const weightClass = readParam(params.weightClass);
-  const { fighters, filters, options } = await getFightersPageData({
+  const pageParam = readParam(params.page);
+  const page = Math.max(1, parseInt(pageParam, 10) || 1);
+  const { fighters, totalCount, page: currentPage, totalPages, filters, options } = await getFightersPageData({
     promotion: "",
     status,
-    weightClass
+    weightClass,
+    page
   });
 
   const current = {
@@ -143,16 +148,25 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
             />
 
             <p className="filter-results-copy">
-              {locale === "ru" ? `Бойцов: ${fighters.length}` : `Fighters: ${fighters.length}`}
+              {locale === "ru" ? `Бойцов: ${totalCount}` : `Fighters: ${totalCount}`}
             </p>
           </div>
         </aside>
 
         {fighters.length > 0 ? (
-          <div className="fighter-grid">
-            {fighters.filter(Boolean).map((fighter) => (
-              <FighterCard key={fighter.id} fighter={fighter} locale={locale} />
-            ))}
+          <div>
+            <div className="fighter-grid">
+              {fighters.filter(Boolean).map((fighter) => (
+                <FighterCard key={fighter.id} fighter={fighter} locale={locale} />
+              ))}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              basePath={localizePath("/fighters", locale)}
+              params={{ status: filters.status, weightClass: filters.weightClass }}
+              locale={locale}
+            />
           </div>
         ) : (
           <FilterEmptyState

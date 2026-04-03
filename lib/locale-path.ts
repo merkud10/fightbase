@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import type { Locale } from "@/lib/locale-config";
 
 export const publicLocales: Locale[] = ["ru", "en"];

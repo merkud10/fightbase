@@ -1,6 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 
-import { formatFighterStatus, formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatFighterStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
@@ -54,15 +55,6 @@ type FighterCardData = {
 };
 
 
-function isUsablePhoto(url?: string | null) {
-  return (
-    Boolean(url) &&
-    !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(
-      String(url)
-    )
-  );
-}
-
 export function ArticleCard({ article, locale }: { article: ArticleCardData; locale: Locale }) {
   const metaLabel = article.promotion?.shortName ?? article.category.toUpperCase();
   const tags = (article.tagMap ?? []).slice(0, 2);
@@ -71,10 +63,14 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
     <article className="story-card editorial-card">
       <div className="story-art">
         {article.coverImageUrl ? (
-          <img
+          <Image
             src={getDisplayImageUrl(article.coverImageUrl)}
             alt={article.coverImageAlt || article.title}
             className="story-art-image"
+            width={600}
+            height={340}
+            loading="lazy"
+            unoptimized
           />
         ) : null}
         <div className="story-art-label">{metaLabel}</div>
@@ -186,7 +182,18 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
 
   return (
     <article className="fighter-card editorial-card fighter-card-editorial">
-      {hasUsablePhoto ? <img src={String(fighter.photoUrl)} alt={displayName} className="fighter-photo" /> : <div className="fighter-avatar" />}
+      {hasUsablePhoto ? (
+        <Image
+          src={getDisplayImageUrl(String(fighter.photoUrl))}
+          alt={displayName}
+          className="fighter-photo"
+          width={300}
+          height={300}
+          loading="lazy"
+        />
+      ) : (
+        <div className="fighter-avatar" />
+      )}
       <p className="kicker">{fighter.promotion?.shortName ?? "UFC"}</p>
       <h3>{displayName}</h3>
       <p className="copy">

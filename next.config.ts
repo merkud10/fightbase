@@ -10,7 +10,9 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www.ufc.com" },
       { protocol: "https", hostname: "ufc.com" },
       { protocol: "https", hostname: "images.tapology.com" },
-      { protocol: "https", hostname: "www1-cdn.sherdog.com" }
+      { protocol: "https", hostname: "www1-cdn.sherdog.com" },
+      { protocol: "https", hostname: "ss.sport-express.net" },
+      { protocol: "https", hostname: "www.sport-express.net" }
     ],
     formats: ["image/avif", "image/webp"]
   },

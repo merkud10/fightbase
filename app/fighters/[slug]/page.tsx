@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -111,13 +111,11 @@ function translateFightMethod(method: string | null | undefined, locale: "ru" | 
 
   const decisionMatch = value.match(/^(three|five)\s+round\s+(unanimous|split|majority)\s+decision$/i);
   if (decisionMatch) {
-    const roundValue = decisionMatch[1] ?? "";
-    const decisionValue = decisionMatch[2] ?? "";
-    const roundLabel = decisionMatch[1].toLowerCase() === "five" ? "пятираундовое" : "трехраундовое";
+    const roundLabel = decisionMatch[1]!.toLowerCase() === "five" ? "пятираундовое" : "трехраундовое";
     const decisionType =
-      decisionMatch[2].toLowerCase() === "split"
+      decisionMatch[2]!.toLowerCase() === "split"
         ? "раздельное решение"
-        : decisionMatch[2].toLowerCase() === "majority"
+        : decisionMatch[2]!.toLowerCase() === "majority"
           ? "решение большинством"
           : "единогласное решение";
     return `${roundLabel} ${decisionType}`;
@@ -145,11 +143,11 @@ function translateFightNote(note: string | null | undefined, locale: "ru" | "en"
     new RegExp(`^${fighterPattern} won a (three|five) round (unanimous|split|majority) decision over (.+)$`, "i")
   );
   if (decisionWinMatch) {
-    const rounds = decisionWinMatch[1].toLowerCase() === "five" ? "пятираундовым" : "трехраундовым";
+    const rounds = decisionWinMatch[1]!.toLowerCase() === "five" ? "пятираундовым" : "трехраундовым";
     const decisionType =
-      decisionWinMatch[2].toLowerCase() === "split"
+      decisionWinMatch[2]!.toLowerCase() === "split"
         ? "раздельным решением"
-        : decisionWinMatch[2].toLowerCase() === "majority"
+        : decisionWinMatch[2]!.toLowerCase() === "majority"
           ? "решением большинством"
           : "единогласным решением";
     return `${fighterName} победил${/а$/i.test(fighterName) ? "а" : ""} ${decisionType} по итогам ${rounds} боя против ${decisionWinMatch[3]}.`;
@@ -159,11 +157,11 @@ function translateFightNote(note: string | null | undefined, locale: "ru" | "en"
     new RegExp(`^${fighterPattern} lost a (three|five) round (unanimous|split|majority) decision to (.+)$`, "i")
   );
   if (decisionLossMatch) {
-    const rounds = decisionLossMatch[1].toLowerCase() === "five" ? "пятираундового" : "трехраундового";
+    const rounds = decisionLossMatch[1]!.toLowerCase() === "five" ? "пятираундового" : "трехраундового";
     const decisionType =
-      decisionLossMatch[2].toLowerCase() === "split"
+      decisionLossMatch[2]!.toLowerCase() === "split"
         ? "раздельным решением"
-        : decisionLossMatch[2].toLowerCase() === "majority"
+        : decisionLossMatch[2]!.toLowerCase() === "majority"
           ? "решением большинством"
           : "единогласным решением";
     return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${decisionType} по итогам ${rounds} боя против ${decisionLossMatch[3]}.`;
@@ -173,7 +171,7 @@ function translateFightNote(note: string | null | undefined, locale: "ru" | "en"
     new RegExp(`^${fighterPattern} stopped (.+) via strikes at (\\d:\\d{2}) of the (first|second|third|fourth|fifth) round$`, "i")
   );
   if (strikeWinMatch) {
-    return `${fighterName} остановил${/а$/i.test(fighterName) ? "а" : ""} ${strikeWinMatch[1]} ударами на отметке ${strikeWinMatch[2]} ${ordinalRoundToRu(strikeWinMatch[3])} раунда.`;
+    return `${fighterName} остановил${/а$/i.test(fighterName) ? "а" : ""} ${strikeWinMatch[1]} ударами на отметке ${strikeWinMatch[2]} ${ordinalRoundToRu(strikeWinMatch[3]!)} раунда.`;
   }
 
   const submissionWinMatch = value.match(
@@ -181,23 +179,23 @@ function translateFightNote(note: string | null | undefined, locale: "ru" | "en"
   );
   if (submissionWinMatch) {
     return `${fighterName} победил${/а$/i.test(fighterName) ? "а" : ""} ${submissionWinMatch[1]} приёмом ${translateFightMethod(
-      submissionWinMatch[2],
+      submissionWinMatch[2]!,
       "ru"
-    ).toLowerCase()} на отметке ${submissionWinMatch[3]} ${ordinalRoundToRu(submissionWinMatch[4])} раунда.`;
+    ).toLowerCase()} на отметке ${submissionWinMatch[3]} ${ordinalRoundToRu(submissionWinMatch[4]!)} раунда.`;
   }
 
   const stoppedLossMatch = value.match(
     new RegExp(`^${fighterPattern} was stopped by (.+) via (.+) at (\\d:\\d{2}) of the (first|second|third|fourth|fifth) round$`, "i")
   );
   if (stoppedLossMatch) {
-    return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${stoppedLossMatch[1]} после остановки ${translateFightMethod(stoppedLossMatch[2], "ru").toLowerCase()} на отметке ${stoppedLossMatch[3]} ${ordinalRoundToRu(stoppedLossMatch[4])} раунда.`;
+    return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${stoppedLossMatch[1]} после остановки ${translateFightMethod(stoppedLossMatch[2]!, "ru").toLowerCase()} на отметке ${stoppedLossMatch[3]} ${ordinalRoundToRu(stoppedLossMatch[4]!)} раунда.`;
   }
 
   const submittedLossMatch = value.match(
     new RegExp(`^${fighterPattern} was submitted by (.+) via (.+) at (\\d:\\d{2}) of the (first|second|third|fourth|fifth) round$`, "i")
   );
   if (submittedLossMatch) {
-    return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${submittedLossMatch[1]} приёмом ${translateFightMethod(submittedLossMatch[2], "ru").toLowerCase()} на отметке ${submittedLossMatch[3]} ${ordinalRoundToRu(submittedLossMatch[4])} раунда.`;
+    return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${submittedLossMatch[1]} приёмом ${translateFightMethod(submittedLossMatch[2]!, "ru").toLowerCase()} на отметке ${submittedLossMatch[3]} ${ordinalRoundToRu(submittedLossMatch[4]!)} раунда.`;
   }
 
   const genericLossMatch = value.match(
@@ -223,9 +221,9 @@ function translateFightNote(note: string | null | undefined, locale: "ru" | "en"
   );
   if (genericMethodLossMatch) {
     return `${fighterName} проиграл${/а$/i.test(fighterName) ? "а" : ""} ${genericMethodLossMatch[1]} после ${translateFightMethod(
-      genericMethodLossMatch[2],
+      genericMethodLossMatch[2]!,
       "ru"
-    ).toLowerCase()} на отметке ${genericMethodLossMatch[3]} ${ordinalRoundToRu(genericMethodLossMatch[4])} раунда.`;
+    ).toLowerCase()} на отметке ${genericMethodLossMatch[3]} ${ordinalRoundToRu(genericMethodLossMatch[4]!)} раунда.`;
   }
 
   return value;

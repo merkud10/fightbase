@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 import type { FighterStatus, Prisma } from "@prisma/client";
 import { cache } from "react";
 
-import { getWeightClassFilterValues, normalizeWeightClassValue } from "@/lib/display";
+import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
 import { prisma } from "@/lib/prisma";
 
 export type FightersPageFilters = {
@@ -10,6 +10,8 @@ export type FightersPageFilters = {
   promotion?: string;
   status?: string;
   weightClass?: string;
+  page?: number;
+  perPage?: number;
 };
 
 export type RankingsPageFilters = {
@@ -47,15 +49,6 @@ function normalizeProfileKey(value: string | null | undefined) {
     .trim();
 }
 
-function hasUsablePhotoUrl(value: string | null | undefined) {
-  const url = String(value || "").trim();
-  if (!url) {
-    return false;
-  }
-
-  return !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(url);
-}
-
 function tokenizeProfileValue(value: string | null | undefined) {
   return normalizeProfileKey(value)
     .split(/\s+/)
@@ -82,7 +75,7 @@ function looksLikeBrokenUfcProfile(fighter: FighterListItem) {
 function getFighterQualityScore(fighter: FighterListItem) {
   let score = 0;
 
-  if (hasUsablePhotoUrl(fighter.photoUrl)) score += 10;
+  if (isUsablePhoto(fighter.photoUrl)) score += 10;
   if (fighter.nameRu) score += 2;
   if (fighter.record && fighter.record !== "0-0" && fighter.record !== "0-0-0") score += 3;
   if (fighter.age) score += 2;
@@ -127,7 +120,7 @@ export function dedupeFightersForPublicList(fighters: Array<FighterListItem & { 
       continue;
     }
 
-    if (!hasUsablePhotoUrl(fighter.photoUrl)) {
+    if (!isUsablePhoto(fighter.photoUrl)) {
       continue;
     }
 
@@ -384,6 +377,8 @@ export async function getPromotionRankingLinks(promotionSlug: string) {
   return { bySlug, byName, entries };
 }
 
+const FIGHTERS_PER_PAGE = 36;
+
 export async function getFightersPageData(filters: FightersPageFilters = {}) {
   const query = filters.query?.trim();
   const validStatuses: FighterStatus[] = ["active", "champion", "retired", "prospect"];
@@ -391,7 +386,7 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     ? (filters.status as FighterStatus)
     : undefined;
   const normalizedWeightClass = filters.weightClass ? normalizeWeightClassValue(filters.weightClass) : undefined;
-  const promotionSlug = filters.promotion === "ufc" ? "ufc" : "ufc";
+  const promotionSlug = "ufc";
   const fightersWhere: Prisma.FighterWhereInput = {
     AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
     ...(query
@@ -403,6 +398,9 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     ...(normalizedStatus ? { status: normalizedStatus } : {}),
     ...(normalizedWeightClass ? { weightClass: { in: getWeightClassFilterValues(normalizedWeightClass) } } : {})
   };
+
+  const perPage = filters.perPage ?? FIGHTERS_PER_PAGE;
+  const page = Math.max(1, filters.page ?? 1);
 
   const [fighters, promotions, weightClasses] = await Promise.all([
     prisma.fighter.findMany({
@@ -436,8 +434,17 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     })
   ]);
 
+  const allFighters = dedupeFightersForPublicList(fighters);
+  const totalCount = allFighters.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const safePage = Math.min(page, totalPages);
+  const paginatedFighters = allFighters.slice((safePage - 1) * perPage, safePage * perPage);
+
   return {
-    fighters: dedupeFightersForPublicList(fighters),
+    fighters: paginatedFighters,
+    totalCount,
+    page: safePage,
+    totalPages,
     filters: {
       query: query ?? "",
       promotion: promotionSlug,

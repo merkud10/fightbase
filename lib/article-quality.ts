@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

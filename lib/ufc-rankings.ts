@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 type UfcOfficialRankingRow = {
   rank: number;
   name: string;
