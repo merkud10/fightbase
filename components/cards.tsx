@@ -2,7 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getArticleHref } from "@/lib/article-routes";
-import { formatFighterStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
+import {
+  formatArticleTagLabel,
+  formatEventLocation,
+  formatFighterStatus,
+  formatWeightClass,
+  getDisplayName,
+  isUsablePhoto
+} from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
@@ -18,7 +25,7 @@ type ArticleCardData = {
   publishedAt: Date | string;
   category: string;
   promotion?: { shortName: string } | null;
-  tagMap?: Array<{ tag: { id: string; label: string } }>;
+  tagMap?: Array<{ tag: { id: string; label: string; slug?: string | null } }>;
 };
 
 type EventFightCardData = {
@@ -90,7 +97,7 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
       {tags.length > 0 ? (
         <div className="tag-row">
           {tags.map(({ tag }) => (
-            <span key={tag.id}>{tag.label}</span>
+            <span key={tag.id}>{formatArticleTagLabel(tag.slug || tag.label, locale)}</span>
           ))}
         </div>
       ) : null}
@@ -98,18 +105,11 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
   );
 }
 
-function resolveCity(city: string, venue?: string) {
-  if (city && city !== "TBD") return city;
-  if (!venue) return "";
-  const parts = venue.split(",");
-  return parts.length > 1 ? parts.slice(1).join(",").trim() : venue;
-}
-
 export function EventCard({ event, locale }: { event: EventCardData; locale: Locale }) {
   const t = getDictionary(locale);
   const fights = event.fights ?? [];
   const leadFight = fights[0];
-  const displayCity = resolveCity(event.city, event.venue);
+  const displayLocation = formatEventLocation(event.city, event.venue, locale);
   const statusLabel =
     locale === "ru"
       ? event.status === "completed"
@@ -134,7 +134,7 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
         </div>
 
         <div className="event-card-poster-body">
-          {displayCity ? <p className="kicker event-card-city">{displayCity}</p> : null}
+          {displayLocation ? <p className="kicker event-card-city">{displayLocation}</p> : null}
           <h3 className="event-card-title">{event.name}</h3>
 
           <div className="event-card-poster-stack">

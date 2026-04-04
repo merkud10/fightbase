@@ -2,10 +2,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+export const revalidate = 300;
+
 import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
+import { getArticleHref } from "@/lib/article-routes";
 import { JsonLd } from "@/components/json-ld";
 import { getHomePageData } from "@/lib/db";
-import { formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -44,8 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const locale = await getLocale();
-  const { articles, events, fighters, totalArticles, totalEvents, totalFighters } = await getHomePageData();
-  const leadArticle = articles[0];
+  const { articles, leadArticle, events, fighters, totalArticles, totalEvents, totalFighters } = await getHomePageData();
   const leadEvent = events[0];
   const leadFight = leadEvent?.fights?.[0];
   const supportFight = leadEvent?.fights?.[1];
@@ -116,7 +118,7 @@ export default async function HomePage() {
                   <>
                     <span>{leadEvent?.promotion?.shortName ?? "UFC"}</span>
                     <span>{new Date(leadEvent.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}</span>
-                    <span>{leadEvent.city}</span>
+                    <span>{formatEventLocation(leadEvent?.city, leadEvent?.venue, locale)}</span>
                     <span>{formatWeightClass(leadFight.weightClass, locale)}</span>
                   </>
                 ) : (
@@ -158,7 +160,7 @@ export default async function HomePage() {
                   </Link>
                 ) : null}
                 {leadFight?.predictionSnapshot ? (
-                  <Link href={localizePath(`/predictions/${leadEvent?.slug ?? ""}/${leadFight.id}`, locale)} className="button-secondary">
+                  <Link href={localizePath(`/predictions/${leadEvent?.slug ?? ""}/${leadFight.slug ?? ""}`, locale)} className="button-secondary">
                     {locale === "ru" ? "Превью боя" : "Fight preview"}
                   </Link>
                 ) : (
@@ -234,7 +236,10 @@ export default async function HomePage() {
               <article className="mini-card green editorial-mini-card hero-rail-card">
                 <p className="eyebrow">{locale === "ru" ? "Что читать" : "What to read"}</p>
                 <h3>{leadArticle.title}</h3>
-                <Link href={localizePath(`/news/${leadArticle.slug}`, locale)} className="editorial-inline-link">
+                <Link
+                  href={localizePath(getArticleHref(leadArticle.category as "news" | "analysis" | "interview", leadArticle.slug), locale)}
+                  className="editorial-inline-link"
+                >
                   {locale === "ru" ? "Читать материал" : "Read feature"}
                 </Link>
               </article>

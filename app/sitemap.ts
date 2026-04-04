@@ -86,9 +86,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     prisma.fightPredictionSnapshot.findMany({
       select: {
         updatedAt: true,
-        fightId: true,
         fight: {
           select: {
+            slug: true,
             event: {
               select: {
                 slug: true
@@ -127,8 +127,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8
     })),
-    ...predictionSnapshots.map((snapshot) => ({
-      url: `${siteUrl}/ru/predictions/${snapshot.fight.event.slug}/${snapshot.fightId}`,
+    ...predictionSnapshots.filter((s) => s.fight.slug).map((snapshot) => ({
+      url: `${siteUrl}/ru/predictions/${snapshot.fight.event.slug}/${snapshot.fight.slug}`,
       lastModified: snapshot.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.85

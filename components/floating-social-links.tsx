@@ -16,14 +16,16 @@ function VkWordmark() {
 export async function FloatingSocialLinks() {
   const telegramUrl = process.env.NEXT_PUBLIC_TELEGRAM_URL?.trim() || "";
   const vkUrl = process.env.NEXT_PUBLIC_VK_URL?.trim() || "";
+  const hasTelegram = telegramUrl && telegramUrl !== "https://t.me/" && telegramUrl !== "https://t.me";
+  const hasVk = vkUrl && vkUrl !== "https://vk.com/" && vkUrl !== "https://vk.com";
 
-  if (!telegramUrl && !vkUrl) {
+  if (!hasTelegram && !hasVk) {
     return null;
   }
 
   return (
     <aside className="floating-social-rail" aria-label="Social links">
-      {telegramUrl ? (
+      {hasTelegram ? (
         <a
           href={telegramUrl}
           className="floating-social-link"
@@ -35,7 +37,7 @@ export async function FloatingSocialLinks() {
           <TelegramIcon />
         </a>
       ) : null}
-      {vkUrl ? (
+      {hasVk ? (
         <a
           href={vkUrl}
           className="floating-social-link floating-social-link--vk"

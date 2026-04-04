@@ -250,15 +250,26 @@ export async function getAdminArticleEditorData(articleId: string) {
 }
 
 export async function getHomePageData() {
-  const [articles, events, totalArticles, totalEvents, totalFighters] = await Promise.all([
+  const [articles, leadArticle, events, totalArticles, totalEvents, totalFighters] = await Promise.all([
     prisma.article.findMany({
-      where: { status: "published" },
+      where: { status: "published", category: "news" },
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
         tagMap: { include: { tag: true } }
       },
       take: 3
+    }),
+    prisma.article.findFirst({
+      where: {
+        status: "published",
+        AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+      },
+      orderBy: { publishedAt: "desc" },
+      include: {
+        promotion: true,
+        tagMap: { include: { tag: true } }
+      }
     }),
     prisma.event.findMany({
       orderBy: [{ status: "asc" }, { date: "asc" }],
@@ -315,5 +326,13 @@ export async function getHomePageData() {
         take: 8
       });
 
-  return { articles, events, fighters: dedupeFightersForPublicList(fighters).slice(0, 4), totalArticles, totalEvents, totalFighters };
+  return {
+    articles,
+    leadArticle,
+    events,
+    fighters: dedupeFightersForPublicList(fighters).slice(0, 4),
+    totalArticles,
+    totalEvents,
+    totalFighters
+  };
 }

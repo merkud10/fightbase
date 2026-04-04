@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+export const revalidate = 300;
+
 import { ArticleCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { Pagination } from "@/components/pagination";
 import { getNewsPageData } from "@/lib/db";
+import { formatArticleTagLabel } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
@@ -65,11 +68,11 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   };
   const activeFiltersCount = [filters.tag].filter(Boolean).length;
   const siteUrl = getSiteUrl();
-  const collectionUrl = new URL("/news", siteUrl).toString();
+  const collectionUrl = new URL(localizePath("/news", locale), siteUrl).toString();
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
     "@type": "ListItem",
     position: index + 1,
-    url: new URL(`/news/${article.slug}`, siteUrl).toString(),
+    url: new URL(localizePath(`/news/${article.slug}`, locale), siteUrl).toString(),
     name: article.title
   }));
 
@@ -121,7 +124,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
               title={locale === "ru" ? "Темы" : "Topics"}
               items={tags.map((tagItem) => ({
                 value: tagItem.slug,
-                label: tagItem.label
+                label: formatArticleTagLabel(tagItem.slug || tagItem.label, locale)
               }))}
               activeValue={filters.tag}
               basePath={localizePath("/news", locale)}

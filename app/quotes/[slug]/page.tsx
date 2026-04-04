@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+export const revalidate = 3600;
+
 import { ArticleDetailPage, generateArticlePageMetadata } from "@/components/article-detail-page";
 
 export async function generateMetadata({
