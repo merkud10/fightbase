@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { EventCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getEventsPageData } from "@/lib/db";
-import { getLocale } from "@/lib/i18n";
+import { formatWeightClass, getDisplayName } from "@/lib/display";
+import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { getSiteUrl } from "@/lib/site";
@@ -46,9 +46,9 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   };
 }
 
-
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const locale = await getLocale();
+  const t = getDictionary(locale);
   const params = (await searchParams) ?? {};
   const status = readParam(params.status);
   const { events, filters, options } = await getEventsPageData({
@@ -144,17 +144,107 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         </aside>
 
         {events.length > 0 ? (
-          <div className="event-grid">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} locale={locale} />
-            ))}
+          <div className="events-editorial-list">
+            {events.map((event) => {
+              const leadFight = event.fights?.[0] ?? null;
+              const previewFights = (event.fights ?? []).slice(0, 3);
+              const date = new Date(event.date);
+              const monthLabel = date
+                .toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", { month: "short" })
+                .replace(".", "")
+                .toUpperCase();
+              const dayLabel = date.toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", { day: "2-digit" });
+              const yearLabel = date.getFullYear();
+              const statusLabel =
+                locale === "ru"
+                  ? event.status === "completed"
+                    ? "Прошедший турнир"
+                    : event.status === "live"
+                      ? "Идет сейчас"
+                      : "Ближайший турнир"
+                  : event.status === "completed"
+                    ? "Completed event"
+                    : event.status === "live"
+                      ? "Live now"
+                      : "Upcoming event";
+
+              return (
+                <article key={event.id} className="event-listing-row editorial-surface">
+                  <div className="event-listing-date">
+                    <span className="event-listing-day">{dayLabel}</span>
+                    <span className="event-listing-month">{monthLabel}</span>
+                    <span className="event-listing-year">{yearLabel}</span>
+                  </div>
+
+                  <div className="event-listing-main">
+                    <div className="event-listing-topline">
+                      <span className="event-listing-status">{statusLabel}</span>
+                      <span className="event-listing-divider" />
+                      <span className="event-listing-location">
+                        {event.city}
+                        {event.venue ? ` · ${event.venue}` : ""}
+                      </span>
+                    </div>
+
+                    <h3 className="event-listing-title">
+                      <Link href={localizePath(`/events/${event.slug}`, locale)}>{event.name}</Link>
+                    </h3>
+
+                    {leadFight ? (
+                      <p className="event-listing-headliner">
+                        <span className="event-listing-label">{locale === "ru" ? "Главный бой" : "Main event"}</span>
+                        <strong>
+                          {getDisplayName(leadFight.fighterA, locale)} vs {getDisplayName(leadFight.fighterB, locale)}
+                        </strong>
+                        <span>{formatWeightClass(leadFight.weightClass, locale)}</span>
+                      </p>
+                    ) : null}
+
+                    <p className="event-listing-summary">{event.summary}</p>
+
+                    {previewFights.length > 0 ? (
+                      <div className="event-listing-fights">
+                        {previewFights.map((fight) => (
+                          <div key={fight.id} className="event-listing-fight-row">
+                            <div className="event-listing-fight-copy">
+                              <strong>
+                                {getDisplayName(fight.fighterA, locale)} vs {getDisplayName(fight.fighterB, locale)}
+                              </strong>
+                              <span>{formatWeightClass(fight.weightClass, locale)}</span>
+                            </div>
+
+                            {fight.predictionSnapshot ? (
+                              <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-listing-fight-link">
+                                {t.common.openPrediction}
+                              </Link>
+                            ) : (
+                              <span className="event-listing-fight-link event-listing-fight-link--pending">
+                                {locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="event-listing-actions">
+                    <Link href={localizePath(`/events/${event.slug}`, locale)} className="button-secondary event-listing-button">
+                      {t.common.eventCard}
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
           <FilterEmptyState
             heading={locale === "ru" ? "По этим фильтрам ничего не найдено" : "No events match these filters"}
-            description={locale === "ru"
-              ? "По выбранным параметрам турниров не найдено. Сбросьте часть фильтров, чтобы увидеть больше событий."
-              : "No events match the selected filters. Clear some filters to view a broader schedule."}
+            description={
+              locale === "ru"
+                ? "По выбранным параметрам турниров не найдено. Сбросьте часть фильтров, чтобы увидеть больше событий."
+                : "No events match the selected filters. Clear some filters to view a broader schedule."
+            }
           />
         )}
       </section>

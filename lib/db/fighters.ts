@@ -55,9 +55,17 @@ function tokenizeProfileValue(value: string | null | undefined) {
     .filter((token) => token.length > 1);
 }
 
+const BROKEN_UFC_PROFILE_SLUGS = new Set([
+  "chandler-cole"
+]);
+
 function looksLikeBrokenUfcProfile(fighter: FighterListItem) {
   if (fighter.promotion?.slug !== "ufc") {
     return false;
+  }
+
+  if (BROKEN_UFC_PROFILE_SLUGS.has(fighter.slug)) {
+    return true;
   }
 
   const slugTokens = tokenizeProfileValue(fighter.slug.replace(/-\d+$/g, "").replace(/-/g, " "));
@@ -413,8 +421,7 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
             recentFights: true
           }
         }
-      },
-      take: 500
+      }
     }),
     prisma.promotion.findMany({
       where: {
@@ -468,6 +475,10 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
   });
 
   if (!fighter) {
+    return null;
+  }
+
+  if (looksLikeBrokenUfcProfile(fighter)) {
     return null;
   }
 

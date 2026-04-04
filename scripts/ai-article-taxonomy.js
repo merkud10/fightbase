@@ -2,7 +2,9 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
-const DEFAULT_MODEL = "qwen35-aggressive:latest";
+const DEFAULT_OLLAMA_MODEL = "qwen35-aggressive:latest";
+const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
 const MAX_BODY_LENGTH = 2800;
 const MAX_FIGHTER_CANDIDATES = 24;
 const MAX_RETURNED_FIGHTERS = 6;
@@ -20,6 +22,22 @@ function readEnvValueFromFile(name) {
 
 function readEnv(name, fallback = "") {
   return process.env[name] || readEnvValueFromFile(name) || fallback;
+}
+
+function getAiProvider() {
+  return readEnv("AI_PROVIDER", "").toLowerCase();
+}
+
+function getDeepSeekApiKey() {
+  return readEnv("DEEPSEEK_API_KEY");
+}
+
+function getDeepSeekBaseUrl() {
+  return readEnv("DEEPSEEK_BASE_URL", DEFAULT_DEEPSEEK_BASE_URL);
+}
+
+function getDeepSeekModel() {
+  return readEnv("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL);
 }
 
 function sanitizeJsonPayload(value) {
@@ -46,20 +64,14 @@ function parseJsonObject(value) {
 }
 
 function uniqueStrings(values) {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => String(value || "").trim())
-        .filter(Boolean)
-    )
-  );
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
 }
 
 function normalizeForMatch(value) {
   return String(value || "")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Zа-яА-Я0-9]+/g, " ")
+    .replace(/[^a-zA-ZА-Яа-я0-9]+/g, " ")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
@@ -84,7 +96,7 @@ function tokenizeNormalized(value) {
 }
 
 function containsCyrillic(value) {
-  return /[а-яА-ЯЁё]/.test(String(value || ""));
+  return /[А-Яа-яЁё]/.test(String(value || ""));
 }
 
 function extractMentionPhrases(value) {
@@ -117,10 +129,9 @@ function buildPromotionCandidates(input) {
     return { inferred, shortlist };
   }
 
-  const sourcePromotion = input.promotions.find((promotion) => countAliasMatches(haystack, promotion.shortName) > 0);
   return {
-    inferred: sourcePromotion?.slug || "",
-    shortlist: sourcePromotion ? [sourcePromotion] : input.promotions.slice(0, 3)
+    inferred: input.promotions.find((promotion) => countAliasMatches(haystack, promotion.shortName) > 0)?.slug || "",
+    shortlist: input.promotions.slice(0, 3)
   };
 }
 
@@ -142,9 +153,7 @@ function scoreFighterCandidate(haystack, mentionPhrases, fighter) {
 
   for (const alias of aliases) {
     const normalizedAlias = normalizeForMatch(alias);
-    if (!normalizedAlias) {
-      continue;
-    }
+    if (!normalizedAlias) continue;
 
     if (mentionPhrases.includes(normalizedAlias)) {
       score += 50;
@@ -180,9 +189,7 @@ function scoreFighterCandidate(haystack, mentionPhrases, fighter) {
 function buildFighterCandidates(input, inferredPromotionSlug) {
   const haystack = normalizeForMatch(`${input.headline} ${input.body}`);
   const mentionPhrases = extractMentionPhrases(`${input.headline}\n${input.body}`);
-  const byPromotion = input.fighters.filter(
-    (fighter) => !inferredPromotionSlug || fighter.promotionSlug === inferredPromotionSlug
-  );
+  const byPromotion = input.fighters.filter((fighter) => !inferredPromotionSlug || fighter.promotionSlug === inferredPromotionSlug);
   const pool = byPromotion.length >= 8 ? byPromotion : input.fighters;
   const exactMentionMatches = pool.filter((fighter) => {
     const aliases = uniqueStrings([
@@ -219,30 +226,32 @@ function buildPrompt(input) {
 
   return {
     prompt: [
-    "You are an MMA content classifier for FightBase Media.",
-    "Classify the article into one of these content types only: news, interview, analysis.",
-    "news = rumors, bookings, event announcements, results, tournament updates, roster moves.",
-    "interview = direct fighter or coach quotes, Q&A, press conference, reactions, source-led quote pieces.",
-    "analysis = predictions, fight previews, tactical breakdowns, matchup analysis, betting-style previews, key factors.",
-    "Choose one promotion slug only from the allowed shortlist when the league is clear. Otherwise return an empty string.",
-    "Return fighter slugs only from the allowed fighter shortlist. Include up to 6 relevant fighters actually mentioned in the article.",
-    "Do not invent fighters or promotions.",
-    "Return strict JSON with keys contentType, promotionSlug, fighterSlugs, confidence, reason.",
-    "",
-    `Heuristic promotion guess: ${promotionContext.inferred || "unknown"}`,
-    "",
-    "Allowed promotions shortlist:",
-    promotionsBlock || "- none",
-    "",
-    "Allowed fighters shortlist:",
-    fightersBlock || "- none",
-    "",
-    `Title: ${input.headline}`,
-    `Source label: ${input.sourceLabel}`,
-    `Source URL: ${input.sourceUrl}`,
-    "Body:",
-    String(input.body || "").slice(0, MAX_BODY_LENGTH)
-  ].join("\n"),
+      "You are an MMA content classifier for FightBase Media.",
+      "Decide whether the story is truly UFC-focused. If it is not truly UFC-focused, return isUfc=false.",
+      "Classify the article into one of these content types only: news, interview, analysis, prediction.",
+      "news = rumors, bookings, event announcements, results, tournament updates, roster moves.",
+      "interview = direct fighter or coach quotes, Q&A, press conference, reactions, source-led quote pieces.",
+      "analysis = long-form breakdowns, stylistic conflicts, divisional context, feature analysis.",
+      "prediction = fight previews, tactical matchup previews, keys to victory, betting-style previews.",
+      "Choose one promotion slug only from the allowed shortlist when the league is clear. Otherwise return an empty string.",
+      "Return fighter slugs only from the allowed fighter shortlist. Include up to 6 relevant fighters actually mentioned in the article.",
+      "Do not invent fighters or promotions.",
+      "Return strict JSON with keys isUfc, contentType, promotionSlug, fighterSlugs, confidence, reason.",
+      "",
+      `Heuristic promotion guess: ${promotionContext.inferred || "unknown"}`,
+      "",
+      "Allowed promotions shortlist:",
+      promotionsBlock || "- none",
+      "",
+      "Allowed fighters shortlist:",
+      fightersBlock || "- none",
+      "",
+      `Title: ${input.headline}`,
+      `Source label: ${input.sourceLabel}`,
+      `Source URL: ${input.sourceUrl}`,
+      "Body:",
+      String(input.body || "").slice(0, MAX_BODY_LENGTH)
+    ].join("\n"),
     inferredPromotionSlug: promotionContext.inferred,
     heuristicFighterSlugs: fighterCandidates.slice(0, MAX_RETURNED_FIGHTERS).map((fighter) => fighter.slug),
     allowedPromotionSlugs: new Set(promotionContext.shortlist.map((item) => item.slug)),
@@ -256,77 +265,94 @@ function inferContentTypeHeuristically(input) {
   if (/\b(interview|reacts|reaction|quote|quoted|press conference|media scrum|says|told)\b/i.test(text)) {
     return "interview";
   }
-
   if (/\b(preview|prediction|breakdown|analysis|matchup|keys to victory|fight pick)\b/i.test(text)) {
     return "analysis";
   }
-
   return "news";
 }
 
+async function classifyWithDeepSeek(prompt) {
+  const response = await fetch(`${getDeepSeekBaseUrl().replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getDeepSeekApiKey()}`
+    },
+    body: JSON.stringify({
+      model: getDeepSeekModel(),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an MMA content classifier for FightBase Media. Determine if a story is truly UFC-focused and classify it as news, interview, analysis, or prediction. Return strict JSON only."
+        },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`DeepSeek HTTP ${response.status}`);
+  }
+
+  const raw = await response.json();
+  return parseJsonObject(raw?.choices?.[0]?.message?.content || "{}");
+}
+
+async function classifyWithOllama(prompt) {
+  const response = await fetch(readEnv("OLLAMA_URL", DEFAULT_OLLAMA_URL), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: readEnv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
+      stream: false,
+      format: "json",
+      prompt,
+      options: { temperature: 0.1 }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama HTTP ${response.status}`);
+  }
+
+  const raw = await response.json();
+  return parseJsonObject(raw?.response || "{}");
+}
+
 async function classifyArticleWithAi(input) {
-  const url = readEnv("OLLAMA_URL", DEFAULT_OLLAMA_URL);
-  const model = readEnv("OLLAMA_MODEL", DEFAULT_MODEL);
   const promptContext = buildPrompt(input);
   const fallbackResult = {
+    isUfc: /\b(?:ufc|mma)\b/i.test(`${input.headline} ${input.body} ${input.sourceLabel} ${input.sourceUrl}`),
     contentType: inferContentTypeHeuristically(input),
     promotionSlug: promptContext.inferredPromotionSlug,
     fighterSlugs: promptContext.heuristicFighterSlugs.slice(0, MAX_RETURNED_FIGHTERS),
     confidence: 0.35,
     reason: "Heuristic fallback"
   };
-  const payload = {
-    model,
-    stream: false,
-    format: "json",
-    prompt: promptContext.prompt,
-    options: {
-      temperature: 0.1
-    }
-  };
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
-
-  let response;
 
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      return fallbackResult;
-    }
+    const parsed =
+      getAiProvider() === "deepseek" && getDeepSeekApiKey()
+        ? await classifyWithDeepSeek(promptContext.prompt)
+        : await classifyWithOllama(promptContext.prompt);
 
-    return fallbackResult;
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    return fallbackResult;
-  }
-
-  try {
-    const raw = await response.json();
-    const parsed = parseJsonObject(raw?.response || "{}");
     const promotionSlug = String(parsed.promotionSlug || "").trim();
     const fighterSlugs = uniqueStrings(Array.isArray(parsed.fighterSlugs) ? parsed.fighterSlugs : []).filter((slug) =>
       promptContext.allowedFighterSlugs.has(slug)
     );
+    const rawType = String(parsed.contentType || "").trim().toLowerCase();
+    const normalizedType =
+      rawType === "prediction" ? "analysis" : ["news", "interview", "analysis"].includes(rawType) ? rawType : fallbackResult.contentType;
 
     return {
-      contentType: ["news", "interview", "analysis"].includes(parsed.contentType)
-        ? parsed.contentType
-        : fallbackResult.contentType,
-      promotionSlug: promptContext.allowedPromotionSlugs.has(promotionSlug)
-        ? promotionSlug
-        : promptContext.inferredPromotionSlug,
+      isUfc: typeof parsed.isUfc === "boolean" ? parsed.isUfc : fallbackResult.isUfc,
+      contentType: normalizedType,
+      promotionSlug: promptContext.allowedPromotionSlugs.has(promotionSlug) ? promotionSlug : promptContext.inferredPromotionSlug,
       fighterSlugs: (fighterSlugs.length > 0 ? fighterSlugs : promptContext.heuristicFighterSlugs).slice(0, MAX_RETURNED_FIGHTERS),
       confidence: Number(parsed.confidence) || fallbackResult.confidence,
       reason: String(parsed.reason || "").trim() || fallbackResult.reason

@@ -18,7 +18,8 @@ const {
   titleCase,
   transliterateName,
   getPreferredRussianName,
-  hasMeaningfulRecord
+  hasMeaningfulRecord,
+  localizeUfcFighterProfileWithDeepSeek
 } = require("./fighter-import-utils");
 
 const prisma = new PrismaClient();
@@ -167,7 +168,7 @@ function parseStatusTag(html, existingStatus) {
     .filter(Boolean);
   const tagText = tags.join(" | ");
 
-  if (existingStatus === "champion" || /champion|title holder|interim/i.test(tagText)) {
+  if (/champion|title holder|interim/i.test(tagText)) {
     return "champion";
   }
 
@@ -225,6 +226,30 @@ function normalizeOpponentName(value) {
     .replace(/^by\s+/i, "")
     .replace(/\s+(via|at|in)\b[\s\S]*$/i, "")
     .trim();
+}
+
+function normalizeFightPersonKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-zа-я0-9]+/gi, " ")
+    .trim();
+}
+
+function isSelfOpponentName(opponentName, athleteSlug, athleteName) {
+  const normalizedOpponent = normalizeFightPersonKey(opponentName);
+  if (!normalizedOpponent) {
+    return false;
+  }
+
+  const athleteSlugKey = normalizeFightPersonKey(String(athleteSlug || "").replace(/-/g, " "));
+  const athleteNameKey = normalizeFightPersonKey(athleteName);
+  const athleteLastNameKey = athleteNameKey.split(" ").filter(Boolean).slice(-1)[0] || "";
+
+  return (
+    normalizedOpponent === athleteSlugKey ||
+    normalizedOpponent === athleteNameKey ||
+    (athleteLastNameKey && normalizedOpponent === athleteLastNameKey)
+  );
 }
 
 function isPlaceholderRecentFightValue(value) {
@@ -436,6 +461,27 @@ function parseUfcProfile(html, slug, existing) {
   };
 }
 
+async function enrichProfileWithDeepSeek(profile) {
+  const localized = await localizeUfcFighterProfileWithDeepSeek({
+    name: profile.name,
+    nickname: profile.nickname,
+    country: profile.country,
+    weightClass: profile.weightClass,
+    status: profile.status,
+    record: profile.record,
+    team: profile.team,
+    style: profile.style,
+    highlights: profile.bio,
+    description: profile.bioEn
+  });
+
+  return {
+    ...profile,
+    nameRu: localized.nameRu,
+    bio: localized.bioRu
+  };
+}
+
 function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
   const prettifyEventName = (value) =>
     titleCase(value.replace(/-/g, " "))
@@ -498,7 +544,7 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
         notes: null
       };
 
-      if (isValidRecentFight(parsedFight)) {
+      if (isValidRecentFight(parsedFight) && !isSelfOpponentName(parsedFight.opponentName, athleteSlug, athleteName)) {
         parsedCardFights.push(parsedFight);
       }
     }
@@ -577,7 +623,7 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       notes: body
     };
 
-    if (isValidRecentFight(parsedFight)) {
+    if (isValidRecentFight(parsedFight) && !isSelfOpponentName(parsedFight.opponentName, athleteSlug, athleteName)) {
       fights.push(parsedFight);
     }
   }
@@ -611,6 +657,7 @@ async function main() {
   const limit = args.limit ? Number.parseInt(args.limit, 10) : null;
   const offset = args.offset ? Number.parseInt(args.offset, 10) : 0;
   const singleSlug = typeof args.slug === "string" ? String(args.slug).trim().replace(/^\/+|\/+$/g, "") : "";
+  const useDeepSeek = args.deepseek === "false" ? false : true;
 
   const promotion = await prisma.promotion.findUnique({
     where: { slug: "ufc" }
@@ -629,7 +676,7 @@ async function main() {
 
   for (const entry of scopedEntries) {
     try {
-      const { fighter, created: wasCreated } = await syncUfcRosterEntry(prisma, promotion, entry);
+      const { fighter, created: wasCreated } = await syncUfcRosterEntry(prisma, promotion, entry, { useDeepSeek });
 
       if (wasCreated) {
         created += 1;
@@ -646,15 +693,24 @@ async function main() {
   console.log(`UFC sync complete. Created: ${created}. Updated: ${updated}.`);
 }
 
-async function syncUfcRosterEntry(prismaClient, promotion, entry) {
+async function syncUfcRosterEntry(prismaClient, promotion, entry, options = {}) {
   const { slug, url } = entry;
+  const useDeepSeek = options.useDeepSeek !== false;
   const existing = await prismaClient.fighter.findUnique({
     where: { slug },
     include: { recentFights: true }
   });
 
   const html = await fetchText(url);
-  const profile = parseUfcProfile(html, slug, existing);
+  let profile = parseUfcProfile(html, slug, existing);
+
+  if (useDeepSeek) {
+    try {
+      profile = await enrichProfileWithDeepSeek(profile);
+    } catch (error) {
+      console.error(`DeepSeek fighter localization failed for ${slug}: ${error.message || error}`);
+    }
+  }
 
   const data = {
     slug: profile.slug,
@@ -706,7 +762,7 @@ async function syncUfcRosterEntry(prismaClient, promotion, entry) {
   };
 }
 
-async function syncUfcFighterBySlug(prismaClient, slug) {
+async function syncUfcFighterBySlug(prismaClient, slug, options = {}) {
   const normalizedSlug = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
   if (!normalizedSlug) {
     throw new Error("UFC slug is required");
@@ -724,7 +780,7 @@ async function syncUfcFighterBySlug(prismaClient, slug) {
     slug: normalizedSlug,
     url: `https://www.ufc.com/athlete/${normalizedSlug}`,
     rosterPhotoUrl: null
-  });
+  }, options);
 }
 
 module.exports = {

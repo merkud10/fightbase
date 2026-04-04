@@ -8,7 +8,6 @@ const { ensureUfcFightersForText } = require("./ensure-ufc-fighters");
 
 const prisma = new PrismaClient();
 const ENABLED_PROMOTIONS = new Set(["ufc"]);
-const INTERVIEW_SOURCE_LABELS = new Set(["UFC", "Sherdog News", "MMA Fighting", "MMA Junkie"]);
 
 const ALL_SOURCES = [
   {
@@ -18,32 +17,9 @@ const ALL_SOURCES = [
     articlePattern: /^https:\/\/www\.ufc\.com\/news\/[^?#]+$/i,
     streams: ["news", "predictions", "analysis", "quotes"],
     targetKeywords: {
-      quotes: [
-        "interview",
-        "reacts",
-        "reaction",
-        "media-day",
-        "press-conference",
-        "says",
-        "discusses",
-        "talks",
-        "reveals",
-        "responds",
-        "exclusive",
-        "post-fight",
-        "pre-fight"
-      ],
+      quotes: ["interview", "reacts", "reaction", "media-day", "press-conference", "says", "exclusive", "post-fight", "pre-fight"],
       predictions: ["preview", "fight-by-fight-preview", "keys-to-victory", "at-stake", "breakdown", "analysis", "matchup"],
-      analysis: [
-        "preview",
-        "fight-by-fight-preview",
-        "keys-to-victory",
-        "at-stake",
-        "breakdown",
-        "analysis",
-        "matchup",
-        "prospect-watch"
-      ]
+      analysis: ["preview", "fight-by-fight-preview", "keys-to-victory", "at-stake", "breakdown", "analysis", "matchup", "prospect-watch"]
     },
     sourceType: "official"
   },
@@ -95,9 +71,6 @@ const ALL_SOURCES = [
     listingUrl: "https://www.sports.ru/mma/news/",
     articlePattern: /^https:\/\/www\.sports\.ru\/boxing\/\d+-[^?#]+\.html$/i,
     streams: ["news", "quotes"],
-    targetKeywords: {
-      quotes: ["interview", "reacts", "reaction", "says", "otvetil", "rasskazal", "zayavil", "prokommentiroval"]
-    },
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
@@ -106,9 +79,6 @@ const ALL_SOURCES = [
     listingUrl: "https://meta-ratings.kz/news/mma/",
     articlePattern: /^https:\/\/meta-ratings\.kz\/news\/[\w-]+-\d+\/$/i,
     streams: ["news", "quotes"],
-    targetKeywords: {
-      quotes: ["intervyu", "otvetil", "prokommentiroval", "rasskazal"]
-    },
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
@@ -117,9 +87,6 @@ const ALL_SOURCES = [
     listingUrl: "https://fightnews.info/",
     articlePattern: /^https:\/\/fightnews\.info\/(?!votes|users|on-air|reyting)[a-z0-9][\w-]+$/i,
     streams: ["news", "quotes"],
-    targetKeywords: {
-      quotes: ["otvetil", "prokommentiroval", "otreagiroval", "rasskazal", "podelilsya"]
-    },
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
@@ -129,7 +96,6 @@ const ALL_SOURCES = [
     articlePattern: /^https:\/\/www\.sport-express\.net\/martial\/(?:mma\/)?(?:ufc\/)?(?:news|reviews)\/[\w-]+-\d+\/$/i,
     streams: ["news", "quotes", "predictions", "analysis"],
     targetKeywords: {
-      quotes: ["intervyu", "otvetil", "rasskazal"],
       predictions: ["prognoz", "analiz", "preview", "razborov"],
       analysis: ["analiz", "razbor", "preview", "styli", "matchap", "prognoz"]
     },
@@ -137,6 +103,7 @@ const ALL_SOURCES = [
     sourceLanguage: "ru"
   }
 ];
+
 const SOURCES = ALL_SOURCES.filter((source) => !source.promotionSlug || ENABLED_PROMOTIONS.has(source.promotionSlug));
 
 function parseArgs(argv) {
@@ -151,37 +118,26 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-
     if (arg === "--base-url" && argv[index + 1]) {
-      options.baseUrl = argv[index + 1];
-      index += 1;
+      options.baseUrl = argv[++index];
       continue;
     }
-
     if (arg === "--days" && argv[index + 1]) {
-      options.days = Number(argv[index + 1]) || 7;
-      index += 1;
+      options.days = Number(argv[++index]) || 7;
       continue;
     }
-
     if (arg === "--limit-per-source" && argv[index + 1]) {
-      options.limitPerSource = Number(argv[index + 1]) || 8;
-      index += 1;
+      options.limitPerSource = Number(argv[++index]) || 8;
       continue;
     }
-
     if (arg === "--target" && argv[index + 1]) {
-      options.target = argv[index + 1];
-      index += 1;
+      options.target = argv[++index];
       continue;
     }
-
     if (arg === "--source-label" && argv[index + 1]) {
-      options.sourceLabel = argv[index + 1];
-      index += 1;
+      options.sourceLabel = argv[++index];
       continue;
     }
-
     if (arg === "--dry-run") {
       options.dryRun = true;
     }
@@ -254,12 +210,14 @@ function isolateArticleBody(html) {
     /<div[^>]+class="[^"]*news-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<div[^>]+class="[^"]*article[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]+class="[^"]*post[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class="[^"]*post[_-]?(?:body|content|text)[^"]*"[^>]*>([\s\S]*?)<\/div>/i
   ];
+
   for (const re of containers) {
     const m = html.match(re);
     if (m) return m[0];
   }
+
   return html;
 }
 
@@ -294,18 +252,14 @@ function extractParagraphs(html, limit = 30) {
     .map((paragraph) => decodeHtml(paragraph))
     .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
     .filter((paragraph) => paragraph.length >= 30)
-    .filter((paragraph) => !/cookie|newsletter|subscribe|advertisement|read more|РїРѕРґРїРёСЃ|СЂРµРєР»Р°Рј/i.test(paragraph))
+    .filter((paragraph) => !/cookie|newsletter|subscribe|advertisement|read more|подпис|реклам/i.test(paragraph))
     .slice(0, limit)
     .join("\n\n")
     .trim();
 }
 
 function extractMetaImage(html, pageUrl) {
-  const candidate =
-    matchMeta(html, "og:image") ||
-    matchMeta(html, "twitter:image") ||
-    matchMeta(html, "og:image:url");
-
+  const candidate = matchMeta(html, "og:image") || matchMeta(html, "twitter:image") || matchMeta(html, "og:image:url");
   if (!candidate) {
     return "";
   }
@@ -322,23 +276,19 @@ function inferContentCategory(source, headline, body) {
   const isInterviewLike =
     /\b(interview|exclusive|says|opens up|reacts|quote|quoted|press conference|media scrum|told|discusses|talks about|reveals|responds|admits|expects|vows|addresses|comments on|breaks silence|post-fight|pre-fight)\b/i.test(
       text
-    ) ||
-    /\b(intervyu|otvetil|rasskazal|zayavil|prokommentiroval|otreagiroval|podelilsya|vyskazalsya)\b/i.test(text);
+    ) || /\b(intervyu|otvetil|rasskazal|zayavil|prokommentiroval|otreagiroval|podelilsya|vyskazalsya)\b/i.test(text);
   const isPredictionLike = /\b(prediction|preview|breakdown|keys to victory|odds|fight pick|fight preview|matchup)\b/i.test(text);
   const isUtilityStory = /\b(how to watch|live results|stream|broadcast|schedule|start time)\b/i.test(text);
 
   if ((source.streams || []).includes("quotes") && isInterviewLike && !isUtilityStory) {
     return "interview";
   }
-
   if ((source.streams || []).includes("predictions") && isPredictionLike) {
     return "analysis";
   }
-
   if (isInterviewLike && !isUtilityStory) {
     return "interview";
   }
-
   if (isPredictionLike) {
     return "analysis";
   }
@@ -346,93 +296,20 @@ function inferContentCategory(source, headline, body) {
   return "news";
 }
 
-function isUtilityStory(headline, body) {
-  const text = `${headline} ${body}`.toLowerCase();
-  return /\b(how to watch|live results|live result|stream|broadcast|schedule|start time|watch live|tv channel|where to watch)\b/i.test(text) ||
-    /\b(schedule|broadcast|stream|watch|live|tv)\b/i.test(String(headline || "").toLowerCase()) ||
-    /[\u0440][\u0430][\u0441][\u043f][\u0438][\u0441][\u0430][\u043d][\u0438][\u0435]|[\u043f][\u0440][\u044f][\u043c][\u0430][\u044f]\s+[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]|[\u043e][\u043d][\u043b][\u0430][\u0439][\u043d]-?[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]|[\u0433][\u0434][\u0435]\s+[\u0441][\u043c][\u043e][\u0442][\u0440][\u0435][\u0442][\u044c]|[\u0432][\u043e]\s+[\u0441][\u043a][\u043e][\u043b][\u044c][\u043a][\u043e]|[\u044d][\u0444][\u0438][\u0440]|[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438][\u044f]/i.test(text);
-}
-
-function isClearlyOffTopicForUfc(headline, body, url) {
-  const text = `${headline} ${body} ${url}`.toLowerCase();
-  return /\b(boxing|amateur boxing|world boxing|asian championship|asian championships|olympic boxing|kickboxing|basketball|football|tennis)\b/i.test(text) ||
-    /\b(бокс|чемпионат азии|первенств|азиатск|олимпийск|футбол|теннис|баскетбол)\b/i.test(text);
-}
-
-function hasStrongUfcSignal(source, headline, body, url, aiTaxonomy) {
-  const text = `${source.label} ${source.promotionSlug || ""} ${headline} ${body} ${url}`.toLowerCase();
-
-  if (aiTaxonomy?.promotionSlug === "ufc") {
-    return true;
-  }
-
-  if ((aiTaxonomy?.fighterSlugs || []).length > 0) {
-    return true;
-  }
-
-  return /\bufc\b|fight night|ufc bjj|dwcs|contender series|dana white|apex|octagon|октагон|вегас|vegas|макао|macau/.test(
-    text
-  );
-}
-
-function isWeakGeneratedTitle(title) {
-  const clean = decodeHtml(title).trim();
-  return !clean || clean.length < 12 || /^\d+(?:-\d+)?$/.test(clean) || /^draft-\d+$/i.test(clean);
-}
-
-function shouldRejectDiscoveredItem(source, item, aiTaxonomy) {
-  if (isWeakGeneratedTitle(item.headline)) {
-    return "weak headline";
-  }
-
-  if (isClearlyOffTopicForUfc(item.headline, item.body, item.sourceUrl)) {
-    return "off-topic for UFC";
-  }
-
-  if (!hasStrongUfcSignal(source, item.headline, item.body, item.sourceUrl, aiTaxonomy)) {
-    return "missing strong UFC signal";
-  }
-
-  if (/schedule|watch|broadcast|stream|live/.test(String(item.sourceUrl || "").toLowerCase())) {
-    return "utility url";
-  }
-
-  if (item.category === "news" && isUtilityStory(item.headline, item.body)) {
-    return "utility or broadcast story";
-  }
-
-  return "";
+function hasBroadMmaSignal(headline, body, url) {
+  return /\b(?:ufc|mma)\b/i.test(`${headline} ${body} ${url}`);
 }
 
 function matchesTargetStream(source, target) {
-  if (target === "all") {
-    return true;
-  }
-
-  return Array.isArray(source.streams) && source.streams.includes(target);
+  return target === "all" || (Array.isArray(source.streams) && source.streams.includes(target));
 }
 
 function categoryMatchesTarget(category, target) {
-  if (target === "all") {
-    return true;
-  }
-
-  if (target === "news") {
-    return category === "news";
-  }
-
-  if (target === "quotes") {
-    return category === "interview";
-  }
-
-  if (target === "predictions") {
-    return category === "analysis";
-  }
-
-  if (target === "analysis") {
-    return category === "analysis";
-  }
-
+  if (target === "all") return true;
+  if (target === "news") return category === "news";
+  if (target === "quotes") return category === "interview";
+  if (target === "predictions") return category === "analysis";
+  if (target === "analysis") return category === "analysis";
   return false;
 }
 
@@ -441,18 +318,14 @@ function inferTagSlugs(category, headline, body) {
   const tags = [];
 
   if (category === "analysis") {
-    tags.push("preview");
-    tags.push("analysis");
+    tags.push("preview", "analysis");
   }
-
   if (/\b(result|results|wins|defeats|stops|submits|knocks out|tko|ko|decision)\b/i.test(text)) {
     tags.push("results");
   }
-
   if (/\b(announce|announced|booking|booked|set for|will headline|returns on|scheduled)\b/i.test(text)) {
     tags.push("announcements");
   }
-
   if (/\b(rumor|rumour|targeting|in talks|expected to|could face)\b/i.test(text)) {
     tags.push("rumors");
   }
@@ -539,7 +412,7 @@ function collectCandidateLinks(listingUrl, html, articlePattern) {
 
 function prioritizeCandidateLinks(source, candidateLinks, target, limitPerSource) {
   const scanBudget =
-    target === "analysis" ? Math.max(limitPerSource * 3, 8) : Math.max(limitPerSource * 6, 18);
+    target === "analysis" ? Math.max(limitPerSource * 3, 8) : target === "quotes" ? Math.max(limitPerSource * 12, 24) : Math.max(limitPerSource * 6, 18);
 
   if (target === "all" || target === "news") {
     return candidateLinks.slice(0, scanBudget);
@@ -556,6 +429,16 @@ function prioritizeCandidateLinks(source, candidateLinks, target, limitPerSource
   }
 
   return candidateLinks.slice(0, scanBudget);
+}
+
+function shouldRejectDiscoveredItem(item, aiTaxonomy) {
+  if (!hasBroadMmaSignal(item.headline, item.body, item.sourceUrl)) {
+    return "missing UFC or MMA signal";
+  }
+  if (!aiTaxonomy?.isUfc) {
+    return "ai classified as not UFC";
+  }
+  return "";
 }
 
 async function discoverSourceItems(source, options, taxonomyContext) {
@@ -577,7 +460,6 @@ async function discoverSourceItems(source, options, taxonomyContext) {
     try {
       const html = await fetchHtml(url);
       const publishedAt = parsePublishedAt(html);
-
       if (!publishedAt || publishedAt.getTime() < threshold) {
         continue;
       }
@@ -586,15 +468,16 @@ async function discoverSourceItems(source, options, taxonomyContext) {
       const description = matchMeta(html, "description") || matchMeta(html, "og:description");
       const paragraphs = extractParagraphs(html);
       const body = [description, paragraphs].filter(Boolean).join("\n\n").trim() || headline;
-      const heuristicCategory = inferContentCategory(source, headline, body);
-      const coverImageUrl = extractMetaImage(html, url);
-      const isUfcArticle = looksLikeUfcArticle(source, headline, body, url);
 
-      if (!coverImageUrl) {
+      if (!hasBroadMmaSignal(headline, body, url)) {
         continue;
       }
 
-      if (!categoryMatchesTarget(heuristicCategory, options.target)) {
+      const coverImageUrl = extractMetaImage(html, url);
+      const heuristicCategory = inferContentCategory(source, headline, body);
+      const isUfcArticle = looksLikeUfcArticle(source, headline, body, url);
+
+      if (!coverImageUrl) {
         continue;
       }
 
@@ -608,6 +491,7 @@ async function discoverSourceItems(source, options, taxonomyContext) {
       }
 
       let aiTaxonomy = {
+        isUfc: isUfcArticle,
         contentType: heuristicCategory,
         promotionSlug: source.promotionSlug || "",
         fighterSlugs: [],
@@ -633,7 +517,7 @@ async function discoverSourceItems(source, options, taxonomyContext) {
         sourceLabel: source.label,
         sourceUrl: url,
         sourceType: source.sourceType || "official",
-        promotionSlug: aiTaxonomy.promotionSlug || source.promotionSlug || (isUfcArticle ? "ufc" : undefined),
+        promotionSlug: aiTaxonomy.promotionSlug || source.promotionSlug || (aiTaxonomy.isUfc ? "ufc" : undefined),
         headline,
         body,
         category: finalCategory,
@@ -644,7 +528,7 @@ async function discoverSourceItems(source, options, taxonomyContext) {
         status: "published"
       };
 
-      const rejectionReason = shouldRejectDiscoveredItem(source, item, aiTaxonomy);
+      const rejectionReason = shouldRejectDiscoveredItem(item, aiTaxonomy);
       if (rejectionReason) {
         console.log(`[FILTER] skipped ${url}: ${rejectionReason}`);
         continue;
@@ -673,7 +557,6 @@ async function postDraft(baseUrl, item) {
   });
 
   const payload = await response.json().catch(() => null);
-
   if (!response.ok) {
     throw new Error(payload?.error || `HTTP ${response.status}`);
   }
@@ -704,19 +587,9 @@ async function main() {
     if (!matchesTargetStream(source, options.target)) {
       return false;
     }
-
     if (options.sourceLabel && source.label !== options.sourceLabel) {
       return false;
     }
-
-    if (options.target === "quotes") {
-      return INTERVIEW_SOURCE_LABELS.has(source.label);
-    }
-
-    if (options.target === "analysis") {
-      return source.streams?.includes("analysis");
-    }
-
     return true;
   });
 
@@ -753,9 +626,7 @@ async function main() {
       } else {
         created += 1;
       }
-      console.log(
-        `[INGEST] ${payload.draft.duplicate ? "duplicate" : "created"} | ${payload.draft.slug} | ${item.sourceLabel} | ${item.category}`
-      );
+      console.log(`[INGEST] ${payload.draft.duplicate ? "duplicate" : "created"} | ${payload.draft.slug} | ${item.sourceLabel} | ${item.category}`);
     } catch (error) {
       failed += 1;
       console.error(`[INGEST] failed | ${item.sourceUrl}`);

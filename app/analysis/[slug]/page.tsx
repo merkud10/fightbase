@@ -8,14 +8,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  return generateArticlePageMetadata(slug, "news");
+  return generateArticlePageMetadata(slug, "analysis");
 }
 
-export default async function ArticlePage({
+export default async function AnalysisArticlePage({
   params
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <ArticleDetailPage slug={slug} category="news" />;
+  return <ArticleDetailPage slug={slug} category="analysis" />;
 }

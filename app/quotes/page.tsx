@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHero } from "@/components/page-hero";
+import { getArticleHref } from "@/lib/article-routes";
 import { getQuotesPageData } from "@/lib/db";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
@@ -31,7 +32,6 @@ export default async function QuotesPage() {
   return (
     <main className="container">
       <PageHero
-        eyebrow="/quotes"
         title={locale === "ru" ? "Интервью и прямая речь" : "Interviews and direct quotes"}
         description={
           locale === "ru"
@@ -56,7 +56,7 @@ export default async function QuotesPage() {
               <p className="eyebrow">{locale === "ru" ? "Прямая речь" : "Direct quote"}</p>
               <h3>{article.title}</h3>
               <p className="copy">{article.excerpt || article.meaning}</p>
-              <Link href={localizePath(`/news/${article.slug}`, locale)}>
+              <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
                 {locale === "ru" ? "Читать материал" : "Read story"}
               </Link>
             </article>

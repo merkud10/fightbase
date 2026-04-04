@@ -143,6 +143,168 @@ async function fetchJson(url) {
   return JSON.parse(await fetchText(url));
 }
 
+function readEnvValueFromFile(name) {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const envPath = path.join(process.cwd(), ".env");
+    const contents = fs.readFileSync(envPath, "utf8");
+    const match = contents.match(new RegExp(`^${name}="?([^"\\r\\n]+)"?$`, "m"));
+    return match?.[1]?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+function getEnvValue(name, fallback = "") {
+  return process.env[name] || readEnvValueFromFile(name) || fallback;
+}
+
+function getDeepSeekApiKey() {
+  return getEnvValue("DEEPSEEK_API_KEY");
+}
+
+function getDeepSeekBaseUrl() {
+  return getEnvValue("DEEPSEEK_BASE_URL", "https://api.deepseek.com");
+}
+
+function getDeepSeekModel() {
+  return getEnvValue("DEEPSEEK_MODEL", "deepseek-chat");
+}
+
+function postJson(url, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+
+    const request = https.request(
+      target,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body).toString(),
+          ...headers
+        }
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          const payload = Buffer.concat(chunks).toString("utf8");
+          if ((response.statusCode ?? 500) >= 400) {
+            reject(new Error(`HTTP ${response.statusCode}: ${payload}`));
+            return;
+          }
+          resolve(payload);
+        });
+      }
+    );
+
+    request.setTimeout(180000, () => {
+      request.destroy(new Error("Request timed out"));
+    });
+    request.on("error", reject);
+    request.write(body);
+    request.end();
+  });
+}
+
+function sanitizeJsonPayload(value) {
+  const fenced = String(value || "").match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return fenced?.[1]?.trim() || String(value || "").trim();
+}
+
+function parseOpenAiCompatibleText(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  if (Array.isArray(payload.choices)) {
+    return payload.choices
+      .map((choice) => choice?.message?.content || "")
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+
+  if (typeof payload.output_text === "string") {
+    return payload.output_text;
+  }
+
+  return "";
+}
+
+function buildFighterDeepSeekPrompt(input) {
+  const parts = [
+    "Ты редактор русскоязычного UFC-медиа.",
+    "Нужно подготовить короткий качественный русскоязычный профиль бойца UFC.",
+    "Верни строгий JSON с ключами nameRu и bioRu.",
+    "nameRu: только нормальное русское имя бойца без лишних слов.",
+    "bioRu: 2-4 плотных предложения естественным русским языком, без канцелярита и без выдуманных фактов.",
+    "Не используй украинские формы, не оставляй английские слова внутри русского текста, не искажай имена.",
+    "Не пиши коэффициенты, ставки, линии и не добавляй ничего, чего нет в исходных данных.",
+    "",
+    `Name: ${input.name || ""}`,
+    `Nickname: ${input.nickname || ""}`,
+    `Promotion: UFC`,
+    `Country: ${input.country || ""}`,
+    `Weight class: ${input.weightClass || ""}`,
+    `Status: ${input.status || ""}`,
+    `Record: ${input.record || ""}`,
+    `Team: ${input.team || ""}`,
+    `Style: ${input.style || ""}`,
+    `Highlights: ${input.highlights || ""}`,
+    `Description: ${input.description || ""}`
+  ];
+
+  return parts.join("\n");
+}
+
+async function localizeUfcFighterProfileWithDeepSeek(input) {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY is not configured");
+  }
+
+  const payload = JSON.stringify({
+    model: getDeepSeekModel(),
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "Ты русскоязычный редактор UFC-медиа. Пиши естественно, точно и кратко. Возвращай только строгий JSON."
+      },
+      {
+        role: "user",
+        content: buildFighterDeepSeekPrompt(input)
+      }
+    ]
+  });
+
+  const rawResponse = await postJson(`${getDeepSeekBaseUrl().replace(/\/$/, "")}/chat/completions`, payload, {
+    Authorization: `Bearer ${apiKey}`
+  });
+  const response = JSON.parse(rawResponse);
+  const text = parseOpenAiCompatibleText(response);
+  const parsed = JSON.parse(sanitizeJsonPayload(text));
+
+  const nameRu = stripTags(parsed?.nameRu || "").replace(/\s+/g, " ").trim();
+  const bioRu = stripTags(parsed?.bioRu || "").replace(/\s+/g, " ").trim();
+
+  if (!nameRu || !bioRu) {
+    throw new Error("DeepSeek fighter localization returned incomplete JSON");
+  }
+
+  return {
+    nameRu,
+    bioRu
+  };
+}
+
 function decodeHtmlEntities(value) {
   return String(value || "")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
@@ -873,6 +1035,7 @@ module.exports = {
   fetchText,
   hasMeaningfulRecord,
   hasMeaningfulTeam,
+  localizeUfcFighterProfileWithDeepSeek,
   matchAllText,
   normalizeCountry,
   parseArgs,

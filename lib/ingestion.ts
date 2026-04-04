@@ -74,7 +74,46 @@ function normalizeAbsoluteUrl(value: string | null | undefined) {
 
 function looksWeakSlug(value: string) {
   const clean = String(value || "").trim().toLowerCase();
-  return !clean || clean.length < 8 || /^\d+(?:-\d+)?$/.test(clean) || /^draft-\d+$/i.test(clean);
+  return (
+    !clean ||
+    clean.length < 8 ||
+    /^\d+(?:-\d+)?$/.test(clean) ||
+    /^draft-\d+$/i.test(clean) ||
+    /^ufc(?:-vegas)?-\d+(?:-\d+)?$/i.test(clean) ||
+    /^ufc(?:-fight-night)?$/i.test(clean) ||
+    /^ufc-(?:macau|vegas)$/i.test(clean) ||
+    /^ufc-fight-night-\d+$/i.test(clean)
+  );
+}
+
+function stripUrlSlugNoise(value: string) {
+  return String(value || "")
+    .trim()
+    .replace(/\.(?:html?|php)$/i, "")
+    .replace(/html?$/i, "")
+    .replace(/^\d+-/, "")
+    .replace(/^(?:news|boxing|martial-mma-ufc-news|martial-mma-news|ufc-news)-+/i, "")
+    .replace(/-\d{5,}$/i, "")
+    .replace(/^-+|-+$/g, "");
+}
+
+function extractSlugFromSourceUrl(sourceUrl: string) {
+  try {
+    const parsed = new URL(sourceUrl);
+    const segments = parsed.pathname
+      .split("/")
+      .map((segment) => decodeURIComponent(segment.trim()))
+      .filter(Boolean);
+
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      const candidate = stripUrlSlugNoise(slugify(segments[index] ?? ""));
+      if (!looksWeakSlug(candidate)) {
+        return candidate;
+      }
+    }
+  } catch {}
+
+  return "";
 }
 
 function buildPreferredArticleSlug(title: string, sourceUrl: string) {
@@ -83,13 +122,10 @@ function buildPreferredArticleSlug(title: string, sourceUrl: string) {
     return titleSlug;
   }
 
-  try {
-    const parsed = new URL(sourceUrl);
-    const pathSlug = slugify(parsed.pathname.replace(/^\/+/, "").replace(/\//g, "-"));
-    if (!looksWeakSlug(pathSlug)) {
-      return pathSlug;
-    }
-  } catch {}
+  const sourceSlug = extractSlugFromSourceUrl(sourceUrl);
+  if (!looksWeakSlug(sourceSlug)) {
+    return sourceSlug;
+  }
 
   return titleSlug;
 }
@@ -101,8 +137,26 @@ function hasLowQualityRussianSignals(value: string) {
     /[\u043e][\u0441][\u043d][\u043e][\u0432][\u043d][\u043e][\u0433][\u043e]\s+[\u043a][\u0430][\u0440][\u0442][\u0430]/i,
     /[\u0438][\u043d][\u0442][\u0435][\u0440][\u0435][\u0441][\u043d][\u044b][\u0445]\s+[\u043f][\u0435][\u0440][\u0441][\u043f][\u0435][\u043a][\u0442][\u0438][\u0432][\u043e][\u043a]/i,
     /[\u0442][\u0443][\u0440][\u043d][\u0438][\u0440]\s+[\u0441][\u0442][\u0430][\u0440][\u0442][\u0443][\u0435][\u0442]\s+[\u0432]\s+0\.00/i,
-    /[\u0440][\u0430][\u0441][\u043f][\u0438][\u0441][\u0430][\u043d][\u0438][\u0435].*[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438]/i
+    /[\u0440][\u0430][\u0441][\u043f][\u0438][\u0441][\u0430][\u043d][\u0438][\u0435].*[\u0442][\u0440][\u0430][\u043d][\u0441][\u043b][\u044f][\u0446][\u0438]/i,
+    /\bhype\s*fc\b/i,
+    /\bрпл\b/i,
+    /\bpreview:\s/i,
+    /\bup-and-coming\b/i
   ].some((pattern) => pattern.test(value));
+}
+
+function hasOffTopicUfcSignals(value: string) {
+  return [
+    /\boctagon\s*\d+\b/i,
+    /\bказахстан\w*\b/i,
+    /\bузбекистан\w*\b/i,
+    /\bактер\w*\b/i,
+    /\bтайсон\b/i
+  ].some((pattern) => pattern.test(value));
+}
+
+function isEditorialCategory(category: ArticleCategory) {
+  return category === "news" || category === "analysis" || category === "interview";
 }
 
 function normalizeSourceSlug(label: string, url: string) {
@@ -775,14 +829,19 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const providedCoverImageUrl = normalizeAbsoluteUrl(input.coverImageUrl);
   const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
   const requestedStatus = hydratedInput.status ?? "draft";
-  const localizedText = `${localizedInput.headline}\n${localizedInput.body}`;
+  const editorialCategory = input.category ?? normalized.articleDraft.category;
+  const cleanedLocalizedText = `${cleanedTitle}\n${cleanedExcerpt}\n${cleanedBody}`;
   const forcedDraftReason =
-    (input.category ?? normalized.articleDraft.category) === "news" &&
+    isEditorialCategory(editorialCategory) &&
     requestedStatus === "published" &&
-    !isPredominantlyRussianText(localizedText)
+    !isPredominantlyRussianText(cleanedLocalizedText)
       ? "English or mixed-language output detected after localization; saved as draft instead of published."
+      : editorialCategory === "news" &&
+          requestedStatus === "published" &&
+          hasOffTopicUfcSignals(cleanedLocalizedText)
+        ? "Off-topic combat-sports story detected; saved as draft instead of published."
       : requestedStatus === "published" &&
-          hasLowQualityRussianSignals(`${cleanedTitle}\n${cleanedExcerpt}\n${cleanedBody}`)
+          hasLowQualityRussianSignals(cleanedLocalizedText)
         ? "Low-quality Russian newsroom output detected; saved as draft instead of published."
       : null;
   const finalStatus = forcedDraftReason ? "draft" : requestedStatus;
@@ -813,13 +872,17 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
 
     const article = await tx.article.create({
       data: {
-        slug: await ensureUniqueArticleSlug(normalized.articleDraft.slug || fallbackSourceSlug),
+        slug: await ensureUniqueArticleSlug(
+          looksWeakSlug(normalized.articleDraft.slug)
+            ? fallbackSourceSlug
+            : normalized.articleDraft.slug || fallbackSourceSlug
+        ),
         title: cleanedTitle,
         coverImageUrl: providedCoverImageUrl ?? articleCover?.url ?? null,
         coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,
         excerpt: cleanedExcerpt,
         meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),
-        category: input.category ?? normalized.articleDraft.category,
+          category: editorialCategory,
         status: finalStatus,
         aiConfidence: confidence,
         ingestionSourceSummary: buildIngestionSourceSummary(hydratedInput, relations),

@@ -2401,6 +2401,183 @@ th {
   min-height: 42px;
 }
 
+/* ── EVENTS EDITORIAL LIST ── */
+
+.events-editorial-list {
+  display: grid;
+  gap: 16px;
+}
+
+.event-listing-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr) 180px;
+  gap: 24px;
+  align-items: start;
+  padding: 22px 24px;
+}
+
+.event-listing-date {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  padding-right: 18px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.event-listing-day {
+  font-family: var(--font-heading), "Segoe UI", sans-serif;
+  font-size: 2rem;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+}
+
+.event-listing-month,
+.event-listing-year,
+.event-listing-status,
+.event-listing-label {
+  font-family: var(--font-nav), Impact, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.event-listing-month {
+  color: rgba(227, 27, 35, 0.9);
+  font-size: 0.76rem;
+}
+
+.event-listing-year {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.event-listing-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.event-listing-topline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.event-listing-status {
+  color: rgba(227, 27, 35, 0.95);
+  font-size: 0.72rem;
+}
+
+.event-listing-divider {
+  width: 22px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.event-listing-location {
+  color: #9e9e9e;
+}
+
+.event-listing-title {
+  margin: 0;
+  font-size: clamp(1.2rem, 1.55vw, 1.55rem);
+  line-height: 1.05;
+}
+
+.event-listing-title a {
+  transition: color 180ms ease;
+}
+
+.event-listing-title a:hover {
+  color: #fff;
+}
+
+.event-listing-headliner {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 2px solid rgba(227, 27, 35, 0.32);
+}
+
+.event-listing-label {
+  color: rgba(227, 27, 35, 0.9);
+  font-size: 0.68rem;
+}
+
+.event-listing-headliner strong {
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.event-listing-headliner span:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.event-listing-summary {
+  margin: 0;
+  color: #ababab;
+  max-width: 74ch;
+}
+
+.event-listing-fights {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.event-listing-fight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.event-listing-fight-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.event-listing-fight-copy strong {
+  line-height: 1.35;
+  font-size: 0.92rem;
+}
+
+.event-listing-fight-copy span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.event-listing-fight-link {
+  color: #f0f0f0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.event-listing-fight-link--pending {
+  color: #7d7d7d;
+}
+
+.event-listing-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.event-listing-button {
+  width: 100%;
+  min-height: 44px;
+}
+
 /* ── PREDICTIONS ── */
 
 .prediction-event-card,
@@ -2877,9 +3054,35 @@ th {
   .event-card-actions,
   .prediction-event-head,
   .event-detail-head,
-  .event-fight-row {
+  .event-fight-row,
+  .event-listing-fight-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .event-listing-row {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 18px;
+  }
+
+  .event-listing-date {
+    grid-auto-flow: column;
+    align-items: end;
+    justify-content: start;
+    gap: 10px;
+    padding-right: 0;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 12px;
+  }
+
+  .event-listing-day {
+    font-size: 1.7rem;
+  }
+
+  .event-listing-actions {
+    justify-content: stretch;
   }
 
   .prediction-match-card--visual {

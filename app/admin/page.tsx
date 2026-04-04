@@ -1,4 +1,5 @@
 import type { ArticleStatus } from "@prisma/client";
+import type { Metadata } from "next";
 
 import { PageHero } from "@/components/page-hero";
 import { AdminWorkspace } from "@/components/admin-workspace";
@@ -6,6 +7,15 @@ import { getAdminDashboardData, getAdminEditorOptions } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return {
+    title: locale === "ru" ? "Админка FightBase Media" : "FightBase Media Admin",
+    description: locale === "ru" ? "Редакционная панель FightBase Media." : "FightBase Media editorial dashboard."
+  };
+}
 
 const articleStatuses = ["draft", "review", "published"] as const satisfies readonly ArticleStatus[];
 const moderationSortValues = ["newest", "aiDesc", "aiAsc"] as const;

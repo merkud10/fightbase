@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArticleCard } from "@/components/cards";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { getArticleHref } from "@/lib/article-routes";
 import { getAnalysisPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -25,7 +26,7 @@ export default async function AnalysisPage() {
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
     "@type": "ListItem",
     position: index + 1,
-    url: new URL(localizePath(`/news/${article.slug}`, locale), siteUrl).toString(),
+    url: new URL(localizePath(getArticleHref(article.category, article.slug), locale), siteUrl).toString(),
     name: article.title
   }));
 
@@ -52,7 +53,6 @@ export default async function AnalysisPage() {
       ) : null}
 
       <PageHero
-        eyebrow="/analysis"
         title={locale === "ru" ? "Аналитика" : "Analysis"}
         description={
           locale === "ru"

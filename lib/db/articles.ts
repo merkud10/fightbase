@@ -89,9 +89,12 @@ export async function getPredictionEditorialPageData() {
   });
 }
 
-export const getArticlePageData = cache(async function getArticlePageData(slug: string) {
+export const getArticlePageData = cache(async function getArticlePageData(
+  slug: string,
+  category?: "news" | "analysis" | "interview"
+) {
   return prisma.article.findFirst({
-    where: { slug, status: "published" },
+    where: { slug, status: "published", ...(category ? { category } : {}) },
     include: {
       promotion: true,
       event: true,

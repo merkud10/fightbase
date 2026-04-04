@@ -1,6 +1,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { FighterCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
@@ -64,6 +65,10 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
     weightClass,
     page
   });
+
+  if (pageParam && currentPage !== page) {
+    notFound();
+  }
 
   const current = {
     status: filters.status,

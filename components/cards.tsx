@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { getArticleHref } from "@/lib/article-routes";
 import { formatFighterStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getDictionary } from "@/lib/i18n";
@@ -54,7 +55,6 @@ type FighterCardData = {
   promotion?: { shortName: string } | null;
 };
 
-
 export function ArticleCard({ article, locale }: { article: ArticleCardData; locale: Locale }) {
   const metaLabel = article.promotion?.shortName ?? article.category.toUpperCase();
   const tags = (article.tagMap ?? []).slice(0, 2);
@@ -80,7 +80,9 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
         <span className="story-card-accent" />
       </div>
       <h3>
-        <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+        <Link href={localizePath(getArticleHref(article.category as "news" | "analysis" | "interview", article.slug), locale)}>
+          {article.title}
+        </Link>
       </h3>
       <p className="copy">{article.excerpt}</p>
       {tags.length > 0 ? (
@@ -190,6 +192,7 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
           width={300}
           height={300}
           loading="lazy"
+          unoptimized
         />
       ) : (
         <div className="fighter-avatar" />
