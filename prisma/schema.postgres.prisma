@@ -62,6 +62,13 @@ enum IngestionRunStatus {
   dry_run
 }
 
+enum BackgroundJobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
 model Promotion {
   id        String    @id @default(cuid())
   slug      String    @unique
@@ -183,6 +190,7 @@ model Event {
 
 model Fight {
   id              String      @id @default(cuid())
+  slug            String?     @unique
   stage           FightStage
   weightClass     String
   status          FightStatus
@@ -272,6 +280,60 @@ model BrowserPushSubscription {
 
   @@index([isActive])
   @@index([lastSeenAt])
+}
+
+model AdminLoginAudit {
+  id         String   @id @default(cuid())
+  email      String
+  attemptedEmail String?
+  wasSuccessful Boolean @default(true)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([email])
+  @@index([wasSuccessful])
+  @@index([createdAt])
+}
+
+model SystemEvent {
+  id         String   @id @default(cuid())
+  level      String
+  category   String
+  message    String
+  source     String?
+  requestId  String?
+  path       String?
+  ipAddress  String?
+  meta       String?
+  telegramAlertedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([level])
+  @@index([category])
+  @@index([telegramAlertedAt])
+  @@index([createdAt])
+}
+
+model BackgroundJob {
+  id           String              @id @default(cuid())
+  type         String
+  status       BackgroundJobStatus @default(queued)
+  payload      String
+  attempts     Int                 @default(0)
+  maxAttempts  Int                 @default(3)
+  priority     Int                 @default(100)
+  runAt        DateTime            @default(now())
+  lockedAt     DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  errorMessage String?
+  result       String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, runAt, priority])
+  @@index([createdAt])
 }
 
 model Article {

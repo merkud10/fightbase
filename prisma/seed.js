@@ -140,6 +140,7 @@ async function main() {
   await Promise.all([
     prisma.fight.create({
       data: {
+        slug: "shavkat-rakhmonov-vs-islam-makhachev",
         stage: "main_card",
         weightClass: "Welterweight",
         status: "scheduled",
@@ -150,6 +151,7 @@ async function main() {
     }),
     prisma.fight.create({
       data: {
+        slug: "dricus-du-plessis-vs-alex-pereira",
         stage: "main_event",
         weightClass: "Middleweight",
         status: "scheduled",

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require("@prisma/client");
+const { buildInternalApiHeaders } = require("./internal-api");
 const prisma = new PrismaClient();
 
 const BASE_URL = "http://localhost:3001";
@@ -168,7 +169,7 @@ async function scrapeAndPost(entry) {
 
   const resp = await fetch(`${BASE_URL}/api/ingest/draft`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildInternalApiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload)
   });
 

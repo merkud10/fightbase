@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { authorizeRequest } from "@/lib/api-security";
+import { logger } from "@/lib/logger";
+import { recordSystemEvent } from "@/lib/system-events";
+
 const SHERDOG_HOSTS = new Set(["www1-cdn.sherdog.com"]);
 
 function isPrivateHostname(hostname: string) {
@@ -13,6 +17,18 @@ function isPrivateHostname(hostname: string) {
 }
 
 export async function GET(request: Request) {
+  const authorization = await authorizeRequest(request, {
+    rateLimit: {
+      scope: "api:image-proxy",
+      limit: 180,
+      windowMs: 60_000
+    }
+  });
+
+  if (!authorization.ok) {
+    return authorization.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const rawUrl = searchParams.get("url") || "";
 
@@ -56,13 +72,37 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, s-maxage=86400"
+        "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        "x-request-id": authorization.context.requestId
       }
     });
   } catch (error) {
+    logger.error("Image proxy failed", {
+      ...authorization.context,
+      targetUrl: rawUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    void recordSystemEvent({
+      level: "error",
+      category: "api.image_proxy",
+      message: "Image proxy failed",
+      source: "api/image-proxy",
+      requestId: authorization.context.requestId,
+      path: authorization.context.path,
+      ipAddress: authorization.context.ip,
+      meta: {
+        targetUrl: rawUrl,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to proxy image" },
-      { status: 502 }
+      {
+        status: 502,
+        headers: {
+          "x-request-id": authorization.context.requestId
+        }
+      }
     );
   }
 }

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { PrismaClient } = require("@prisma/client");
+const { buildInternalApiHeaders } = require("./internal-api");
 
 const prisma = new PrismaClient();
 
@@ -834,9 +835,9 @@ function chooseBestArticlesForFight(fight, articles, limitPerSource) {
 async function postDraft(baseUrl, item) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/ingest/draft`, {
     method: "POST",
-    headers: {
+    headers: buildInternalApiHeaders({
       "Content-Type": "application/json"
-    },
+    }),
     body: JSON.stringify(item)
   });
 

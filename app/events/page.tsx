@@ -4,12 +4,20 @@ import Link from "next/link";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { Pagination } from "@/components/pagination";
 import { getEventsPageData } from "@/lib/db";
 import { formatWeightClass, getDisplayName } from "@/lib/display";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { getSiteUrl } from "@/lib/site";
+
+function resolveCity(city: string, venue?: string | null) {
+  if (city && city !== "TBD") return city;
+  if (!venue) return "";
+  const parts = venue.split(",");
+  return parts.length > 1 ? parts.slice(1).join(",").trim() : venue;
+}
 
 type EventsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -19,7 +27,8 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
   const status = readParam(params.status);
-  const hasFilters = Boolean(status);
+  const metaPage = readParam(params.page);
+  const hasFilters = Boolean(status || metaPage);
   const localizedUrl = localizePath("/events", locale);
 
   return {
@@ -51,9 +60,12 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const t = getDictionary(locale);
   const params = (await searchParams) ?? {};
   const status = readParam(params.status);
-  const { events, filters, options } = await getEventsPageData({
+  const pageParam = readParam(params.page);
+  const page = Math.max(1, parseInt(pageParam, 10) || 1);
+  const { events, totalCount, page: currentPage, totalPages, filters, options } = await getEventsPageData({
     promotion: "",
-    status
+    status,
+    page
   });
 
   const current = {
@@ -138,13 +150,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             />
 
             <p className="filter-results-copy">
-              {locale === "ru" ? `Турниров: ${events.length}` : `Events: ${events.length}`}
+              {locale === "ru" ? `Турниров: ${totalCount}` : `Events: ${totalCount}`}
             </p>
           </div>
         </aside>
 
         {events.length > 0 ? (
-          <div className="events-editorial-list">
+          <div>
+            <div className="events-editorial-list">
             {events.map((event) => {
               const leadFight = event.fights?.[0] ?? null;
               const previewFights = (event.fights ?? []).slice(0, 3);
@@ -181,7 +194,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                       <span className="event-listing-status">{statusLabel}</span>
                       <span className="event-listing-divider" />
                       <span className="event-listing-location">
-                        {event.city}
+                        {resolveCity(event.city, event.venue)}
                         {event.venue ? ` · ${event.venue}` : ""}
                       </span>
                     </div>
@@ -214,7 +227,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                             </div>
 
                             {fight.predictionSnapshot ? (
-                              <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-listing-fight-link">
+                              <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-listing-fight-link">
                                 {t.common.openPrediction}
                               </Link>
                             ) : (
@@ -236,6 +249,14 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                 </article>
               );
             })}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              basePath={localizePath("/events", locale)}
+              params={{ status: filters.status }}
+              locale={locale}
+            />
           </div>
         ) : (
           <FilterEmptyState

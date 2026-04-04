@@ -1,8 +1,10 @@
 import type { ArticleStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
-import { PageHero } from "@/components/page-hero";
+import { adminLogoutAction } from "@/app/admin/login/actions";
 import { AdminWorkspace } from "@/components/admin-workspace";
+import { PageHero } from "@/components/page-hero";
+import { requireAdminSession } from "@/lib/auth/server";
 import { getAdminDashboardData, getAdminEditorOptions } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 
@@ -13,7 +15,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: locale === "ru" ? "Админка FightBase Media" : "FightBase Media Admin",
-    description: locale === "ru" ? "Редакционная панель FightBase Media." : "FightBase Media editorial dashboard."
+    description: locale === "ru" ? "Редакционная панель FightBase Media." : "FightBase Media editorial dashboard.",
+    robots: {
+      index: false,
+      follow: false
+    }
   };
 }
 
@@ -28,6 +34,8 @@ type AdminPageSearchParams = {
   tagDelete?: string | string[];
   bulkUpdate?: string | string[];
   socialPost?: string | string[];
+  jobRun?: string | string[];
+  jobQueue?: string | string[];
   aiOnly?: string | string[];
   minConfidence?: string | string[];
   sort?: string | string[];
@@ -132,12 +140,7 @@ function getSocialPostMessage(locale: "ru" | "en", value: string | string[] | un
   }
 
   const [target, status, encodedMessage] = value.split(":");
-  const label =
-    target === "telegram"
-      ? "Telegram"
-      : target === "vk"
-        ? "VK"
-        : null;
+  const label = target === "telegram" ? "Telegram" : target === "vk" ? "VK" : null;
 
   if (!label) {
     return null;
@@ -149,7 +152,53 @@ function getSocialPostMessage(locale: "ru" | "en", value: string | string[] | un
 
   if (status === "error") {
     const message = encodedMessage ? decodeURIComponent(encodedMessage) : locale === "ru" ? "Неизвестная ошибка." : "Unknown error.";
-    return locale === "ru" ? `${label}: ${message}` : `${label}: ${message}`;
+    return `${label}: ${message}`;
+  }
+
+  return null;
+}
+
+function getJobRunMessage(locale: "ru" | "en", value: string | string[] | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const [status, encodedMessage] = value.split(":");
+  const message = encodedMessage ? decodeURIComponent(encodedMessage) : null;
+
+  if (status === "success") {
+    return locale === "ru"
+      ? `Очередь обработана: ${message || "worker завершил проход."}`
+      : `Queue processed: ${message || "worker completed a run."}`;
+  }
+
+  if (status === "error") {
+    return locale === "ru"
+      ? `Ошибка обработки очереди: ${message || "неизвестная ошибка."}`
+      : `Queue processing failed: ${message || "unknown error."}`;
+  }
+
+  return null;
+}
+
+function getJobQueueMessage(locale: "ru" | "en", value: string | string[] | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const [status, encodedMessage] = value.split(":");
+  const message = encodedMessage ? decodeURIComponent(encodedMessage) : null;
+
+  if (status === "success") {
+    return locale === "ru"
+      ? `Фоновая задача поставлена в очередь: ${message || "job queued."}`
+      : `Background job queued: ${message || "job queued."}`;
+  }
+
+  if (status === "error") {
+    return locale === "ru"
+      ? `Не удалось поставить задачу в очередь: ${message || "неизвестная ошибка."}`
+      : `Failed to queue background job: ${message || "unknown error."}`;
   }
 
   return null;
@@ -210,6 +259,8 @@ export default async function AdminPage({
 }: {
   searchParams?: Promise<AdminPageSearchParams>;
 }) {
+  await requireAdminSession("/admin");
+
   const locale = await getLocale();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const activeStatus = resolveStatusFilter(resolvedSearchParams?.status);
@@ -221,6 +272,8 @@ export default async function AdminPage({
   const minConfidence = resolveMinConfidence(resolvedSearchParams?.minConfidence);
   const bulkMessage = getBulkMessage(locale, resolvedSearchParams?.bulkUpdate);
   const socialPostMessage = getSocialPostMessage(locale, resolvedSearchParams?.socialPost);
+  const jobRunMessage = getJobRunMessage(locale, resolvedSearchParams?.jobRun);
+  const jobQueueMessage = getJobQueueMessage(locale, resolvedSearchParams?.jobQueue);
   const [data, options] = await Promise.all([
     getAdminDashboardData({
       status: activeStatus,
@@ -232,13 +285,13 @@ export default async function AdminPage({
   ]);
   const allowBulkReview = activeStatus === "draft" || activeStatus === "review" || !activeStatus;
   const moderationBaseFilters = { status: activeStatus, aiOnly, minConfidence, sort };
-  const aiQueueArticles = data.articles.filter((article) => article.aiConfidence != null).slice(0, 6);
+  const aiQueueArticles = data.articles.filter((article: (typeof data.articles)[number]) => article.aiConfidence != null).slice(0, 6);
   const currentAdminHref = buildAdminHref(moderationBaseFilters);
 
   return (
     <main className="container">
       <PageHero
-        eyebrow="/admin"
+        eyebrow="FightBase Media"
         title={locale === "ru" ? "Редакционная панель" : "Editorial dashboard"}
         description={
           locale === "ru"
@@ -246,6 +299,14 @@ export default async function AdminPage({
             : "Editorial dashboard backed by Prisma data for articles, AI drafts, fighters, events, sources, and tags."
         }
       />
+
+      <section className="admin-toolbar">
+        <form action={adminLogoutAction}>
+          <button type="submit" className="button secondary">
+            {locale === "ru" ? "Выйти" : "Log out"}
+          </button>
+        </form>
+      </section>
 
       <section className="stats-grid">
         <article className="stat-card">
@@ -263,6 +324,10 @@ export default async function AdminPage({
         <article className="stat-card">
           <p className="eyebrow">{locale === "ru" ? "Push-подписки" : "Push subscriptions"}</p>
           <h3>{data.counts.activeBrowserPushSubscriptions}</h3>
+        </article>
+        <article className="stat-card">
+          <p className="eyebrow">{locale === "ru" ? "Попытки входа" : "Login attempts"}</p>
+          <h3>{data.adminLoginAudits.length}</h3>
         </article>
       </section>
 
@@ -295,6 +360,8 @@ export default async function AdminPage({
         </p>
         {bulkMessage ? <p className="table-note">{bulkMessage}</p> : null}
         {socialPostMessage ? <p className="table-note">{socialPostMessage}</p> : null}
+        {jobRunMessage ? <p className="table-note">{jobRunMessage}</p> : null}
+        {jobQueueMessage ? <p className="table-note">{jobQueueMessage}</p> : null}
         {fighterDeleteBlocked ? (
           <p className="table-note">
             {locale === "ru"

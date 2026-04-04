@@ -10,6 +10,7 @@ const {
   finishIngestionRun,
   startIngestionRun
 } = require("./ingestion-run-store");
+const { buildInternalApiHeaders } = require("./internal-api");
 
 function parseArgs(argv) {
   const options = {
@@ -44,9 +45,9 @@ function parseArgs(argv) {
 async function postDraft(baseUrl, item) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/ingest/draft`, {
     method: "POST",
-    headers: {
+    headers: buildInternalApiHeaders({
       "Content-Type": "application/json"
-    },
+    }),
     body: JSON.stringify(item)
   });
 

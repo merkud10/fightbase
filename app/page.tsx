@@ -44,7 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const locale = await getLocale();
-  const { articles, events, fighters } = await getHomePageData();
+  const { articles, events, fighters, totalArticles, totalEvents, totalFighters } = await getHomePageData();
   const leadArticle = articles[0];
   const leadEvent = events[0];
   const leadFight = leadEvent?.fights?.[0];
@@ -216,15 +216,15 @@ export default async function HomePage() {
               <p className="eyebrow">{locale === "ru" ? "Редакционный ритм" : "Editorial rhythm"}</p>
               <div className="hero-stat-strip hero-stat-strip-compact">
                 <div className="hero-stat-card">
-                  <strong>{articles.length}</strong>
+                  <strong>{totalArticles}</strong>
                   <span>{locale === "ru" ? "материалов в ленте" : "stories in the feed"}</span>
                 </div>
                 <div className="hero-stat-card">
-                  <strong>{events.length}</strong>
+                  <strong>{totalEvents}</strong>
                   <span>{locale === "ru" ? "страниц турниров UFC" : "UFC event pages"}</span>
                 </div>
                 <div className="hero-stat-card">
-                  <strong>{fighters.length}</strong>
+                  <strong>{totalFighters}</strong>
                   <span>{locale === "ru" ? "профилей бойцов" : "fighter profiles"}</span>
                 </div>
               </div>

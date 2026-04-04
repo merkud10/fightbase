@@ -23,6 +23,7 @@ export async function Footer() {
         <div className="footer-links">
           <Link href={localizePath("/about", locale)}>{t.nav.about}</Link>
           <Link href={localizePath("/analysis", locale)}>{locale === "ru" ? "Аналитика" : "Analysis"}</Link>
+          <Link href={localizePath("/quotes", locale)}>{t.nav.quotes}</Link>
           <Link href={localizePath("/sources-policy", locale)}>
             {locale === "ru" ? "Политика источников" : "Sources policy"}
           </Link>

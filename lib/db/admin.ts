@@ -1,5 +1,6 @@
 import type { ArticleStatus } from "@prisma/client";
 
+import { getOperationalAlerts } from "@/lib/operational-monitoring";
 import { prisma } from "@/lib/prisma";
 import { dedupeFightersForPublicList } from "./fighters";
 
@@ -44,6 +45,10 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     fighters,
     sources,
     browserPushSubscriptions,
+    adminLoginAudits,
+    systemEvents,
+    operationalAlerts,
+    backgroundJobs,
     ingestionRuns,
     articleCount,
     eventCount,
@@ -91,6 +96,19 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
       orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
       take: 20
     }),
+    prisma.adminLoginAudit.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20
+    }),
+    prisma.systemEvent.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 25
+    }),
+    getOperationalAlerts(8),
+    prisma.backgroundJob.findMany({
+      orderBy: [{ createdAt: "desc" }],
+      take: 20
+    }),
     prisma.ingestionRun.findMany({
       orderBy: { startedAt: "desc" },
       take: 6
@@ -136,6 +154,10 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     fighters,
     sources,
     browserPushSubscriptions,
+    adminLoginAudits,
+    systemEvents,
+    operationalAlerts,
+    backgroundJobs,
     ingestionRuns
   };
 }
@@ -228,7 +250,7 @@ export async function getAdminArticleEditorData(articleId: string) {
 }
 
 export async function getHomePageData() {
-  const [articles, events, fighters] = await Promise.all([
+  const [articles, events, totalArticles, totalEvents, totalFighters] = await Promise.all([
     prisma.article.findMany({
       where: { status: "published" },
       orderBy: { publishedAt: "desc" },
@@ -254,22 +276,44 @@ export async function getHomePageData() {
       },
       take: 3
     }),
-    prisma.fighter.findMany({
-      where: {
-        AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
-      },
-      orderBy: [{ status: "asc" }, { name: "asc" }],
-      include: {
-        promotion: true,
-        _count: {
-          select: {
-            recentFights: true
-          }
-        }
-      },
-      take: 4
-    })
+    prisma.article.count({ where: { status: "published" } }),
+    prisma.event.count(),
+    prisma.fighter.count()
   ]);
 
-  return { articles, events, fighters: dedupeFightersForPublicList(fighters).slice(0, 4) };
+  const leadEvent = events[0];
+  const eventFighterIds = new Set<string>();
+
+  if (leadEvent) {
+    for (const fight of leadEvent.fights) {
+      eventFighterIds.add(fight.fighterAId);
+      eventFighterIds.add(fight.fighterBId);
+    }
+  }
+
+  const fighters = eventFighterIds.size > 0
+    ? await prisma.fighter.findMany({
+        where: {
+          id: { in: [...eventFighterIds] },
+          AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
+        },
+        include: {
+          promotion: true,
+          _count: { select: { recentFights: true } }
+        }
+      })
+    : await prisma.fighter.findMany({
+        where: {
+          status: { in: ["champion", "active"] },
+          AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
+        },
+        orderBy: [{ status: "asc" }, { name: "asc" }],
+        include: {
+          promotion: true,
+          _count: { select: { recentFights: true } }
+        },
+        take: 8
+      });
+
+  return { articles, events, fighters: dedupeFightersForPublicList(fighters).slice(0, 4), totalArticles, totalEvents, totalFighters };
 }

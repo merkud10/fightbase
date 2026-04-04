@@ -6,19 +6,28 @@ import { prisma } from "@/lib/prisma";
 type EventsPageFilters = {
   promotion?: string;
   status?: string;
+  page?: number;
+  perPage?: number;
 };
+
+const EVENTS_PER_PAGE = 12;
 
 export async function getEventsPageData(filters: EventsPageFilters = {}) {
   const validStatuses: EventStatus[] = ["upcoming", "live", "completed"];
   const normalizedStatus = validStatuses.includes(filters.status as EventStatus) ? (filters.status as EventStatus) : undefined;
-  const promotionSlug = filters.promotion === "ufc" ? "ufc" : "ufc";
+  const promotionSlug = "ufc";
+  const perPage = filters.perPage ?? EVENTS_PER_PAGE;
+  const page = Math.max(1, filters.page ?? 1);
 
-  const [events, promotions] = await Promise.all([
+  const eventWhere = {
+    promotion: { slug: promotionSlug },
+    ...(normalizedStatus ? { status: normalizedStatus } : {})
+  };
+
+  const [totalCount, events, promotions] = await Promise.all([
+    prisma.event.count({ where: eventWhere }),
     prisma.event.findMany({
-      where: {
-        promotion: { slug: promotionSlug },
-        ...(normalizedStatus ? { status: normalizedStatus } : {})
-      },
+      where: eventWhere,
       orderBy: [{ status: "asc" }, { date: "asc" }],
       include: {
         promotion: true,
@@ -32,7 +41,8 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
           orderBy: { createdAt: "asc" }
         }
       },
-      take: 100
+      skip: (page - 1) * perPage,
+      take: perPage
     }),
     prisma.promotion.findMany({
       where: {
@@ -43,8 +53,13 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
     })
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+
   return {
     events,
+    totalCount,
+    page: Math.min(page, totalPages),
+    totalPages,
     filters: {
       promotion: promotionSlug,
       status: normalizedStatus ?? ""
@@ -121,6 +136,7 @@ export const getPredictionPageParams = cache(async function getPredictionPagePar
       fightId: true,
       fight: {
         select: {
+          slug: true,
           event: {
             select: {
               slug: true
@@ -133,9 +149,9 @@ export const getPredictionPageParams = cache(async function getPredictionPagePar
   });
 });
 
-export const getFightPredictionPageData = cache(async function getFightPredictionPageData(eventSlug: string, fightId: string) {
+export const getFightPredictionPageData = cache(async function getFightPredictionPageData(eventSlug: string, fightSlug: string) {
   const fight = await prisma.fight.findUnique({
-    where: { id: fightId },
+    where: { slug: fightSlug },
     include: {
       predictionSnapshot: true,
       event: {

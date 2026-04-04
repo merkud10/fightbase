@@ -7,9 +7,15 @@ import { getSiteChromeData } from "./admin";
 type NewsPageFilters = {
   promotion?: string;
   tag?: string;
+  page?: number;
+  perPage?: number;
 };
 
+const NEWS_PER_PAGE = 12;
+
 export async function getNewsPageData(filters: NewsPageFilters = {}) {
+  const perPage = filters.perPage ?? NEWS_PER_PAGE;
+  const page = Math.max(1, filters.page ?? 1);
   const articleWhere: Prisma.ArticleWhereInput = {
     status: "published",
     category: "news",
@@ -28,8 +34,9 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
       : {})
   };
 
-  const [{ promotions, tags }, articles] = await Promise.all([
+  const [{ promotions, tags }, totalCount, articles] = await Promise.all([
     getSiteChromeData(),
+    prisma.article.count({ where: articleWhere }),
     prisma.article.findMany({
       where: articleWhere,
       orderBy: { publishedAt: "desc" },
@@ -37,14 +44,20 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
         promotion: true,
         tagMap: { include: { tag: true } }
       },
-      take: 100
+      skip: (page - 1) * perPage,
+      take: perPage
     })
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
 
   return {
     promotions,
     tags,
     articles,
+    totalCount,
+    page: Math.min(page, totalPages),
+    totalPages,
     filters: {
       promotion: filters.promotion ?? "",
       tag: filters.tag ?? ""

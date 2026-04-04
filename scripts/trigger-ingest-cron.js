@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
+const { getInternalApiSecret } = require("./internal-api");
+
 function parseArgs(argv) {
   const options = {
     baseUrl: process.env.INGEST_BASE_URL || "http://localhost:3000",
     file: "ingestion/sample-watchlist.json",
     dryRun: false,
-    secret: process.env.INGEST_CRON_SECRET || "",
+    secret: getInternalApiSecret(),
     job: process.env.INGEST_CRON_JOB || "ai-discovery",
     lookbackHours: Number(process.env.AI_DISCOVERY_LOOKBACK_HOURS || "8") || 8,
     limit: Number(process.env.AI_DISCOVERY_ITEM_LIMIT || "8") || 8,
@@ -69,14 +71,14 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
 
   if (!options.secret) {
-    throw new Error("Missing cron secret. Pass --secret or set INGEST_CRON_SECRET.");
+    throw new Error("Missing internal API secret. Pass --secret or set INTERNAL_API_SECRET.");
   }
 
   const response = await fetch(`${options.baseUrl.replace(/\/$/, "")}/api/cron/ingest`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-ingest-cron-secret": options.secret
+      "x-internal-api-secret": options.secret
     },
     body: JSON.stringify({
       job: options.job,

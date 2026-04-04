@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { adminSessionCookieName, verifyAdminSessionToken } from "@/lib/auth/session";
 import { localeCookieName } from "@/lib/locale-config";
 import { isLocale, localizePath, stripLocalePrefix } from "@/lib/locale-path";
 
@@ -26,10 +27,30 @@ function isSecureContext(request: NextRequest) {
   return request.nextUrl.protocol === "https:";
 }
 
-export function middleware(request: NextRequest) {
+async function isAuthorizedAdminRequest(request: NextRequest) {
+  const secret = process.env.AUTH_SESSION_SECRET?.trim();
+  const token = request.cookies.get(adminSessionCookieName)?.value;
+
+  if (!secret || !token) {
+    return false;
+  }
+
+  const session = await verifyAdminSessionToken(token, secret);
+  return Boolean(session);
+}
+
+function buildAdminLoginRedirect(request: NextRequest, locale?: "ru" | "en") {
+  const nextValue = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = locale ? localizePath("/admin/login", locale) : "/admin/login";
+  redirectUrl.searchParams.set("next", nextValue);
+  return redirectUrl;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/api") || pathname.startsWith("/admin") || pathname.startsWith("/_next")) {
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
 
@@ -39,6 +60,68 @@ export function middleware(request: NextRequest) {
 
   const prefixed = stripLocalePrefix(pathname);
   const secure = isSecureContext(request);
+
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login") {
+      return NextResponse.next();
+    }
+
+    if (!(await isAuthorizedAdminRequest(request))) {
+      return NextResponse.redirect(buildAdminLoginRedirect(request));
+    }
+
+    return NextResponse.next();
+  }
+
+  if (prefixed.locale && prefixed.pathname.startsWith("/admin")) {
+    if (prefixed.pathname === "/admin/login") {
+      const headers = new Headers(request.headers);
+      headers.set("x-fightbase-locale", prefixed.locale);
+
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = prefixed.pathname;
+
+      const response = NextResponse.rewrite(rewriteUrl, {
+        request: {
+          headers
+        }
+      });
+
+      response.cookies.set(localeCookieName, prefixed.locale, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+        secure
+      });
+
+      return response;
+    }
+
+    if (!(await isAuthorizedAdminRequest(request))) {
+      return NextResponse.redirect(buildAdminLoginRedirect(request, prefixed.locale));
+    }
+
+    const headers = new Headers(request.headers);
+    headers.set("x-fightbase-locale", prefixed.locale);
+
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = prefixed.pathname;
+
+    const response = NextResponse.rewrite(rewriteUrl, {
+      request: {
+        headers
+      }
+    });
+
+    response.cookies.set(localeCookieName, prefixed.locale, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+      secure
+    });
+
+    return response;
+  }
 
   if (prefixed.locale) {
     const headers = new Headers(request.headers);

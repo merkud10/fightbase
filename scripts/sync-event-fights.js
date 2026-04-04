@@ -7,6 +7,29 @@ const { syncUfcFighterBySlug } = require("./sync-ufc-roster");
 
 const prisma = new PrismaClient();
 
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+async function generateFightSlug(fighterASlug, fighterBSlug) {
+  const baseSlug = `${slugify(fighterASlug)}-vs-${slugify(fighterBSlug)}`;
+  let slug = baseSlug;
+  let counter = 2;
+
+  while (await prisma.fight.findUnique({ where: { slug } })) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+}
+
 const SECTION_CONFIG = [
   { id: "main-card", stage: "main_card", label: "Main Card" },
   { id: "prelims-card", stage: "prelims", label: "Prelims" },
@@ -204,14 +227,19 @@ async function syncEventFightCard(event) {
 
     const existing = existingByKey.get(key);
     if (existing) {
+      const updateData = { ...data };
+      if (!existing.slug) {
+        updateData.slug = await generateFightSlug(fighterA.slug, fighterB.slug);
+      }
       await prisma.fight.update({
         where: { id: existing.id },
-        data
+        data: updateData
       });
       updated += 1;
       continue;
     }
 
+    data.slug = await generateFightSlug(fighterA.slug, fighterB.slug);
     await prisma.fight.create({ data });
     created += 1;
   }

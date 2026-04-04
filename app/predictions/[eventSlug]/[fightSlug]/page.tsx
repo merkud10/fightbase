@@ -61,11 +61,11 @@ function hasUsablePhoto(url?: string | null) {
 export async function generateMetadata({
   params
 }: {
-  params: Promise<{ eventSlug: string; fightId: string }>;
+  params: Promise<{ eventSlug: string; fightSlug: string }>;
 }): Promise<Metadata> {
-  const { eventSlug, fightId } = await params;
+  const { eventSlug, fightSlug } = await params;
   const locale = await getLocale();
-  const data = await getFightPredictionPageData(eventSlug, fightId);
+  const data = await getFightPredictionPageData(eventSlug, fightSlug);
 
   if (!data) {
     return {
@@ -80,14 +80,14 @@ export async function generateMetadata({
     title: snapshotContent.titleTag,
     description: snapshotContent.metaDescription,
     alternates: {
-      ...buildLocaleAlternates(`/predictions/${eventSlug}/${fightId}`),
-      canonical: localizePath(`/predictions/${eventSlug}/${fightId}`, locale)
+      ...buildLocaleAlternates(`/predictions/${eventSlug}/${fightSlug}`),
+      canonical: localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale)
     },
     openGraph: {
       type: "article",
       title: snapshotContent.titleTag,
       description: snapshotContent.metaDescription,
-      url: localizePath(`/predictions/${eventSlug}/${fightId}`, locale)
+      url: localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale)
     },
     twitter: {
       card: "summary_large_image",
@@ -106,18 +106,18 @@ export async function generateStaticParams() {
 
   return params.map((entry) => ({
     eventSlug: entry.fight.event.slug,
-    fightId: entry.fightId
+    fightSlug: entry.fight.slug!
   }));
 }
 
 export default async function FightPredictionPage({
   params
 }: {
-  params: Promise<{ eventSlug: string; fightId: string }>;
+  params: Promise<{ eventSlug: string; fightSlug: string }>;
 }) {
-  const { eventSlug, fightId } = await params;
+  const { eventSlug, fightSlug } = await params;
   const locale = await getLocale();
-  const data = await getFightPredictionPageData(eventSlug, fightId);
+  const data = await getFightPredictionPageData(eventSlug, fightSlug);
 
   if (!data) {
     notFound();
@@ -133,7 +133,7 @@ export default async function FightPredictionPage({
     ? relatedPredictionArticles.filter((a) => a.id !== fightPredictionArticle.id)
     : relatedPredictionArticles;
   const siteUrl = getSiteUrl();
-  const pageUrl = new URL(localizePath(`/predictions/${eventSlug}/${fightId}`, locale), siteUrl).toString();
+  const pageUrl = new URL(localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale), siteUrl).toString();
   const fighterAName = getDisplayName(fight.fighterA, locale);
   const fighterBName = getDisplayName(fight.fighterB, locale);
   const breadcrumbItems = [

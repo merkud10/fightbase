@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
+const { buildInternalApiHeaders } = require("./internal-api");
 
 const prisma = new PrismaClient();
 
@@ -222,7 +223,7 @@ async function fightAlreadyCovered(fight) {
 async function postDraft(baseUrl, item) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/ingest/draft`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildInternalApiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(item)
   });
   const payload = await response.json().catch(() => null);

@@ -1,9 +1,14 @@
 "use server";
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { requireAdminSession } from "@/lib/auth/server";
 import { asOptionalNumber, asOptionalString, asRequiredNumber, asRequiredString, asStringArray, slugify } from "@/lib/admin";
+import { backgroundJobTypes, enqueueBackgroundJob } from "@/lib/background-jobs";
 import { createDraftFromIngestion } from "@/lib/ingestion";
 import { prisma } from "@/lib/prisma";
 import { publishArticleToTelegram, publishArticleToVk } from "@/lib/social-publish";
@@ -15,6 +20,8 @@ import {
   SourceTypeSchema
 } from "@/lib/validation";
 
+const execFileAsync = promisify(execFile);
+
 function articleSectionsFromBody(body: string) {
   return [
     {
@@ -25,7 +32,12 @@ function articleSectionsFromBody(body: string) {
   ];
 }
 
+async function assertAdminAccess() {
+  await requireAdminSession("/admin");
+}
+
 export async function createArticleAction(formData: FormData) {
+  await assertAdminAccess();
   const title = asRequiredString(formData.get("title"), "title");
   const excerpt = asRequiredString(formData.get("excerpt"), "excerpt");
   const meaning = asRequiredString(formData.get("meaning"), "meaning");
@@ -81,6 +93,7 @@ export async function createArticleAction(formData: FormData) {
 }
 
 export async function updateArticleAction(articleId: string, formData: FormData) {
+  await assertAdminAccess();
   const title = asRequiredString(formData.get("title"), "title");
   const excerpt = asRequiredString(formData.get("excerpt"), "excerpt");
   const meaning = asRequiredString(formData.get("meaning"), "meaning");
@@ -143,6 +156,7 @@ export async function updateArticleAction(articleId: string, formData: FormData)
 }
 
 export async function deleteArticleAction(formData: FormData) {
+  await assertAdminAccess();
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
 
   await prisma.article.delete({
@@ -155,6 +169,7 @@ export async function deleteArticleAction(formData: FormData) {
 }
 
 export async function bulkUpdateArticleStatusAction(formData: FormData) {
+  await assertAdminAccess();
   const articleIds = asStringArray(formData.getAll("articleIds"));
   const targetStatus = ArticleStatusSchema.parse(formData.get("targetStatus"));
   const currentStatus = asOptionalString(formData.get("currentStatus"));
@@ -188,6 +203,7 @@ export async function bulkUpdateArticleStatusAction(formData: FormData) {
 }
 
 export async function quickUpdateArticleStatusAction(formData: FormData) {
+  await assertAdminAccess();
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
   const targetStatus = ArticleStatusSchema.parse(formData.get("targetStatus"));
   const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
@@ -206,6 +222,7 @@ export async function quickUpdateArticleStatusAction(formData: FormData) {
 }
 
 export async function deactivateBrowserPushSubscriptionAction(formData: FormData) {
+  await assertAdminAccess();
   const subscriptionId = asRequiredString(formData.get("subscriptionId"), "subscriptionId");
   const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
 
@@ -221,6 +238,72 @@ export async function deactivateBrowserPushSubscriptionAction(formData: FormData
   redirect(returnTo);
 }
 
+export async function runBackgroundJobsNowAction(formData: FormData) {
+  await assertAdminAccess();
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
+  const limit = asOptionalNumber(formData.get("limit")) ?? 5;
+
+  try {
+    const result = await execFileAsync(process.execPath, ["scripts/process-background-jobs.js", "--limit", String(limit)], {
+      cwd: process.cwd(),
+      timeout: 240_000
+    });
+
+    revalidatePath("/admin");
+    redirect(
+      appendAdminResult(
+        returnTo,
+        "jobRun",
+        `success:${encodeURIComponent(result.stdout?.trim() || `Processed background jobs: ${limit}`)}`
+      )
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Background jobs worker failed.";
+    revalidatePath("/admin");
+    redirect(appendAdminResult(returnTo, "jobRun", `error:${encodeURIComponent(message)}`));
+  }
+}
+
+export async function enqueueBackgroundJobAction(formData: FormData) {
+  await assertAdminAccess();
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
+  const jobTypeRaw = asRequiredString(formData.get("jobType"), "jobType");
+  const priority = asOptionalNumber(formData.get("priority")) ?? undefined;
+  const limit = asOptionalNumber(formData.get("limit")) ?? undefined;
+  const lookbackHours = asOptionalNumber(formData.get("lookbackHours")) ?? undefined;
+  const file = asOptionalString(formData.get("file")) ?? undefined;
+  const status = asOptionalString(formData.get("status")) ?? undefined;
+  const dryRun = asOptionalString(formData.get("dryRun")) === "1";
+
+  const jobType = backgroundJobTypes.find((entry) => entry === jobTypeRaw);
+
+  if (!jobType) {
+    redirect(appendAdminResult(returnTo, "jobQueue", "error:Unsupported%20job%20type"));
+  }
+
+  try {
+    const job = await enqueueBackgroundJob({
+      type: jobType,
+      priority,
+      payload: {
+        baseUrl: process.env.INGEST_BASE_URL || "http://localhost:3000",
+        limit,
+        lookbackHours,
+        file,
+        status,
+        dryRun
+      }
+    });
+
+    revalidatePath("/admin");
+    redirect(appendAdminResult(returnTo, "jobQueue", `success:${encodeURIComponent(`${jobType}:${job.id}`)}`));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to enqueue background job.";
+    revalidatePath("/admin");
+    redirect(appendAdminResult(returnTo, "jobQueue", `error:${encodeURIComponent(message)}`));
+  }
+}
+
 function appendAdminResult(returnTo: string, key: string, value: string) {
   const url = new URL(returnTo, "http://localhost");
   url.searchParams.set(key, value);
@@ -228,6 +311,7 @@ function appendAdminResult(returnTo: string, key: string, value: string) {
 }
 
 export async function publishArticleToTelegramAction(formData: FormData) {
+  await assertAdminAccess();
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
   const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
 
@@ -241,6 +325,7 @@ export async function publishArticleToTelegramAction(formData: FormData) {
 }
 
 export async function publishArticleToVkAction(formData: FormData) {
+  await assertAdminAccess();
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
   const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
 
@@ -254,6 +339,7 @@ export async function publishArticleToVkAction(formData: FormData) {
 }
 
 export async function ingestDraftArticleAction(formData: FormData) {
+  await assertAdminAccess();
   const headline = asRequiredString(formData.get("headline"), "headline");
   const body = asRequiredString(formData.get("body"), "body");
   const sourceLabel = asRequiredString(formData.get("sourceLabel"), "sourceLabel");
@@ -289,6 +375,7 @@ export async function ingestDraftArticleAction(formData: FormData) {
 }
 
 export async function createSourceAction(formData: FormData) {
+  await assertAdminAccess();
   const label = asRequiredString(formData.get("label"), "label");
   const type = SourceTypeSchema.parse(formData.get("type"));
   const url = asRequiredString(formData.get("url"), "url");
@@ -308,6 +395,7 @@ export async function createSourceAction(formData: FormData) {
 }
 
 export async function updateSourceAction(sourceId: string, formData: FormData) {
+  await assertAdminAccess();
   const label = asRequiredString(formData.get("label"), "label");
   const type = SourceTypeSchema.parse(formData.get("type"));
   const url = asRequiredString(formData.get("url"), "url");
@@ -328,6 +416,7 @@ export async function updateSourceAction(sourceId: string, formData: FormData) {
 }
 
 export async function deleteSourceAction(formData: FormData) {
+  await assertAdminAccess();
   const sourceId = asRequiredString(formData.get("sourceId"), "sourceId");
 
   await prisma.source.delete({
@@ -339,6 +428,7 @@ export async function deleteSourceAction(formData: FormData) {
 }
 
 export async function createFighterAction(formData: FormData) {
+  await assertAdminAccess();
   const name = asRequiredString(formData.get("name"), "name");
   const nameRu = asOptionalString(formData.get("nameRu"));
   const nickname = asOptionalString(formData.get("nickname"));
@@ -383,6 +473,7 @@ export async function createFighterAction(formData: FormData) {
 }
 
 export async function updateFighterAction(fighterId: string, formData: FormData) {
+  await assertAdminAccess();
   const name = asRequiredString(formData.get("name"), "name");
   const nameRu = asOptionalString(formData.get("nameRu"));
   const nickname = asOptionalString(formData.get("nickname"));
@@ -428,6 +519,7 @@ export async function updateFighterAction(fighterId: string, formData: FormData)
 }
 
 export async function deleteFighterAction(formData: FormData) {
+  await assertAdminAccess();
   const fighterId = asRequiredString(formData.get("fighterId"), "fighterId");
   const fightCount = await prisma.fight.count({
     where: {
@@ -449,6 +541,7 @@ export async function deleteFighterAction(formData: FormData) {
 }
 
 export async function createEventAction(formData: FormData) {
+  await assertAdminAccess();
   const name = asRequiredString(formData.get("name"), "name");
   const date = asRequiredString(formData.get("date"), "date");
   const city = asRequiredString(formData.get("city"), "city");
@@ -477,6 +570,7 @@ export async function createEventAction(formData: FormData) {
 }
 
 export async function updateEventAction(eventId: string, formData: FormData) {
+  await assertAdminAccess();
   const name = asRequiredString(formData.get("name"), "name");
   const date = asRequiredString(formData.get("date"), "date");
   const city = asRequiredString(formData.get("city"), "city");
@@ -506,6 +600,7 @@ export async function updateEventAction(eventId: string, formData: FormData) {
 }
 
 export async function deleteEventAction(formData: FormData) {
+  await assertAdminAccess();
   const eventId = asRequiredString(formData.get("eventId"), "eventId");
   const [fightCount, articleCount] = await Promise.all([
     prisma.fight.count({ where: { eventId } }),
@@ -526,6 +621,7 @@ export async function deleteEventAction(formData: FormData) {
 }
 
 export async function createTagAction(formData: FormData) {
+  await assertAdminAccess();
   const label = asRequiredString(formData.get("label"), "label");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(label);
 
@@ -541,6 +637,7 @@ export async function createTagAction(formData: FormData) {
 }
 
 export async function updateTagAction(tagId: string, formData: FormData) {
+  await assertAdminAccess();
   const label = asRequiredString(formData.get("label"), "label");
   const slug = asOptionalString(formData.get("slug")) ?? slugify(label);
 
@@ -557,6 +654,7 @@ export async function updateTagAction(tagId: string, formData: FormData) {
 }
 
 export async function deleteTagAction(formData: FormData) {
+  await assertAdminAccess();
   const tagId = asRequiredString(formData.get("tagId"), "tagId");
   const articleCount = await prisma.articleTag.count({
     where: { tagId }

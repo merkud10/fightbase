@@ -5,6 +5,7 @@ import { ArticleCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { Pagination } from "@/components/pagination";
 import { getNewsPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -19,7 +20,8 @@ export async function generateMetadata({ searchParams }: NewsPageProps): Promise
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
   const tag = readParam(params.tag);
-  const hasFilters = Boolean(tag);
+  const metaPage = readParam(params.page);
+  const hasFilters = Boolean(tag || metaPage);
   const localizedUrl = localizePath("/news", locale);
   const title = locale === "ru" ? "Новости UFC" : "UFC News";
   const description =
@@ -50,9 +52,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
   const tag = readParam(params.tag);
-  const { tags, articles, filters } = await getNewsPageData({
+  const pageParam = readParam(params.page);
+  const page = Math.max(1, parseInt(pageParam, 10) || 1);
+  const { tags, articles, totalCount, page: currentPage, totalPages, filters } = await getNewsPageData({
     promotion: "",
-    tag
+    tag,
+    page
   });
 
   const current = {
@@ -126,16 +131,25 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
             />
 
             <p className="filter-results-copy">
-              {locale === "ru" ? `Материалов: ${articles.length}` : `Stories: ${articles.length}`}
+              {locale === "ru" ? `Материалов: ${totalCount}` : `Stories: ${totalCount}`}
             </p>
           </div>
         </aside>
 
         {articles.length > 0 ? (
-          <div className="story-grid">
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} locale={locale} />
-            ))}
+          <div>
+            <div className="story-grid">
+              {articles.map((article) => (
+                <ArticleCard key={article.id} article={article} locale={locale} />
+              ))}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              basePath={localizePath("/news", locale)}
+              params={{ tag: filters.tag }}
+              locale={locale}
+            />
           </div>
         ) : (
           <FilterEmptyState

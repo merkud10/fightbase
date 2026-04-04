@@ -3,9 +3,11 @@ import Link from "next/link";
 import {
   bulkUpdateArticleStatusAction,
   deactivateBrowserPushSubscriptionAction,
+  enqueueBackgroundJobAction,
   publishArticleToTelegramAction,
   publishArticleToVkAction,
-  quickUpdateArticleStatusAction
+  quickUpdateArticleStatusAction,
+  runBackgroundJobsNowAction
 } from "@/app/admin/actions";
 import { AdminArticleForm } from "@/components/admin-article-form";
 import { AdminEventForm } from "@/components/admin-event-form";
@@ -104,6 +106,34 @@ function describeUserAgent(userAgent: string | null | undefined) {
   return "Browser";
 }
 
+function formatDateTime(date: Date | string, locale: "ru" | "en") {
+  return new Date(date).toLocaleString(locale === "ru" ? "ru-RU" : "en-US");
+}
+
+function formatMoscowDateTime(date: Date | string, locale: "ru" | "en") {
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    timeZone: "Europe/Moscow",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(new Date(date));
+}
+
+function parseEventMeta(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export function AdminWorkspace({
   locale,
   data,
@@ -177,6 +207,52 @@ export function AdminWorkspace({
                         </p>
                       </article>
                     </div>
+
+                    <article className="table-card admin-subscriptions-card">
+                      <div className="admin-table-head">
+                        <div>
+                          <p className="admin-kicker">{locale === "ru" ? "Безопасность" : "Security"}</p>
+                          <h3>{locale === "ru" ? "Последние попытки входа" : "Recent login attempts"}</h3>
+                          <p className="table-note">
+                            {locale === "ru"
+                              ? "Сразу видно последние успешные и неудачные попытки входа с IP и браузером."
+                              : "See the latest successful and failed sign-in attempts with IP and browser details."}
+                          </p>
+                        </div>
+                      </div>
+                      {data.adminLoginAudits.length ? (
+                        <div className="admin-subscription-list">
+                          {data.adminLoginAudits.slice(0, 5).map((entry: any) => (
+                            <article key={entry.id} className="admin-subscription-item">
+                              <div className="admin-subscription-copy">
+                                <div className="admin-subscription-top">
+                                  <span className={`status-pill ${entry.wasSuccessful ? "published" : "draft"}`}>
+                                    {entry.wasSuccessful
+                                      ? locale === "ru"
+                                        ? "Успешно"
+                                        : "Success"
+                                      : locale === "ru"
+                                        ? "Ошибка"
+                                        : "Failed"}
+                                  </span>
+                                  <span className="table-note">{describeUserAgent(entry.userAgent)}</span>
+                                </div>
+                                <strong>{entry.attemptedEmail || entry.email}</strong>
+                                <p className="table-note">
+                                  {locale === "ru"
+                                    ? `IP: ${entry.ipAddress || "unknown"} · Попытка: ${formatDateTime(entry.createdAt, locale)}`
+                                    : `IP: ${entry.ipAddress || "unknown"} · Attempt: ${formatDateTime(entry.createdAt, locale)}`}
+                                </p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="table-note">
+                          {locale === "ru" ? "Попыток входа пока нет." : "There are no login attempts yet."}
+                        </p>
+                      )}
+                    </article>
 
                     <article className="table-card moderation-controls">
                       <div className="moderation-controls-grid">
@@ -450,7 +526,7 @@ export function AdminWorkspace({
                     </div>
                   </div>
                   <div className="admin-form-cluster">
-                    <AdminIngestForm locale={locale} />
+                    <AdminIngestForm locale={locale} currentAdminHref={currentAdminHref} />
                     <AdminArticleForm
                       locale={locale}
                       promotions={promotionOptions}
@@ -515,6 +591,243 @@ export function AdminWorkspace({
                         {locale === "ru"
                           ? "Пока нет ни одной сохраненной browser push-подписки."
                           : "There are no saved browser push subscriptions yet."}
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Автоматизация" : "Automation"}</p>
+                        <h3>{locale === "ru" ? "Поставить ingest в очередь" : "Queue ingest jobs"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Быстрые кнопки для постановки фоновых задач без терминала: news discovery, аналитика и полный odds sync."
+                            : "Quick buttons to enqueue background ingestion jobs without using the terminal."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="admin-subscription-list">
+                      <article className="admin-subscription-item">
+                        <div className="admin-subscription-copy">
+                          <strong>{locale === "ru" ? "Срочный odds sync" : "Priority odds sync"}</strong>
+                          <p className="table-note">
+                            {locale === "ru"
+                              ? "Запускает приоритетную задачу на пересчет турниров, карда, коэффициентов и прогнозов."
+                              : "Queues a priority job to refresh events, fight cards, odds, and prediction snapshots."}
+                          </p>
+                        </div>
+                        <form action={enqueueBackgroundJobAction}>
+                          <input type="hidden" name="returnTo" value={currentAdminHref} />
+                          <input type="hidden" name="jobType" value="sync-odds" />
+                          <input type="hidden" name="priority" value="10" />
+                          <button type="submit" className="button">
+                            {locale === "ru" ? "В очередь" : "Queue"}
+                          </button>
+                        </form>
+                      </article>
+                    </div>
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Безопасность" : "Security"}</p>
+                        <h3>{locale === "ru" ? "История входов в админку" : "Admin login history"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Последние успешные и неудачные попытки входа с IP-адресом, браузером и временем."
+                            : "Recent successful and failed login attempts with IP address, browser, and timestamp."}
+                        </p>
+                      </div>
+                    </div>
+                    {data.adminLoginAudits.length ? (
+                      <div className="admin-subscription-list">
+                        {data.adminLoginAudits.map((entry: any) => (
+                          <article key={entry.id} className="admin-subscription-item">
+                            <div className="admin-subscription-copy">
+                              <div className="admin-subscription-top">
+                                <span className={`status-pill ${entry.wasSuccessful ? "published" : "draft"}`}>
+                                  {entry.wasSuccessful
+                                    ? locale === "ru"
+                                      ? "Успешно"
+                                      : "Success"
+                                    : locale === "ru"
+                                      ? "Ошибка"
+                                      : "Failed"}
+                                </span>
+                                <span className="table-note">{describeUserAgent(entry.userAgent)}</span>
+                              </div>
+                              <strong>{entry.attemptedEmail || entry.email}</strong>
+                              <p className="table-note">
+                                {locale === "ru"
+                                  ? `IP: ${entry.ipAddress || "unknown"} · Попытка: ${formatDateTime(entry.createdAt, locale)}`
+                                  : `IP: ${entry.ipAddress || "unknown"} · Attempt: ${formatDateTime(entry.createdAt, locale)}`}
+                              </p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru"
+                          ? "История успешных входов пока пуста."
+                          : "There are no successful login events yet."}
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Алерты" : "Alerts"}</p>
+                        <h3>{locale === "ru" ? "Операционные предупреждения" : "Operational alerts"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Последние важные сигналы по фоновым задачам, ingestion и системным ошибкам."
+                            : "Recent important signals from background jobs, ingestion, and system-level failures."}
+                        </p>
+                      </div>
+                    </div>
+                    {data.operationalAlerts.length ? (
+                      <div className="admin-subscription-list">
+                        {data.operationalAlerts.map((alert: any) => (
+                          <article key={alert.id} className="admin-subscription-item">
+                            <div className="admin-subscription-copy">
+                              <div className="admin-subscription-top">
+                                <span
+                                  className={`status-pill ${
+                                    alert.severity === "error" ? "draft" : alert.severity === "warn" ? "review" : "published"
+                                  }`}
+                                >
+                                  {alert.severity}
+                                </span>
+                                <span className="table-note">{alert.source}</span>
+                              </div>
+                              <strong>{alert.title}</strong>
+                              <p className="table-note">{alert.message}</p>
+                              <p className="table-note">
+                                {locale === "ru"
+                                  ? `Время (МСК): ${formatMoscowDateTime(alert.createdAt, locale)}`
+                                  : `Time (MSK): ${formatMoscowDateTime(alert.createdAt, locale)}`}
+                              </p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru"
+                          ? "Критичных operational-alerts сейчас нет."
+                          : "There are no critical operational alerts right now."}
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Мониторинг" : "Monitoring"}</p>
+                        <h3>{locale === "ru" ? "Системные события" : "System events"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Последние security и ingestion события: rate limit, unauthorized, ошибки cron и ingest."
+                            : "Recent security and ingestion events: rate limits, unauthorized requests, and cron or ingest failures."}
+                        </p>
+                      </div>
+                    </div>
+                    {data.systemEvents.length ? (
+                      <div className="admin-subscription-list">
+                        {data.systemEvents.map((event: any) => {
+                          const meta = parseEventMeta(event.meta);
+                          return (
+                            <article key={event.id} className="admin-subscription-item">
+                              <div className="admin-subscription-copy">
+                                <div className="admin-subscription-top">
+                                  <span className={`status-pill ${event.level === "error" ? "draft" : event.level === "warn" ? "review" : "published"}`}>
+                                    {event.level}
+                                  </span>
+                                  <span className="table-note">
+                                    {event.category} {event.source ? `· ${event.source}` : ""}
+                                  </span>
+                                </div>
+                                <strong>{event.message}</strong>
+                                <p className="table-note">
+                                  {locale === "ru"
+                                    ? `Время (МСК): ${formatMoscowDateTime(event.createdAt, locale)} · IP: ${event.ipAddress || "unknown"}`
+                                    : `Time (MSK): ${formatMoscowDateTime(event.createdAt, locale)} · IP: ${event.ipAddress || "unknown"}`}
+                                </p>
+                                {meta ? (
+                                  <p className="table-note">{truncateValue(JSON.stringify(meta), 120)}</p>
+                                ) : null}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru" ? "Системных событий пока нет." : "There are no system events yet."}
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Очередь" : "Queue"}</p>
+                        <h3>{locale === "ru" ? "Фоновые задачи" : "Background jobs"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Последние задания очереди: постановка, выполнение, повторы и ошибки."
+                            : "Recent queued jobs with execution status, retries, and errors."}
+                        </p>
+                      </div>
+                      <form action={runBackgroundJobsNowAction}>
+                        <input type="hidden" name="returnTo" value={currentAdminHref} />
+                        <input type="hidden" name="limit" value="5" />
+                        <button type="submit" className="button-secondary">
+                          {locale === "ru" ? "Запустить сейчас" : "Run now"}
+                        </button>
+                      </form>
+                    </div>
+                    {data.backgroundJobs.length ? (
+                      <div className="admin-subscription-list">
+                        {data.backgroundJobs.map((job: any) => (
+                          <article key={job.id} className="admin-subscription-item">
+                            <div className="admin-subscription-copy">
+                              <div className="admin-subscription-top">
+                                <span
+                                  className={`status-pill ${
+                                    job.status === "failed"
+                                      ? "draft"
+                                      : job.status === "running"
+                                        ? "review"
+                                        : job.status === "queued"
+                                          ? "muted"
+                                          : "published"
+                                  }`}
+                                >
+                                  {job.status}
+                                </span>
+                                <span className="table-note">
+                                  {job.type} · attempts {job.attempts}/{job.maxAttempts}
+                                </span>
+                              </div>
+                              <strong>{job.id}</strong>
+                              <p className="table-note">
+                                {locale === "ru"
+                                  ? `Создано: ${formatDateTime(job.createdAt, locale)} · Запуск: ${formatDateTime(job.runAt, locale)}`
+                                  : `Created: ${formatDateTime(job.createdAt, locale)} · Run at: ${formatDateTime(job.runAt, locale)}`}
+                              </p>
+                              {job.errorMessage ? <p className="table-note">{truncateValue(job.errorMessage, 120)}</p> : null}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru" ? "Фоновых задач пока нет." : "There are no background jobs yet."}
                       </p>
                     )}
                   </article>

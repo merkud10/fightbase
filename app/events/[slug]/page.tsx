@@ -164,7 +164,7 @@ export default async function EventPage({
                     <td>{formatFightStatus(fight.status, locale)}</td>
                     <td>
                       {fight.predictionSnapshot ? (
-                        <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-table-link">
+                        <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
                           {locale === "ru" ? "Открыть прогноз" : "Open prediction"}
                         </Link>
                       ) : (
@@ -195,7 +195,7 @@ export default async function EventPage({
                 .slice(0, 6)
                 .map((fight) => (
                   <li key={fight.id}>
-                    <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)}>
+                    <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}>
                       {locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name} vs{" "}
                       {locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name}
                     </Link>

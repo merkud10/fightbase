@@ -47,7 +47,7 @@ export default async function PredictionsPage() {
     event.fights.map((fight, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      url: new URL(localizePath(`/predictions/${event.slug}/${fight.id}`, locale), siteUrl).toString(),
+      url: new URL(localizePath(`/predictions/${event.slug}/${fight.slug}`, locale), siteUrl).toString(),
       name: `${getDisplayName(fight.fighterA, locale)} vs ${getDisplayName(fight.fighterB, locale)}`
     }))
   );
@@ -178,7 +178,7 @@ export default async function PredictionsPage() {
                 return hasSnapshot ? (
                   <Link
                     key={fight.id}
-                    href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)}
+                    href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}
                     className="prediction-match-card prediction-match-card--visual"
                   >
                     {cardInner}

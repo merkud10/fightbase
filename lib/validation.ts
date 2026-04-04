@@ -37,7 +37,12 @@ export const CronIngestInputSchema = z.object({
   job: z.enum(["watchlist", "ai-discovery", "sync-odds", "weekly-analysis"]).optional(),
   lookbackHours: z.number().finite().positive().optional(),
   limit: z.number().finite().int().positive().optional(),
-  status: z.enum(["draft", "review", "published"]).optional()
+  status: z.enum(["draft", "review", "published"]).optional(),
+  priority: z.number().finite().int().min(1).max(1000).optional()
+});
+
+export const BackgroundJobsRunInputSchema = z.object({
+  limit: z.number().finite().int().positive().max(50).optional()
 });
 
 export const BrowserPushSubscriptionSchema = z.object({

@@ -238,8 +238,10 @@ async function main() {
         continue;
       }
 
+      const fightSlug = `${fighterA.slug}-vs-${fighterB.slug}`;
       await prisma.fight.create({
         data: {
+          slug: fightSlug,
           stage: fight.stage,
           weightClass: fight.weightClass,
           status: fight.status,

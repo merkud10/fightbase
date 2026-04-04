@@ -9,6 +9,7 @@ const {
   finishIngestionRun,
   startIngestionRun
 } = require("./ingestion-run-store");
+const { buildInternalApiHeaders } = require("./internal-api");
 
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
 const DEFAULT_MODEL = "qwen35-aggressive:latest";
@@ -538,9 +539,9 @@ async function callOllama(options) {
 async function postDraft(baseUrl, item) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/ingest/draft`, {
     method: "POST",
-    headers: {
+    headers: buildInternalApiHeaders({
       "Content-Type": "application/json"
-    },
+    }),
     body: JSON.stringify(item)
   });
 

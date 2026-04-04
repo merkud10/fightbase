@@ -1,49 +1,23 @@
-import { execFile } from "node:child_process";
-import path from "node:path";
-import { promisify } from "node:util";
-
 import { NextResponse } from "next/server";
 
+import { authorizeRequest } from "@/lib/api-security";
+import { enqueueBackgroundJob } from "@/lib/background-jobs";
+import { logger } from "@/lib/logger";
+import { recordSystemEvent } from "@/lib/system-events";
 import { CronIngestInputSchema } from "@/lib/validation";
 
-const execFileAsync = promisify(execFile);
-
-function isAuthorized(request: Request) {
-  const expectedSecret = process.env.INGEST_CRON_SECRET;
-
-  if (!expectedSecret) {
-    return {
-      ok: false,
-      reason: "INGEST_CRON_SECRET is not configured"
-    };
-  }
-
-  const authHeader = request.headers.get("authorization");
-  const headerSecret = request.headers.get("x-ingest-cron-secret");
-  const bearerSecret = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
-  const providedSecret = headerSecret ?? bearerSecret;
-
-  if (providedSecret !== expectedSecret) {
-    return {
-      ok: false,
-      reason: "Unauthorized"
-    };
-  }
-
-  return { ok: true };
-}
-
 export async function POST(request: Request) {
-  const authorization = isAuthorized(request);
+  const authorization = await authorizeRequest(request, {
+    allowInternalToken: true,
+    rateLimit: {
+      scope: "api:cron:ingest",
+      limit: 24,
+      windowMs: 60_000
+    }
+  });
 
   if (!authorization.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: authorization.reason
-      },
-      { status: authorization.reason === "Unauthorized" ? 401 : 500 }
-    );
+    return authorization.response;
   }
 
   const rawBody = await request.json().catch(() => ({}));
@@ -57,7 +31,6 @@ export async function POST(request: Request) {
   }
 
   const body = parsed.data;
-  const origin = new URL(request.url).origin;
   const job =
     body.job === "watchlist"
       ? "watchlist"
@@ -66,58 +39,51 @@ export async function POST(request: Request) {
         : body.job === "weekly-analysis"
           ? "weekly-analysis"
           : "ai-discovery";
-  const scriptName =
-    job === "watchlist"
-      ? "fetch-source-feed.js"
-      : job === "sync-odds"
-        ? "sync-upcoming-pipeline.js"
-        : job === "weekly-analysis"
-          ? "discover-weekly-analysis.js"
-          : "discover-ai-news-repaired.js";
-  const scriptPath = path.resolve(process.cwd(), "scripts", scriptName);
-  const args = [scriptPath];
-
-  if (job === "watchlist") {
-    args.push("--base-url", origin);
-    args.push("--file", body.file ?? "ingestion/sample-watchlist.json");
-  } else if (job === "ai-discovery") {
-    args.push("--base-url", origin);
-
-    if (typeof body.lookbackHours === "number" && Number.isFinite(body.lookbackHours)) {
-      args.push("--lookback-hours", String(body.lookbackHours));
-    }
-
-    if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
-      args.push("--limit", String(body.limit));
-    }
-
-    if (body.status) {
-      args.push("--status", body.status);
-    }
-  } else if (job === "weekly-analysis") {
-    args.push("--base-url", origin);
-
-    if (typeof body.limit === "number" && Number.isFinite(body.limit)) {
-      args.push("--limit-per-source", String(body.limit));
-    }
-  }
-
-  if (body.dryRun && job !== "sync-odds") {
-    args.push("--dry-run");
-  }
 
   try {
-    const result = await execFileAsync(process.execPath, args, {
-      cwd: process.cwd(),
-      timeout: job === "weekly-analysis" ? 480_000 : 120_000
+    const enqueuedJob = await enqueueBackgroundJob({
+      type: job,
+      priority: body.priority ?? (job === "sync-odds" ? 25 : 100),
+      payload: {
+        baseUrl: new URL(request.url).origin,
+        file: body.file,
+        dryRun: body.dryRun,
+        lookbackHours: body.lookbackHours,
+        limit: body.limit,
+        status: body.status
+      }
+    });
+    logger.info("Cron ingest enqueued", {
+      ...authorization.context,
+      job,
+      mode: body.dryRun ? "dry-run" : "write",
+      queuedJobId: enqueuedJob.id
+    });
+    void recordSystemEvent({
+      level: "info",
+      category: "jobs.cron_ingest",
+      message: "Cron ingest enqueued",
+      source: "api/cron/ingest",
+      requestId: authorization.context.requestId,
+      path: authorization.context.path,
+      ipAddress: authorization.context.ip,
+      meta: {
+        job,
+        mode: body.dryRun ? "dry-run" : "write",
+        queuedJobId: enqueuedJob.id
+      }
     });
 
     return NextResponse.json({
       ok: true,
+      queued: true,
+      queuedJobId: enqueuedJob.id,
       job,
-      mode: body.dryRun ? "dry-run" : "write",
-      stdout: result.stdout.trim(),
-      stderr: result.stderr.trim()
+      mode: body.dryRun ? "dry-run" : "write"
+    }, {
+      headers: {
+        "x-request-id": authorization.context.requestId
+      }
     });
   } catch (error) {
     const executionError = error as {
@@ -125,15 +91,35 @@ export async function POST(request: Request) {
       stderr?: string;
       message?: string;
     };
-
+    logger.error("Cron ingest failed", {
+      ...authorization.context,
+      job,
+      error: executionError.message ?? "Cron ingest enqueue failed"
+    });
+    void recordSystemEvent({
+      level: "error",
+      category: "jobs.cron_ingest",
+      message: "Cron ingest enqueue failed",
+      source: "api/cron/ingest",
+      requestId: authorization.context.requestId,
+      path: authorization.context.path,
+      ipAddress: authorization.context.ip,
+      meta: {
+        job,
+        error: executionError.message ?? "Cron ingest enqueue failed"
+      }
+    });
     return NextResponse.json(
       {
         ok: false,
-        error: executionError.message ?? "Cron ingestion failed",
-        stdout: executionError.stdout?.trim() ?? "",
-        stderr: executionError.stderr?.trim() ?? ""
+        error: executionError.message ?? "Cron ingest enqueue failed"
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "x-request-id": authorization.context.requestId
+        }
+      }
     );
   }
 }

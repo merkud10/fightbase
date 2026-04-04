@@ -23,6 +23,7 @@ type ArticleCardData = {
 
 type EventFightCardData = {
   id: string;
+  slug?: string | null;
   weightClass: string;
   oddsA?: number | null;
   oddsB?: number | null;
@@ -38,6 +39,7 @@ type EventCardData = {
   summary: string;
   date: Date | string;
   city: string;
+  venue?: string;
   status?: string;
   promotion?: { shortName: string } | null;
   fights?: EventFightCardData[];
@@ -96,10 +98,18 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
   );
 }
 
+function resolveCity(city: string, venue?: string) {
+  if (city && city !== "TBD") return city;
+  if (!venue) return "";
+  const parts = venue.split(",");
+  return parts.length > 1 ? parts.slice(1).join(",").trim() : venue;
+}
+
 export function EventCard({ event, locale }: { event: EventCardData; locale: Locale }) {
   const t = getDictionary(locale);
   const fights = event.fights ?? [];
   const leadFight = fights[0];
+  const displayCity = resolveCity(event.city, event.venue);
   const statusLabel =
     locale === "ru"
       ? event.status === "completed"
@@ -124,7 +134,7 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
         </div>
 
         <div className="event-card-poster-body">
-          <p className="kicker event-card-city">{event.city}</p>
+          {displayCity ? <p className="kicker event-card-city">{displayCity}</p> : null}
           <h3 className="event-card-title">{event.name}</h3>
 
           <div className="event-card-poster-stack">
@@ -153,8 +163,8 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
                 </strong>
                 <span>{formatWeightClass(fight.weightClass, locale)}</span>
               </div>
-              {fight.predictionSnapshot ? (
-                <Link href={localizePath(`/predictions/${event.slug}/${fight.id}`, locale)} className="event-fight-link">
+              {fight.predictionSnapshot && fight.slug ? (
+                <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-fight-link">
                   {t.common.openPrediction}
                 </Link>
               ) : (

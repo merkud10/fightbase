@@ -1,9 +1,26 @@
 import { NextResponse } from "next/server";
 
+import { authorizeRequest } from "@/lib/api-security";
+import { logger } from "@/lib/logger";
 import { buildMeaningBlock, normalizeIngestionItem } from "@/lib/pipeline";
+import { recordSystemEvent } from "@/lib/system-events";
 import { IngestPreviewInputSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
+  const authorization = await authorizeRequest(request, {
+    allowAdminSession: true,
+    allowInternalToken: true,
+    rateLimit: {
+      scope: "api:ingest:preview",
+      limit: 60,
+      windowMs: 60_000
+    }
+  });
+
+  if (!authorization.ok) {
+    return authorization.response;
+  }
+
   let raw: unknown;
 
   try {
@@ -41,12 +58,38 @@ export async function POST(request: Request) {
         ...preview,
         meaning: buildMeaningBlock(body.body)
       }
+    }, {
+      headers: {
+        "x-request-id": authorization.context.requestId
+      }
     });
   } catch (error) {
-    console.error("Preview ingestion failed:", error);
+    logger.error("Preview ingestion failed", {
+      ...authorization.context,
+      authKind: authorization.kind,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    void recordSystemEvent({
+      level: "error",
+      category: "ingest.preview",
+      message: "Preview ingestion failed",
+      source: "api/ingest/preview",
+      requestId: authorization.context.requestId,
+      path: authorization.context.path,
+      ipAddress: authorization.context.ip,
+      meta: {
+        authKind: authorization.kind,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Preview failed" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "x-request-id": authorization.context.requestId
+        }
+      }
     );
   }
 }

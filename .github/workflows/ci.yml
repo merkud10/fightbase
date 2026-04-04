@@ -15,6 +15,10 @@ jobs:
     env:
       DATABASE_URL: file:./prisma/ci.db
       DEPLOYMENT_ENV: preview
+      AUTH_SESSION_SECRET: ci-auth-secret
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: ci-password
+      INTERNAL_API_SECRET: ci-internal-secret
       INGEST_CRON_SECRET: ci-secret
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_PUBLIC_ADS_ENABLED: "0"
@@ -41,5 +45,11 @@ jobs:
       - name: Push temporary CI schema
         run: npm run db:push
 
+      - name: Run tests
+        run: npm run test
+
       - name: Build app
         run: npm run build
+
+      - name: Run smoke checks
+        run: npm run test:smoke

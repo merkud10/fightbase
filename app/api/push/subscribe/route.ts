@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 
+import { authorizeRequest } from "@/lib/api-security";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { SaveBrowserPushInputSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
+  const authorization = await authorizeRequest(request, {
+    rateLimit: {
+      scope: "api:push:subscribe",
+      limit: 20,
+      windowMs: 60_000
+    }
+  });
+
+  if (!authorization.ok) {
+    return authorization.response;
+  }
+
   const raw = await request.json().catch(() => null);
   const parsed = SaveBrowserPushInputSchema.safeParse(raw);
 
@@ -42,8 +56,17 @@ export async function POST(request: Request) {
     }
   });
 
+  logger.info("Browser push subscription saved", {
+    ...authorization.context,
+    subscriptionId: saved.id
+  });
+
   return NextResponse.json({
     ok: true,
     subscription: saved
+  }, {
+    headers: {
+      "x-request-id": authorization.context.requestId
+    }
   });
 }
