@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "clean": "node scripts/clean-next.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-standalone.js",
     "lint": "next lint",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "test:smoke": "tsx tests/smoke-app.ts",
@@ -20,6 +21,7 @@
     "db:seed": "prisma db seed",
     "db:start:pg": "docker compose -f docker-compose.postgres.yml up -d",
     "db:stop:pg": "docker compose -f docker-compose.postgres.yml down",
+    "scheduler": "node scripts/local-scheduler.js",
     "content:localize": "node scripts/localize-existing-content.js",
     "content:seed-fighters": "node scripts/seed-fighter-cards.js",
     "content:enrich-fighters": "node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js",
@@ -70,12 +72,14 @@
     "jobs:trigger": "node scripts/trigger-background-jobs.js",
     "content:refresh-fighters-full": "node scripts/seed-fighter-cards.js && node scripts/sync-ufc-roster.js && node scripts/sync-ufc-russian-names.js --concurrency 24 && node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js && node scripts/normalize-imported-fighters.js && node scripts/backfill-fighter-bio-en.js && node scripts/fill-missing-fighter-bio-en.js && node scripts/refresh-fighter-bio-en-quality.js && node scripts/refresh-fighter-bio-ru-quality.js && node scripts/fill-missing-fighter-photos.js",
     "ingest:feed": "node scripts/ingest-feed.js",
+    "ingest:smoke": "node scripts/ingest-feed.js --file ingestion/smoke-published-news.json",
     "ingest:fetch": "node scripts/fetch-source-feed.js",
     "ingest:cron": "node scripts/trigger-ingest-cron.js",
     "ingest:analysis-cron": "node scripts/trigger-ingest-cron.js --job weekly-analysis"
   },
   "dependencies": {
     "@prisma/client": "6.18.0",
+    "dotenv": "^17.3.1",
     "next": "15.5.9",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -86,7 +90,6 @@
     "@types/node": "22.14.0",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
-    "dotenv": "^17.3.1",
     "prisma": "6.18.0",
     "tsx": "^4.21.0",
     "typescript": "5.8.3"

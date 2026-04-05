@@ -5,6 +5,7 @@ import { getArticleHref } from "@/lib/article-routes";
 import {
   formatArticleTagLabel,
   formatEventLocation,
+  formatFightMethod,
   formatFighterStatus,
   formatWeightClass,
   getDisplayName,
@@ -32,6 +33,13 @@ type EventFightCardData = {
   id: string;
   slug?: string | null;
   weightClass: string;
+  status?: string;
+  winnerFighterId?: string | null;
+  method?: string | null;
+  resultRound?: number | null;
+  resultTime?: string | null;
+  fighterAId?: string;
+  fighterBId?: string;
   oddsA?: number | null;
   oddsB?: number | null;
   predictionSnapshot?: { id: string } | null;
@@ -163,7 +171,21 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
                 </strong>
                 <span>{formatWeightClass(fight.weightClass, locale)}</span>
               </div>
-              {fight.predictionSnapshot && fight.slug ? (
+              {fight.status === "completed" && fight.winnerFighterId ? (
+                <span className="event-fight-result">
+                  {locale === "ru" ? "Победа: " : "Winner: "}
+                  <strong>
+                    {fight.winnerFighterId === fight.fighterAId
+                      ? getDisplayName(fight.fighterA, locale)
+                      : getDisplayName(fight.fighterB, locale)}
+                  </strong>
+                  {fight.method ? ` (${formatFightMethod(fight.method, locale)})` : ""}
+                </span>
+              ) : fight.status === "completed" ? (
+                <span className="event-fight-result">
+                  {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                </span>
+              ) : fight.predictionSnapshot && fight.slug ? (
                 <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-fight-link">
                   {t.common.openPrediction}
                 </Link>

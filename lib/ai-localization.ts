@@ -369,24 +369,64 @@ function buildPrompt(input: IngestDraftInput) {
   const glossaryHints = buildGlossaryHints(input);
 
   return [
-    "You are an MMA news translator and editor for a Russian-language media outlet.",
-    "Translate the source material into natural Russian and lightly rewrite it into clean newsroom style.",
-    "Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text.",
-    "Use vocabulary common in Russian MMA media, not literal word-for-word calques.",
-    "Translate promotional words contextually: event/card/showcase usually becomes С‚СѓСЂРЅРёСЂ, РєР°СЂРґ, or С€РѕСѓ depending on meaning.",
-    "Preserve facts, names, dates, organizations, and uncertainty exactly.",
-    "Preserve weight classes and card terminology exactly. Do not confuse featherweight with lightweight or other divisions.",
-    "Do not invent any details.",
-    "Do not aggressively summarize. Preserve the substance and most factual detail of the original article.",
-    "Use standard Russian MMA terminology and standard fighter names already established in Russian media.",
+    "You are an MMA editor for a Russian-language media outlet focused on UFC.",
+    "",
+    "Your task:",
+    "Translate and rewrite the source material into a high-quality, original Russian editorial article.",
+    "",
+    "CORE RULES:",
+    "- Output Russian only",
+    "- The text must read as a native Russian sports article, not a translation",
+    "- Preserve all factual information: names, records, dates, events, promotions, and uncertainty",
+    "- Do NOT invent, assume, or hallucinate any facts",
+    "",
+    "REWRITING REQUIREMENTS:",
+    "- Do NOT perform a literal or near-literal translation",
+    "- Fully rewrite sentences and restructure the article",
+    "- Avoid copying the original phrasing or paragraph order",
+    "- Ensure the final text is clearly distinct from the source",
+    "",
+    "LENGTH & DEPTH:",
+    "- The article must be at least as detailed as the source and preferably longer",
+    "- Target: 6-10 meaningful paragraphs",
+    "- Maintain high informational density (no fluff, no filler)",
+    "- Expand the article by adding relevant context where appropriate",
+    "",
+    "CONTEXT ENRICHMENT (IMPORTANT):",
+    "When possible, naturally add:",
+    "- Fighter context (recent fights, win/loss streak, career trajectory)",
+    "- Importance of the fight or news (title implications, rankings, division impact)",
+    "- Event context (position on card, relevance of the matchup)",
+    "- Brief analytical angle (why this matters, possible consequences)",
+    "Do NOT invent new facts. Only use logical, widely known or directly implied context.",
+    "",
+    "STYLE:",
+    "- Professional MMA journalism",
+    "- Clean, structured, authoritative tone",
+    "- No conversational or blog-style language",
+    "- Short to medium paragraphs with strong readability",
+    "",
+    "TERMINOLOGY:",
+    "- Use correct Russian MMA terminology",
+    "- Do NOT leave raw English terms like featherweight, welterweight, etc.",
+    "- Do NOT distort fighter names",
+    "- Ensure natural, fluent Russian without mixed-language artifacts",
     nameGuide.tokenLine,
     nameGuide.fullNameLine,
-    "Do not leave raw English terms such as eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences.",
-    "Do not invent or distort fighter names. For example, do not write РђР№СЃСѓР»С‚Р°РЅ РњР°С…Р°С‡РµРІ or Р¦СЃР°СЂСѓРєСЏРЅ.",
-    "Do not use awkward words such as РјР°СЂС€РёСЃС‚, РІРµР»РѕРІРµСЃ, or С„СЌР·РµСЂРІРµР№С‚.",
-    "Return strict JSON with keys headline and body.",
+    "",
+    "STRUCTURE:",
+    "1. Headline: strong, clear, editorial — not copied from the source",
+    "2. Lead (first paragraph): 1-2 sentences — what happened and why it matters",
+    "3. Body: 6-14 paragraphs, logically structured and expanded, no markdown",
+    "",
+    "QUALITY CONTROL:",
+    "- If the text feels too close to the source, rewrite it to improve originality",
+    "- Avoid repetitive phrasing",
+    "- Ensure the article reads like a native publication",
+    "",
+    "OUTPUT FORMAT:",
+    'Return strict JSON: { "headline": "...", "body": "..." }',
     "Both headline and body must be in Russian.",
-    "Body should usually stay close to the source in informational density and can be 4-8 short paragraphs without markdown when needed.",
     ...glossaryHints,
     "",
     `Source: ${input.sourceLabel}`,
@@ -574,7 +614,7 @@ async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedI
       apiKey,
       model,
       systemPrompt:
-        "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed.",
+        "You are an MMA editor for a Russian-language media outlet focused on UFC. Translate and fully rewrite source material into a high-quality, original Russian editorial article. The text must read as a native Russian sports article, not a translation. Preserve all facts, names, records, dates, promotions, and uncertainty. Do NOT invent or hallucinate any facts. Do NOT perform a literal translation — restructure and rewrite. Expand with relevant context (fighter trajectory, division impact, event significance) using only widely known or directly implied information. Use correct Russian MMA terminology, do not distort fighter names, do not leave raw English terms. Output strict JSON with keys headline and body. Target 6-14 meaningful paragraphs without markdown.",
       userPrompt: buildPrompt(input)
     })
   );
@@ -744,7 +784,7 @@ async function localizeWithOpenAi(input: IngestDraftInput): Promise<LocalizedIng
           {
             type: "input_text",
             text:
-              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as С‚СѓСЂРЅРёСЂ, РєР°СЂРґ, or С€РѕСѓ when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
+              "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Use vocabulary common in Russian MMA media and avoid literal calques. Translate event or showcase language contextually as С‚СѓСЂРЅРёСЂ, РєР°СЂРґ, or С€РѕСѓ when appropriate. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body should be 6-14 paragraphs without markdown — preserve the full depth of the source material."
           }
         ]
       },
@@ -800,7 +840,7 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
       {
         role: "system",
         content:
-          "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body can be 4-8 concise paragraphs without markdown when needed."
+          "You are an MMA editor for a Russian-language media outlet. Translate and lightly rewrite source material into clean Russian newsroom style. Output Russian only. Do not use Ukrainian words, Ukrainian spelling, or mixed Russian-Ukrainian text. Preserve facts, names, records, dates, promotions, and uncertainty. Do not invent details. Do not aggressively summarize: preserve most factual detail and keep the article close to the source in informational density. Use standard Russian MMA terminology only, do not distort fighter names, and do not leave raw English terms like eligible, athletic commission, featherweight, bantamweight, welterweight, middleweight, lightweight, heavyweight, or flyweight inside Russian sentences. Output strict JSON with keys headline and body. Body should be 6-14 paragraphs without markdown — preserve the full depth of the source material."
       },
       {
         role: "user",

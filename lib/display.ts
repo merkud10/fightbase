@@ -36,6 +36,24 @@ const fightStageMap: Record<string, { ru: string; en: string }> = {
   early_prelims: { ru: "Ранние прелимы", en: "Early prelims" }
 };
 
+const fightMethodMap: Record<string, { ru: string; en: string }> = {
+  "ko/tko": { ru: "Нокаут/Технический нокаут", en: "KO/TKO" },
+  ko: { ru: "Нокаут", en: "KO" },
+  tko: { ru: "Технический нокаут", en: "TKO" },
+  submission: { ru: "Сабмишен", en: "Submission" },
+  "decision - unanimous": { ru: "Единогласное решение", en: "Decision - Unanimous" },
+  "decision - split": { ru: "Раздельное решение", en: "Decision - Split" },
+  "decision - majority": { ru: "Решение большинства", en: "Decision - Majority" },
+  decision: { ru: "Решение судей", en: "Decision" },
+  "tko - doctor's stoppage": { ru: "Остановка врачом", en: "TKO - Doctor's Stoppage" },
+  "could not continue": { ru: "Невозможность продолжать", en: "Could Not Continue" },
+  dq: { ru: "Дисквалификация", en: "DQ" },
+  disqualification: { ru: "Дисквалификация", en: "Disqualification" },
+  "no contest": { ru: "Несостоявшийся бой", en: "No Contest" },
+  overturned: { ru: "Результат отменён", en: "Overturned" },
+  draw: { ru: "Ничья", en: "Draw" }
+};
+
 const articleTagMap: Record<string, { ru: string; en: string }> = {
   announcements: { ru: "Анонсы", en: "Announcements" },
   announcement: { ru: "Анонсы", en: "Announcements" },
@@ -174,7 +192,31 @@ export function getWeightClassFilterValues(value: string) {
 }
 
 export function formatWeightClass(value: string, locale: Locale) {
-  return localizeFromMap(weightClassMap, normalizeWeightClassValue(value), locale);
+  const cleaned = decodeHtmlEntities(String(value || "")).replace(/\s+/g, " ").trim();
+  const isBout = /\bbout$/i.test(cleaned);
+  const isTitle = /\btitle\b/i.test(cleaned);
+  const isInterim = /\binterim\b/i.test(cleaned);
+  const base = cleaned
+    .replace(/\s*(interim\s+)?title\s*$/i, "")
+    .replace(/\s*bout$/i, "")
+    .trim();
+  const normalized = normalizeWeightClassValue(base);
+  const localized = localizeFromMap(weightClassMap, normalized, locale);
+  if (isTitle) {
+    const titleLabel = isInterim
+      ? (locale === "ru" ? "Временный титульный бой" : "Interim Title Bout")
+      : (locale === "ru" ? "Титульный бой" : "Title Bout");
+    return `${localized} — ${titleLabel}`;
+  }
+  if (isBout) {
+    return localized;
+  }
+  return localized;
+}
+
+export function formatFightMethod(value: string | null | undefined, locale: Locale) {
+  if (!value) return "";
+  return localizeFromMap(fightMethodMap, value, locale);
 }
 
 export function formatFighterStatus(value: string, locale: Locale) {

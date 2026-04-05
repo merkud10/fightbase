@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   bulkUpdateArticleStatusAction,
   deactivateBrowserPushSubscriptionAction,
+  deleteArticleAction,
   enqueueBackgroundJobAction,
   publishArticleToTelegramAction,
   publishArticleToVkAction,
@@ -10,6 +11,7 @@ import {
   runBackgroundJobsNowAction
 } from "@/app/admin/actions";
 import { AdminArticleForm } from "@/components/admin-article-form";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { AdminEventForm } from "@/components/admin-event-form";
 import { AdminFighterForm } from "@/components/admin-fighter-form";
 import { AdminIngestForm } from "@/components/admin-ingest-form";
@@ -303,97 +305,7 @@ export function AdminWorkspace({
                       </div>
                     </article>
 
-                    <article className="table-card">
-                      <div className="admin-table-head">
-                        <div>
-                          <h3>{locale === "ru" ? "Быстрый AI review" : "Quick AI review"}</h3>
-                          <p className="table-note">
-                            {locale === "ru"
-                              ? "Черновики с AI score, summary и быстрыми кнопками смены статуса."
-                              : "AI-backed drafts with score, summary, and quick status actions."}
-                          </p>
-                        </div>
-                      </div>
 
-                      {aiQueueArticles.length ? (
-                        <div className="review-queue-list">
-                          {aiQueueArticles.map((article) => (
-                            <article key={article.id} className="review-queue-item">
-                              <div className="review-queue-top">
-                                <div className="review-queue-copy">
-                                  <p className="eyebrow">
-                                    {article.status} · {article.promotion?.shortName ?? "FightBase"} · {formatDate(article.publishedAt, locale)}
-                                  </p>
-                                  <h4>{article.title}</h4>
-                                </div>
-                                <span className={`score-pill ${getScoreTone(article.aiConfidence)}`}>
-                                  {article.aiConfidence != null ? article.aiConfidence.toFixed(2) : "-"}
-                                </span>
-                              </div>
-
-                              <p className="copy">{article.excerpt}</p>
-
-                              {article.ingestionSourceSummary ? (
-                                <div className="review-note">
-                                  <strong>{locale === "ru" ? "Сводка источника:" : "Source summary:"}</strong> {article.ingestionSourceSummary}
-                                </div>
-                              ) : null}
-
-                              {article.ingestionNotes ? (
-                                <div className="review-note">
-                                  <strong>{locale === "ru" ? "Заметки модерации:" : "Moderation notes:"}</strong> {article.ingestionNotes}
-                                </div>
-                              ) : null}
-
-                              <div className="review-queue-actions">
-                                {article.status !== "review" ? (
-                                  <form action={quickUpdateArticleStatusAction}>
-                                    <input type="hidden" name="articleId" value={article.id} />
-                                    <input type="hidden" name="targetStatus" value="review" />
-                                    <input type="hidden" name="returnTo" value={currentAdminHref} />
-                                    <button type="submit" className="button-secondary">
-                                      {locale === "ru" ? "На проверку" : "To review"}
-                                    </button>
-                                  </form>
-                                ) : null}
-
-                                {article.status !== "published" ? (
-                                  <form action={quickUpdateArticleStatusAction}>
-                                    <input type="hidden" name="articleId" value={article.id} />
-                                    <input type="hidden" name="targetStatus" value="published" />
-                                    <input type="hidden" name="returnTo" value={currentAdminHref} />
-                                    <button type="submit" className="button">
-                                      {locale === "ru" ? "Опубликовать" : "Publish"}
-                                    </button>
-                                  </form>
-                                ) : null}
-
-                                {article.status !== "draft" ? (
-                                  <form action={quickUpdateArticleStatusAction}>
-                                    <input type="hidden" name="articleId" value={article.id} />
-                                    <input type="hidden" name="targetStatus" value="draft" />
-                                    <input type="hidden" name="returnTo" value={currentAdminHref} />
-                                    <button type="submit" className="button-ghost">
-                                      {locale === "ru" ? "Вернуть в черновик" : "Move to draft"}
-                                    </button>
-                                  </form>
-                                ) : null}
-
-                                <Link href={`/admin/articles/${article.id}`} className="button-ghost">
-                                  {locale === "ru" ? "Открыть статью" : "Open article"}
-                                </Link>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="table-note">
-                          {locale === "ru"
-                            ? "В текущем фильтре нет AI-материалов для быстрой модерации."
-                            : "No AI-backed items in the current filter."}
-                        </p>
-                      )}
-                    </article>
 
                     <article className="table-card">
                       <div className="admin-table-head">
@@ -419,6 +331,7 @@ export function AdminWorkspace({
                       </div>
                       <form id="bulk-review-form" action={bulkUpdateArticleStatusAction}>
                         <input type="hidden" name="currentStatus" value={activeStatus ?? ""} />
+                      </form>
                         <div className="table-wrap">
                           <table>
                             <thead>
@@ -438,6 +351,7 @@ export function AdminWorkspace({
                                 <tr key={article.id}>
                                   <td>
                                     <input
+                                      form="bulk-review-form"
                                       type="checkbox"
                                       name="articleIds"
                                       value={article.id}
@@ -457,7 +371,7 @@ export function AdminWorkspace({
                                   <td>
                                     <div className="admin-inline-actions">
                                       <Link href={`/admin/articles/${article.id}`}>{locale === "ru" ? "Редактировать" : "Edit"}</Link>
-                                      {article.category === "news" && article.status === "published" ? (
+                                      {article.status === "published" ? (
                                         <>
                                           <form action={publishArticleToVkAction}>
                                             <input type="hidden" name="articleId" value={article.id} />
@@ -495,6 +409,15 @@ export function AdminWorkspace({
                                           </form>
                                         </>
                                       ) : null}
+                                      <form action={deleteArticleAction}>
+                                        <input type="hidden" name="articleId" value={article.id} />
+                                        <input type="hidden" name="returnTo" value={currentAdminHref} />
+                                        <ConfirmDeleteButton
+                                          label={locale === "ru" ? "Удалить" : "Delete"}
+                                          confirmMessage={locale === "ru" ? "Удалить статью навсегда?" : "Delete article permanently?"}
+                                          className="button-ghost admin-inline-button admin-inline-button--danger"
+                                        />
+                                      </form>
                                     </div>
                                   </td>
                                 </tr>
@@ -502,7 +425,6 @@ export function AdminWorkspace({
                             </tbody>
                           </table>
                         </div>
-                      </form>
                     </article>
                   </section>
                 </div>
@@ -610,11 +532,29 @@ export function AdminWorkspace({
                     <div className="admin-subscription-list">
                       <article className="admin-subscription-item">
                         <div className="admin-subscription-copy">
-                          <strong>{locale === "ru" ? "Срочный odds sync" : "Priority odds sync"}</strong>
+                          <strong>{locale === "ru" ? "Загрузить новости" : "Load news"}</strong>
                           <p className="table-note">
                             {locale === "ru"
-                              ? "Запускает приоритетную задачу на пересчет турниров, карда, коэффициентов и прогнозов."
-                              : "Queues a priority job to refresh events, fight cards, odds, and prediction snapshots."}
+                              ? "RSS-парсинг, перевод через DeepSeek, классификация и создание черновиков."
+                              : "RSS parsing, DeepSeek translation, classification, and draft creation."}
+                          </p>
+                        </div>
+                        <form action={enqueueBackgroundJobAction}>
+                          <input type="hidden" name="returnTo" value={currentAdminHref} />
+                          <input type="hidden" name="jobType" value="ai-discovery" />
+                          <input type="hidden" name="priority" value="10" />
+                          <button type="submit" className="button">
+                            {locale === "ru" ? "Запустить" : "Run"}
+                          </button>
+                        </form>
+                      </article>
+                      <article className="admin-subscription-item">
+                        <div className="admin-subscription-copy">
+                          <strong>{locale === "ru" ? "Турниры + котировки + прогнозы" : "Events + odds + predictions"}</strong>
+                          <p className="table-note">
+                            {locale === "ru"
+                              ? "Обновление турниров, карда боёв, коэффициентов и генерация прогнозов."
+                              : "Refresh events, fight cards, odds, and generate prediction snapshots."}
                           </p>
                         </div>
                         <form action={enqueueBackgroundJobAction}>
@@ -622,7 +562,25 @@ export function AdminWorkspace({
                           <input type="hidden" name="jobType" value="sync-odds" />
                           <input type="hidden" name="priority" value="10" />
                           <button type="submit" className="button">
-                            {locale === "ru" ? "В очередь" : "Queue"}
+                            {locale === "ru" ? "Запустить" : "Run"}
+                          </button>
+                        </form>
+                      </article>
+                      <article className="admin-subscription-item">
+                        <div className="admin-subscription-copy">
+                          <strong>{locale === "ru" ? "Синхронизация ростера бойцов" : "Sync fighter roster"}</strong>
+                          <p className="table-note">
+                            {locale === "ru"
+                              ? "Полная синхронизация профилей бойцов UFC с ufc.com."
+                              : "Full sync of UFC fighter profiles from ufc.com."}
+                          </p>
+                        </div>
+                        <form action={enqueueBackgroundJobAction}>
+                          <input type="hidden" name="returnTo" value={currentAdminHref} />
+                          <input type="hidden" name="jobType" value="sync-roster" />
+                          <input type="hidden" name="priority" value="10" />
+                          <button type="submit" className="button">
+                            {locale === "ru" ? "Запустить" : "Run"}
                           </button>
                         </form>
                       </article>

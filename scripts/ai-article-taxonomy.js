@@ -233,10 +233,17 @@ function buildPrompt(input) {
       "interview = direct fighter or coach quotes, Q&A, press conference, reactions, source-led quote pieces.",
       "analysis = long-form breakdowns, stylistic conflicts, divisional context, feature analysis.",
       "prediction = fight previews, tactical matchup previews, keys to victory, betting-style previews.",
+      "Also assign one or more topic tags from this list only: announcements, preview, results, post-fight, rumors.",
+      "announcements = confirmed bookings, new fights added to a card, event date/venue reveals.",
+      "preview = fight previews, matchup breakdowns, keys to victory, betting angles before the event.",
+      "results = fight outcomes, finishes, scorecards, post-event recaps.",
+      "post-fight = post-fight reactions, winner interviews, what-next stories after a fight happened.",
+      "rumors = unconfirmed reports, targeting, in talks, expected to face.",
+      "Return tagSlugs as an array of strings from the list above. Multiple tags are allowed.",
       "Choose one promotion slug only from the allowed shortlist when the league is clear. Otherwise return an empty string.",
       "Return fighter slugs only from the allowed fighter shortlist. Include up to 6 relevant fighters actually mentioned in the article.",
       "Do not invent fighters or promotions.",
-      "Return strict JSON with keys isUfc, contentType, promotionSlug, fighterSlugs, confidence, reason.",
+      "Return strict JSON with keys isUfc, contentType, tagSlugs, promotionSlug, fighterSlugs, confidence, reason.",
       "",
       `Heuristic promotion guess: ${promotionContext.inferred || "unknown"}`,
       "",
@@ -284,7 +291,7 @@ async function classifyWithDeepSeek(prompt) {
         {
           role: "system",
           content:
-            "You are an MMA content classifier for FightBase Media. Determine if a story is truly UFC-focused and classify it as news, interview, analysis, or prediction. Return strict JSON only."
+            "You are an MMA content classifier for FightBase Media. Determine if a story is truly UFC-focused, classify it as news/interview/analysis/prediction, and assign topic tags (announcements, preview, results, post-fight, rumors). Return strict JSON only."
         },
         { role: "user", content: prompt }
       ],
@@ -324,11 +331,42 @@ async function classifyWithOllama(prompt) {
   return parseJsonObject(raw?.response || "{}");
 }
 
+const ALLOWED_TAG_SLUGS = new Set(["announcements", "preview", "results", "post-fight", "rumors"]);
+
+function inferTagSlugsHeuristic(category, headline, body) {
+  const text = `${headline} ${body}`.toLowerCase();
+  const tags = [];
+
+  if (category === "analysis") {
+    tags.push("preview", "analysis");
+  }
+  if (/\b(result|results|wins|defeats|stops|submits|knocks out|tko|ko|decision|scorecard)\b/i.test(text)) {
+    tags.push("results");
+  }
+  if (/\b(announce|announced|booking|booked|set for|will headline|returns on|scheduled|added to)\b/i.test(text)) {
+    tags.push("announcements");
+  }
+  if (/\b(rumor|rumour|targeting|in talks|expected to|could face)\b/i.test(text)) {
+    tags.push("rumors");
+  }
+  if (/\b(preview|prediction|breakdown|matchup|keys to victory|fight pick|odds)\b/i.test(text)) {
+    tags.push("preview");
+  }
+  if (/\b(post-fight|after the fight|reacts to|winner|aftermath|what.?s next|called out)\b/i.test(text)) {
+    tags.push("post-fight");
+  }
+
+  return Array.from(new Set(tags));
+}
+
 async function classifyArticleWithAi(input) {
   const promptContext = buildPrompt(input);
+  const heuristicContentType = inferContentTypeHeuristically(input);
+  const heuristicTags = inferTagSlugsHeuristic(heuristicContentType, input.headline, input.body);
   const fallbackResult = {
     isUfc: /\b(?:ufc|mma)\b/i.test(`${input.headline} ${input.body} ${input.sourceLabel} ${input.sourceUrl}`),
-    contentType: inferContentTypeHeuristically(input),
+    contentType: heuristicContentType,
+    tagSlugs: heuristicTags,
     promotionSlug: promptContext.inferredPromotionSlug,
     fighterSlugs: promptContext.heuristicFighterSlugs.slice(0, MAX_RETURNED_FIGHTERS),
     confidence: 0.35,
@@ -349,9 +387,12 @@ async function classifyArticleWithAi(input) {
     const normalizedType =
       rawType === "prediction" ? "analysis" : ["news", "interview", "analysis"].includes(rawType) ? rawType : fallbackResult.contentType;
 
+    const aiTags = uniqueStrings(Array.isArray(parsed.tagSlugs) ? parsed.tagSlugs : []).filter((slug) => ALLOWED_TAG_SLUGS.has(slug));
+
     return {
       isUfc: typeof parsed.isUfc === "boolean" ? parsed.isUfc : fallbackResult.isUfc,
       contentType: normalizedType,
+      tagSlugs: aiTags.length > 0 ? aiTags : heuristicTags,
       promotionSlug: promptContext.allowedPromotionSlugs.has(promotionSlug) ? promotionSlug : promptContext.inferredPromotionSlug,
       fighterSlugs: (fighterSlugs.length > 0 ? fighterSlugs : promptContext.heuristicFighterSlugs).slice(0, MAX_RETURNED_FIGHTERS),
       confidence: Number(parsed.confidence) || fallbackResult.confidence,

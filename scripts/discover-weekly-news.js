@@ -5,6 +5,7 @@ const { PrismaClient } = require("@prisma/client");
 
 const { classifyArticleWithAi } = require("./ai-article-taxonomy");
 const { ensureUfcFightersForText } = require("./ensure-ufc-fighters");
+const { buildInternalApiHeaders } = require("./internal-api");
 
 const prisma = new PrismaClient();
 const ENABLED_PROMOTIONS = new Set(["ufc"]);
@@ -67,14 +68,6 @@ const ALL_SOURCES = [
     sourceType: "press_release"
   },
   {
-    label: "Sports.ru MMA",
-    listingUrl: "https://www.sports.ru/mma/news/",
-    articlePattern: /^https:\/\/www\.sports\.ru\/boxing\/\d+-[^?#]+\.html$/i,
-    streams: ["news", "quotes"],
-    sourceType: "press_release",
-    sourceLanguage: "ru"
-  },
-  {
     label: "Metaratings MMA",
     listingUrl: "https://meta-ratings.kz/news/mma/",
     articlePattern: /^https:\/\/meta-ratings\.kz\/news\/[\w-]+-\d+\/$/i,
@@ -90,18 +83,6 @@ const ALL_SOURCES = [
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
-  {
-    label: "Sport-Express MMA",
-    listingUrl: "https://www.sport-express.net/martial/mma/news/",
-    articlePattern: /^https:\/\/www\.sport-express\.net\/martial\/(?:mma\/)?(?:ufc\/)?(?:news|reviews)\/[\w-]+-\d+\/$/i,
-    streams: ["news", "quotes", "predictions", "analysis"],
-    targetKeywords: {
-      predictions: ["prognoz", "analiz", "preview", "razborov"],
-      analysis: ["analiz", "razbor", "preview", "styli", "matchap", "prognoz"]
-    },
-    sourceType: "press_release",
-    sourceLanguage: "ru"
-  }
 ];
 
 const SOURCES = ALL_SOURCES.filter((source) => !source.promotionSlug || ENABLED_PROMOTIONS.has(source.promotionSlug));
@@ -320,14 +301,20 @@ function inferTagSlugs(category, headline, body) {
   if (category === "analysis") {
     tags.push("preview", "analysis");
   }
-  if (/\b(result|results|wins|defeats|stops|submits|knocks out|tko|ko|decision)\b/i.test(text)) {
+  if (/\b(result|results|wins|defeats|stops|submits|knocks out|tko|ko|decision|scorecard)\b/i.test(text)) {
     tags.push("results");
   }
-  if (/\b(announce|announced|booking|booked|set for|will headline|returns on|scheduled)\b/i.test(text)) {
+  if (/\b(announce|announced|booking|booked|set for|will headline|returns on|scheduled|added to)\b/i.test(text)) {
     tags.push("announcements");
   }
   if (/\b(rumor|rumour|targeting|in talks|expected to|could face)\b/i.test(text)) {
     tags.push("rumors");
+  }
+  if (/\b(preview|prediction|breakdown|matchup|keys to victory|fight pick|odds)\b/i.test(text)) {
+    tags.push("preview");
+  }
+  if (/\b(post-fight|after the fight|reacts to|winner|aftermath|what.?s next|called out)\b/i.test(text)) {
+    tags.push("post-fight");
   }
 
   return Array.from(new Set(tags));
@@ -522,7 +509,9 @@ async function discoverSourceItems(source, options, taxonomyContext) {
         body,
         category: finalCategory,
         fighterSlugs: aiTaxonomy.fighterSlugs,
-        tagSlugs: inferTagSlugs(finalCategory, headline, body),
+        tagSlugs: aiTaxonomy.tagSlugs && aiTaxonomy.tagSlugs.length > 0
+          ? aiTaxonomy.tagSlugs
+          : inferTagSlugs(finalCategory, headline, body),
         coverImageUrl,
         publishedAt: publishedAt.toISOString(),
         status: "published"
@@ -544,15 +533,15 @@ async function discoverSourceItems(source, options, taxonomyContext) {
     }
   }
 
-  return collected.sort((left, right) => new Date(right.publishedAt) - new Date(left.publishedAt));
+  return collected.sort((left, right) => new Date(left.publishedAt) - new Date(right.publishedAt));
 }
 
 async function postDraft(baseUrl, item) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/ingest/draft`, {
     method: "POST",
-    headers: {
+    headers: buildInternalApiHeaders({
       "Content-Type": "application/json"
-    },
+    }),
     body: JSON.stringify(item)
   });
 

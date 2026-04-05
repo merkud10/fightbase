@@ -8,7 +8,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getEventPageData } from "@/lib/db";
-import { formatFightStage, formatFightStatus, formatWeightClass } from "@/lib/display";
+import { formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -146,7 +146,9 @@ export default async function EventPage({
                   <th>{locale === "ru" ? "Бой" : "Fight"}</th>
                   <th>{locale === "ru" ? "Вес" : "Weight"}</th>
                   <th>{locale === "ru" ? "Статус" : "Status"}</th>
-                  <th>{locale === "ru" ? "Прогноз" : "Prediction"}</th>
+                  <th>{event.status === "completed"
+                    ? (locale === "ru" ? "Результат" : "Result")
+                    : (locale === "ru" ? "Прогноз" : "Prediction")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,7 +167,22 @@ export default async function EventPage({
                     <td>{formatWeightClass(fight.weightClass, locale)}</td>
                     <td>{formatFightStatus(fight.status, locale)}</td>
                     <td>
-                      {fight.predictionSnapshot ? (
+                      {fight.status === "completed" && fight.winnerFighterId ? (
+                        <span className="event-table-result">
+                          <strong>
+                            {fight.winnerFighterId === fight.fighterAId
+                              ? (locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name)
+                              : (locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name)}
+                          </strong>
+                          {fight.method ? ` — ${formatFightMethod(fight.method, locale)}` : ""}
+                          {fight.resultRound ? `, R${fight.resultRound}` : ""}
+                          {fight.resultTime ? ` ${fight.resultTime}` : ""}
+                        </span>
+                      ) : fight.status === "completed" ? (
+                        <span className="event-table-result">
+                          {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                        </span>
+                      ) : fight.predictionSnapshot ? (
                         <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
                           {locale === "ru" ? "Открыть прогноз" : "Open prediction"}
                         </Link>

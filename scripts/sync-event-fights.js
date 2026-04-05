@@ -31,9 +31,9 @@ async function generateFightSlug(fighterASlug, fighterBSlug) {
 }
 
 const SECTION_CONFIG = [
-  { id: "main-card", stage: "main_card", label: "Main Card" },
-  { id: "prelims-card", stage: "prelims", label: "Prelims" },
-  { id: "early-prelims", stage: "early_prelims", label: "Early Prelims" }
+  { ids: ["main-card", "main-card-id"], stage: "main_card", label: "Main Card" },
+  { ids: ["prelims-card", "prelims-card-id"], stage: "prelims", label: "Prelims" },
+  { ids: ["early-prelims", "early-prelims-id"], stage: "early_prelims", label: "Early Prelims" }
 ];
 
 function normalizeWhitespace(value) {
@@ -55,14 +55,23 @@ function buildEventUrl(slug) {
   return `https://www.ufc.com/event/${slug}`;
 }
 
-function extractSectionHtml(html, sectionId) {
-  const sectionStart = html.indexOf(`id="${sectionId}"`);
+function findSectionStart(html, sectionIds) {
+  for (const id of sectionIds) {
+    const index = html.indexOf(`id="${id}"`);
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+function extractSectionHtml(html, sectionIds) {
+  const sectionStart = findSectionStart(html, sectionIds);
   if (sectionStart === -1) {
     return "";
   }
 
   const tail = html.slice(sectionStart);
-  const nextIndices = SECTION_CONFIG.map((section) => tail.indexOf(`id="${section.id}"`))
+  const allIds = SECTION_CONFIG.flatMap((section) => section.ids);
+  const nextIndices = allIds.map((id) => tail.indexOf(`id="${id}"`))
     .filter((index) => index > 0)
     .sort((a, b) => a - b);
   const end = nextIndices[0] ?? tail.length;
@@ -114,6 +123,23 @@ function normalizeWeightClassLabel(value) {
   );
 }
 
+function parseCornerOutcome(chunk, corner) {
+  const cornerBlock = chunk.match(new RegExp(`c-listing-fight__corner-body--${corner}[\\s\\S]*?outcome-wrapper[\\s\\S]*?outcome--(win|loss|draw|nc)`, "i"));
+  return cornerBlock?.[1]?.toLowerCase() || "";
+}
+
+function parseResultDetails(chunk) {
+  const methodMatch = chunk.match(/Method<\/div>\s*<div[^>]*>([\s\S]*?)<\/div>/i);
+  const roundMatch = chunk.match(/Round<\/div>\s*<div[^>]*>(\d+)<\/div>/i);
+  const timeMatch = chunk.match(/Time<\/div>\s*<div[^>]*>([\d:]+)<\/div>/i);
+
+  return {
+    method: stripTags(methodMatch?.[1] || "").trim() || null,
+    round: roundMatch?.[1] ? parseInt(roundMatch[1], 10) : null,
+    time: timeMatch?.[1]?.trim() || null
+  };
+}
+
 function parseFightBlock(chunk, stage) {
   const athleteSlugs = extractAthleteSlugs(chunk);
   if (athleteSlugs.length < 2) {
@@ -129,6 +155,15 @@ function parseFightBlock(chunk, stage) {
     return null;
   }
 
+  const redOutcome = parseCornerOutcome(chunk, "red");
+  const blueOutcome = parseCornerOutcome(chunk, "blue");
+  const hasResult = redOutcome === "win" || blueOutcome === "win" || redOutcome === "draw" || redOutcome === "nc";
+  const resultDetails = hasResult ? parseResultDetails(chunk) : null;
+
+  let winnerCorner = null;
+  if (redOutcome === "win") winnerCorner = "red";
+  else if (blueOutcome === "win") winnerCorner = "blue";
+
   return {
     stage,
     weightClass,
@@ -139,15 +174,21 @@ function parseFightBlock(chunk, stage) {
     fighterB: {
       slug: athleteSlugs[1],
       name: fighterBName
-    }
+    },
+    hasResult,
+    winnerCorner,
+    method: resultDetails?.method || null,
+    resultRound: resultDetails?.round || null,
+    resultTime: resultDetails?.time || null
   };
 }
 
 function parseFightCard(html) {
   const fights = [];
 
+  // Try section-based parsing first (completed events with main-card / prelims sections)
   for (const section of SECTION_CONFIG) {
-    const sectionHtml = extractSectionHtml(html, section.id);
+    const sectionHtml = extractSectionHtml(html, section.ids);
     if (!sectionHtml) {
       continue;
     }
@@ -157,6 +198,18 @@ function parseFightCard(html) {
       if (parsed) {
         fights.push(parsed);
       }
+    }
+  }
+
+  if (fights.length > 0) {
+    return fights;
+  }
+
+  // Fallback: parse all c-listing-fight blocks from the entire page (upcoming events)
+  for (const chunk of extractFightCardBlocks(html)) {
+    const parsed = parseFightBlock(chunk, "main_card");
+    if (parsed) {
+      fights.push(parsed);
     }
   }
 
@@ -216,13 +269,23 @@ async function syncEventFightCard(event) {
     const key = buildFightKey(fighterA.id, fighterB.id);
     seenKeys.add(key);
 
+    const winnerFighterId = parsedFight.winnerCorner === "red" ? fighterA.id
+      : parsedFight.winnerCorner === "blue" ? fighterB.id
+      : null;
+
     const data = {
       stage: parsedFight.stage,
       weightClass: parsedFight.weightClass,
-      status: "scheduled",
+      status: parsedFight.hasResult ? "completed" : "scheduled",
       fighterAId: fighterA.id,
       fighterBId: fighterB.id,
-      eventId: event.id
+      eventId: event.id,
+      ...(parsedFight.hasResult ? {
+        winnerFighterId,
+        method: parsedFight.method,
+        resultRound: parsedFight.resultRound,
+        resultTime: parsedFight.resultTime
+      } : {})
     };
 
     const existing = existingByKey.get(key);
@@ -254,12 +317,22 @@ async function syncEventFightCard(event) {
     });
   }
 
+  // Auto-complete event if all fights have results
+  const allFightsCompleted = parsedFights.length > 0 && parsedFights.every((f) => f.hasResult);
+  if (allFightsCompleted && event.status !== "completed") {
+    await prisma.event.update({
+      where: { id: event.id },
+      data: { status: "completed" }
+    });
+  }
+
   return {
     eventSlug: event.slug,
     created,
     updated,
     removed: staleFightIds.length,
-    skipped: false
+    skipped: false,
+    completedEvent: allFightsCompleted
   };
 }
 
@@ -267,11 +340,15 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const limit = Number(args.limit || 0) || null;
   const eventSlug = String(args.event || "").trim();
+  const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const events = await prisma.event.findMany({
     where: {
       promotion: { slug: "ufc" },
-      status: { in: ["upcoming", "live"] },
+      OR: [
+        { status: { in: ["upcoming", "live"] } },
+        { status: "completed", date: { gte: recentCutoff } }
+      ],
       ...(eventSlug ? { slug: eventSlug } : {})
     },
     orderBy: { date: "asc" },
@@ -299,8 +376,9 @@ async function main() {
       if (result.skipped) {
         console.log(`[skipped] ${result.eventSlug}: no fight card found yet`);
       } else {
+        const suffix = result.completedEvent ? " [EVENT COMPLETED]" : "";
         console.log(
-          `[synced] ${result.eventSlug}: created ${result.created}, updated ${result.updated}, removed ${result.removed}`
+          `[synced] ${result.eventSlug}: created ${result.created}, updated ${result.updated}, removed ${result.removed}${suffix}`
         );
       }
     } catch (error) {

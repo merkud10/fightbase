@@ -11,7 +11,10 @@ import { asOptionalNumber, asOptionalString, asRequiredNumber, asRequiredString,
 import { backgroundJobTypes, enqueueBackgroundJob } from "@/lib/background-jobs";
 import { createDraftFromIngestion } from "@/lib/ingestion";
 import { prisma } from "@/lib/prisma";
-import { publishArticleToTelegram, publishArticleToVk } from "@/lib/social-publish";
+import {
+  publishArticleToTelegram,
+  publishArticleToVk
+} from "@/lib/social-publish";
 import {
   ArticleCategorySchema,
   ArticleStatusSchema,
@@ -113,6 +116,17 @@ export async function updateArticleAction(articleId: string, formData: FormData)
 
   const slug = slugInput ?? slugify(title);
 
+  const existingArticle = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { status: true }
+  });
+
+  if (!existingArticle) {
+    throw new Error("Article not found.");
+  }
+
+  const wasPublished = existingArticle.status === "published";
+
   await prisma.$transaction([
     prisma.articleTag.deleteMany({ where: { articleId } }),
     prisma.articleFighter.deleteMany({ where: { articleId } }),
@@ -158,14 +172,20 @@ export async function updateArticleAction(articleId: string, formData: FormData)
 export async function deleteArticleAction(formData: FormData) {
   await assertAdminAccess();
   const articleId = asRequiredString(formData.get("articleId"), "articleId");
+  const returnTo = asOptionalString(formData.get("returnTo")) ?? "/admin";
 
-  await prisma.article.delete({
-    where: { id: articleId }
-  });
+  await prisma.$transaction([
+    prisma.articleTag.deleteMany({ where: { articleId } }),
+    prisma.articleFighter.deleteMany({ where: { articleId } }),
+    prisma.articleSource.deleteMany({ where: { articleId } }),
+    prisma.articleSection.deleteMany({ where: { articleId } }),
+    prisma.article.delete({ where: { id: articleId } })
+  ]);
 
   revalidatePath("/admin");
   revalidatePath("/news");
   revalidatePath("/");
+  redirect(returnTo);
 }
 
 export async function bulkUpdateArticleStatusAction(formData: FormData) {

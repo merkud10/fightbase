@@ -27,7 +27,7 @@ function runNodeScript(scriptName, args) {
 const forwardedArgs = process.argv.slice(2);
 const dryRun = forwardedArgs.includes("--dry-run");
 
-runNodeScript("discover-ai-news.js", forwardedArgs);
+runNodeScript("discover-weekly-news.js", forwardedArgs);
 
 if (!dryRun) {
   runNodeScript("repair-editorial-quality.js", []);

@@ -1,9 +1,9 @@
-name: Sync Events + Odds
+name: Sync Fighter Roster
 
 on:
   schedule:
-    # Каждый день в 06:00 UTC (09:00 МСК)
-    - cron: '0 6 * * *'
+    # Каждый понедельник в 04:00 UTC (07:00 МСК)
+    - cron: '0 4 * * 1'
   workflow_dispatch:
     inputs:
       reason:
@@ -14,16 +14,16 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
-      - name: Trigger odds sync via cron endpoint
+      - name: Trigger roster sync
         id: sync
         run: |
           response=$(curl -sf -w "\n%{http_code}" -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/ingest" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
-            -d '{"job":"sync-odds"}')
+            -d '{"job":"sync-roster"}')
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n -1)
@@ -33,7 +33,7 @@ jobs:
 
           if [ "$http_code" != "200" ]; then
             echo "sync_ok=false" >> "$GITHUB_OUTPUT"
-            echo "Odds sync failed with HTTP $http_code"
+            echo "Roster sync failed with HTTP $http_code"
             exit 1
           fi
 
@@ -42,12 +42,12 @@ jobs:
       - name: Wait for background job to process
         run: |
           sleep 30
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2 3 4 5 6 7 8 9 10; do
             curl -sf -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/jobs" \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
               -d '{"limit": 3}' || true
-            sleep 20
+            sleep 30
           done
 
       - name: Send Telegram notification
@@ -55,4 +55,4 @@ jobs:
         run: |
           curl -sf -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}\", \"text\": \"✅ Турниры + бои + прогнозы обновлены\", \"disable_notification\": true}"
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}\", \"text\": \"✅ Бойцы обновлены\", \"disable_notification\": true}"

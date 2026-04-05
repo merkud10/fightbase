@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { recordSystemEvent } from "@/lib/system-events";
 
-export const backgroundJobTypes = ["watchlist", "ai-discovery", "sync-odds", "weekly-analysis", "operational-alerts"] as const;
+export const backgroundJobTypes = [
+  "watchlist",
+  "ai-discovery",
+  "sync-odds",
+  "weekly-analysis",
+  "sync-roster",
+  "operational-alerts"
+] as const;
 
 export type BackgroundJobType = (typeof backgroundJobTypes)[number];
 

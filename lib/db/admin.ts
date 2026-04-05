@@ -272,7 +272,11 @@ export async function getHomePageData() {
       }
     }),
     prisma.event.findMany({
-      orderBy: [{ status: "asc" }, { date: "asc" }],
+      where: {
+        status: { in: ["upcoming", "live"] },
+        fights: { some: {} }
+      },
+      orderBy: [{ date: "asc" }],
       include: {
         promotion: true,
         fights: {

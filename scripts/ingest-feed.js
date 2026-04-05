@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+try {
+  require("dotenv").config();
+} catch {
+  /* optional */
+}
+
 const fs = require("fs");
 const path = require("path");
 

@@ -212,6 +212,15 @@ export default async function HomePage() {
                   ? "Редакционные входы в самые важные события недели без перегруженного визуального шума."
                   : "Editorial entry points into the week's most important developments without excess visual noise."}
               </p>
+              {supportFight?.predictionSnapshot && leadEvent ? (
+                <Link href={localizePath(`/predictions/${leadEvent.slug}/${supportFight.slug ?? ""}`, locale)} className="editorial-inline-link">
+                  {locale === "ru" ? "Прогноз на бой" : "Fight prediction"}
+                </Link>
+              ) : (
+                <Link href={localizePath("/news", locale)} className="editorial-inline-link">
+                  {locale === "ru" ? "Все новости" : "All news"}
+                </Link>
+              )}
             </article>
 
             <article className="mini-card blue editorial-mini-card hero-rail-card">

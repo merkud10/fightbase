@@ -8,7 +8,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { Pagination } from "@/components/pagination";
 import { getEventsPageData } from "@/lib/db";
-import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatEventLocation, formatFightMethod, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
@@ -218,7 +218,21 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                                 <span>{formatWeightClass(fight.weightClass, locale)}</span>
                               </div>
 
-                              {fight.predictionSnapshot ? (
+                              {fight.status === "completed" && fight.winnerFighterId ? (
+                                <span className="event-listing-fight-result">
+                                  {locale === "ru" ? "Победа: " : "W: "}
+                                  <strong>
+                                    {fight.winnerFighterId === fight.fighterAId
+                                      ? getDisplayName(fight.fighterA, locale)
+                                      : getDisplayName(fight.fighterB, locale)}
+                                  </strong>
+                                  {fight.method ? ` (${formatFightMethod(fight.method, locale)})` : ""}
+                                </span>
+                              ) : fight.status === "completed" ? (
+                                <span className="event-listing-fight-result">
+                                  {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                                </span>
+                              ) : fight.predictionSnapshot ? (
                                 <Link
                                   href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}
                                   className="event-listing-fight-link"

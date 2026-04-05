@@ -1798,6 +1798,14 @@ th {
   font-size: 12px;
 }
 
+.admin-inline-button--danger {
+  color: #ff6b6b;
+}
+
+.admin-inline-button--danger:hover {
+  background: rgba(227, 27, 35, 0.2);
+}
+
 .admin-tab-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2388,6 +2396,22 @@ th {
   box-shadow: 0 0 0 4px rgba(227, 27, 35, 0.12);
 }
 
+.event-fight-result {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.event-fight-result strong {
+  color: #f0f0f0;
+}
+
+.event-fight-copy {
+  flex: 1;
+}
+
 .event-card-actions,
 .prediction-event-head,
 .event-detail-head {
@@ -2526,23 +2550,22 @@ th {
 
 .event-listing-fights {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr auto;
+  gap: 10px 16px;
   padding-top: 2px;
+  align-items: center;
 }
 
 .event-listing-fight-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: contents;
 }
 
 .event-listing-fight-copy {
   display: grid;
   gap: 4px;
   min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .event-listing-fight-copy strong {
@@ -2566,6 +2589,24 @@ th {
 
 .event-listing-fight-link--pending {
   color: #7d7d7d;
+}
+
+.event-listing-fight-link,
+.event-listing-fight-result {
+  text-align: left;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  align-self: center;
+}
+
+.event-listing-fight-result {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.event-listing-fight-result strong {
+  color: #f0f0f0;
 }
 
 .event-listing-actions {
@@ -3055,10 +3096,13 @@ th {
   .event-card-actions,
   .prediction-event-head,
   .event-detail-head,
-  .event-fight-row,
-  .event-listing-fight-row {
+  .event-fight-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .event-listing-fights {
+    grid-template-columns: 1fr;
   }
 
   .event-listing-row {

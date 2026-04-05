@@ -65,7 +65,7 @@ function unique(items: string[]) {
   return Array.from(new Set(items.filter(Boolean)));
 }
 
-function buildExcerpt(articleText: string, maxLength = 180) {
+function buildExcerpt(articleText: string, maxLength = 400) {
   const normalized = normalizeWhitespace(articleText);
 
   if (normalized.length <= maxLength) {

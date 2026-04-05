@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import { recordSystemEvent } from "@/lib/system-events";
 
 const SHERDOG_HOSTS = new Set(["www1-cdn.sherdog.com"]);
+const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com", "media.ufc.tv"]);
 
 function isPrivateHostname(hostname: string) {
   return (
@@ -49,6 +50,9 @@ export async function GET(request: Request) {
 
   if (SHERDOG_HOSTS.has(target.hostname)) {
     headers.Referer = "https://www.sherdog.com/";
+  } else if (UFC_HOSTS.has(target.hostname)) {
+    headers.Referer = "https://www.ufc.com/";
+    headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
   }
 
   try {

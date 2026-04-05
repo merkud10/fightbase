@@ -38,7 +38,9 @@ export async function POST(request: Request) {
         ? "sync-odds"
         : body.job === "weekly-analysis"
           ? "weekly-analysis"
-          : "ai-discovery";
+          : body.job === "sync-roster"
+            ? "sync-roster"
+            : "ai-discovery";
 
   try {
     const enqueuedJob = await enqueueBackgroundJob({

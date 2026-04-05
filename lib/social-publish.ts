@@ -1,24 +1,15 @@
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 type PublishTarget = "telegram" | "vk";
 
-function getSiteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
-}
+/** Telegram Bot API: максимум ~4096 символов на сообщение (UTF-16). */
+const TELEGRAM_MESSAGE_MAX = 4090;
 
-function buildArticleUrl(slug: string, category: string) {
-  const basePath = category === "analysis" ? "/ru/analysis" : "/ru/news";
-  return `${getSiteUrl()}${basePath}/${slug}`;
-}
+/** VK wall.post: лимит текста (с запасом). */
+const VK_MESSAGE_MAX = 65000;
 
-function truncateText(value: string, maxLength = 220) {
-  const clean = String(value || "").replace(/\s+/g, " ").trim();
-  if (clean.length <= maxLength) {
-    return clean;
-  }
-
-  return `${clean.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
+const GENERIC_SECTION_HEADINGS = new Set(["ai draft", "main section", "основной раздел"]);
 
 function escapeTelegram(value: string) {
   return String(value || "").replace(/[&<>]/g, (char) => {
@@ -27,6 +18,20 @@ function escapeTelegram(value: string) {
     return "&gt;";
   });
 }
+
+type ArticleSocialPayload = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  coverImageUrl: string | null;
+  category: string;
+  status: string;
+  telegramPostedAt: Date | null;
+  vkPostedAt: Date | null;
+  meaning: string;
+  sections: { heading: string; body: string; sortOrder: number }[];
+};
 
 export async function getPublishableArticle(articleId: string) {
   return prisma.article.findUnique({
@@ -39,29 +44,347 @@ export async function getPublishableArticle(articleId: string) {
       category: true,
       status: true,
       telegramPostedAt: true,
-      vkPostedAt: true
+      vkPostedAt: true,
+      coverImageUrl: true,
+      meaning: true,
+      sections: {
+        orderBy: { sortOrder: "asc" },
+        select: { heading: true, body: true, sortOrder: true }
+      }
     }
   });
 }
 
-function buildTelegramMessage(article: { title: string; excerpt: string; slug: string; category: string }) {
-  const url = buildArticleUrl(article.slug, article.category);
-  const excerpt = truncateText(article.excerpt, 260);
+/**
+ * Возвращает оригинальный URL картинки для Telegram/VK.
+ * Использует исходный URL напрямую (не через image-proxy),
+ * потому что VK/TG сами скачивают картинку — им нужен публичный URL.
+ */
+function resolveCoverImageUrlForSocial(raw: string | null | undefined): string | null {
+  const url = String(raw || "").trim();
+  if (!url) {
+    return null;
+  }
 
-  return [
-    `<b>${escapeTelegram(article.title)}</b>`,
-    "",
-    escapeTelegram(excerpt),
-    "",
-    `<a href="${url}">Читать на FightBase</a>`
-  ].join("\n");
+  try {
+    if (url.startsWith("https://") || url.startsWith("http://")) {
+      return url;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
-function buildVkMessage(article: { title: string; excerpt: string; slug: string; category: string }) {
-  const url = buildArticleUrl(article.slug, article.category);
-  const excerpt = truncateText(article.excerpt, 260);
+/** Telegram sendPhoto caption limit: 1024 chars */
+const TELEGRAM_CAPTION_MAX = 1020;
 
-  return `${article.title}\n\n${excerpt}\n\nЧитать: ${url}`;
+async function telegramSendPhoto(token: string, chatId: string, photoUrl: string, caption?: string) {
+  const payload: Record<string, string> = {
+    chat_id: chatId,
+    photo: photoUrl
+  };
+  if (caption) {
+    payload.caption = caption;
+    payload.parse_mode = "HTML";
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Telegram sendPhoto: ${response.status} ${errBody}`);
+  }
+}
+
+type VkSavedPhoto = { id: number; owner_id: number };
+
+async function vkApiMethod<T>(method: string, params: Record<string, string | number>): Promise<T> {
+  const url = new URL(`https://api.vk.com/method/${method}`);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value));
+  }
+
+  const response = await fetch(url.toString());
+  const json = (await response.json()) as { response?: T; error?: { error_msg?: string } };
+
+  if (json.error) {
+    throw new Error(json.error.error_msg || `VK ${method} failed`);
+  }
+
+  return json.response as T;
+}
+
+async function vkApiMethodPost<T>(method: string, params: Record<string, string | number>): Promise<T> {
+  const body = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    body.set(key, String(value));
+  }
+
+  const response = await fetch(`https://api.vk.com/method/${method}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: body.toString()
+  });
+
+  const json = (await response.json()) as { response?: T; error?: { error_msg?: string } };
+
+  if (json.error) {
+    throw new Error(json.error.error_msg || `VK ${method} failed`);
+  }
+
+  return json.response as T;
+}
+
+/**
+ * Пробует скачать изображение по URL. Если прямой запрос не удался (403 и т.д.),
+ * пытается через wsrv.nl — внешний прокси, обходящий CDN-блокировки.
+ */
+async function downloadImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const fetchHeaders: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+  };
+
+  try {
+    const imgHost = new URL(imageUrl).hostname;
+    if (imgHost.includes("ufc.com") || imgHost.includes("ufc.tv")) {
+      fetchHeaders["Referer"] = "https://www.ufc.com/";
+    } else if (imgHost.includes("sherdog.com")) {
+      fetchHeaders["Referer"] = "https://www.sherdog.com/";
+    }
+  } catch { /* invalid URL — let fetch handle it */ }
+
+  // Attempt 1: direct fetch
+  const directRes = await fetch(imageUrl, { redirect: "follow", headers: fetchHeaders });
+
+  if (directRes.ok) {
+    const ct = directRes.headers.get("content-type") || "";
+    if (ct.startsWith("image/")) {
+      return { buffer: Buffer.from(await directRes.arrayBuffer()), contentType: ct };
+    }
+  }
+
+  console.log(`[VK] Direct download failed (${directRes.status}), trying wsrv.nl proxy for: ${imageUrl}`);
+
+  // Attempt 2: wsrv.nl proxy (bypasses many CDN restrictions)
+  const wsrvUrl = `https://wsrv.nl/?url=${encodeURIComponent(imageUrl)}&default=1`;
+  const proxyRes = await fetch(wsrvUrl, { redirect: "follow" });
+
+  if (proxyRes.ok) {
+    const ct = proxyRes.headers.get("content-type") || "";
+    if (ct.startsWith("image/")) {
+      return { buffer: Buffer.from(await proxyRes.arrayBuffer()), contentType: ct };
+    }
+  }
+
+  console.log(`[VK] wsrv.nl proxy also failed (${proxyRes.status}), trying images.weserv.nl`);
+
+  // Attempt 3: images.weserv.nl with different params
+  const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}&w=1200&output=jpg`;
+  const weservRes = await fetch(weservUrl, { redirect: "follow" });
+
+  if (weservRes.ok) {
+    const ct = weservRes.headers.get("content-type") || "";
+    if (ct.startsWith("image/")) {
+      return { buffer: Buffer.from(await weservRes.arrayBuffer()), contentType: ct };
+    }
+  }
+
+  throw new Error(`Image download failed from all sources (direct: ${directRes.status}, wsrv: ${proxyRes.status}, weserv: ${weservRes.status})`);
+}
+
+/**
+ * Загружает изображение по URL на стену группы VK и возвращает строку вложения для wall.post.
+ */
+async function vkUploadWallPhotoFromUrl(
+  token: string,
+  apiVersion: string,
+  groupId: string,
+  imageUrl: string
+): Promise<string> {
+  const gid = String(groupId).replace(/^-+/, "");
+
+  const uploadPayload = await vkApiMethod<{ upload_url: string }>("photos.getWallUploadServer", {
+    access_token: token,
+    v: apiVersion,
+    group_id: gid
+  });
+
+  const { buffer, contentType } = await downloadImageBuffer(imageUrl);
+  const ext = contentType.includes("png") ? "png" : "jpeg";
+
+  const form = new FormData();
+  form.append("photo", new Blob([buffer], { type: contentType }), `cover.${ext}`);
+
+  const uploadRes = await fetch(uploadPayload.upload_url, {
+    method: "POST",
+    body: form
+  });
+
+  const uploadJson = (await uploadRes.json()) as { server?: string | number; photo?: string; hash?: string };
+
+  if (!uploadJson.server || uploadJson.photo === undefined || !uploadJson.hash) {
+    throw new Error(`VK upload server returned unexpected payload: ${JSON.stringify(uploadJson)}`);
+  }
+
+  const photoForSave =
+    typeof uploadJson.photo === "string" ? uploadJson.photo : JSON.stringify(uploadJson.photo);
+
+  const saved = await vkApiMethodPost<VkSavedPhoto[]>("photos.saveWallPhoto", {
+    access_token: token,
+    v: apiVersion,
+    group_id: gid,
+    server: uploadJson.server,
+    photo: photoForSave,
+    hash: uploadJson.hash
+  });
+
+  const ph = saved[0];
+  if (!ph) {
+    throw new Error("VK photos.saveWallPhoto returned empty array");
+  }
+
+  return `photo${ph.owner_id}_${ph.id}`;
+}
+
+async function vkWallPost(
+  token: string,
+  apiVersion: string,
+  groupId: string,
+  message: string,
+  attachments?: string
+) {
+  const gid = String(groupId).replace(/^-+/, "");
+  const params = new URLSearchParams();
+  params.set("access_token", token);
+  params.set("v", apiVersion);
+  params.set("owner_id", `-${gid}`);
+  params.set("from_group", "1");
+  params.set("message", message);
+  if (attachments) {
+    params.set("attachments", attachments);
+  }
+
+  const response = await fetch("https://api.vk.com/method/wall.post", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString()
+  });
+
+  const json = (await response.json()) as { response?: { post_id?: number }; error?: { error_msg?: string } };
+
+  if (json.error) {
+    throw new Error(`VK API error: ${json.error.error_msg || "wall.post failed"}`);
+  }
+
+  return json.response;
+}
+
+function composeFullArticlePlainText(article: Pick<ArticleSocialPayload, "title" | "excerpt" | "meaning" | "sections">): string {
+  const blocks: string[] = [];
+  const title = String(article.title || "").trim();
+  if (title) {
+    blocks.push(title);
+  }
+
+  for (const section of article.sections) {
+    const heading = String(section.heading || "").trim();
+    const body = String(section.body || "").trim();
+    const generic = GENERIC_SECTION_HEADINGS.has(heading.toLowerCase());
+    if (!body && !heading) {
+      continue;
+    }
+    blocks.push("");
+    if (heading && !generic) {
+      blocks.push(heading);
+      blocks.push("");
+    }
+    if (body) {
+      blocks.push(body);
+    }
+  }
+
+  let composed = blocks.join("\n").trim();
+  const excerpt = String(article.excerpt || "").trim();
+  const hasSubstance = composed.length > title.length + 30;
+  if (!hasSubstance && excerpt) {
+    composed = [title, "", excerpt].filter(Boolean).join("\n").trim();
+  }
+
+  return composed;
+}
+
+/** Режет текст на части по границам абзацев, чтобы уместиться в лимит Telegram. */
+function splitTextForTelegramChunks(fullText: string, maxLen: number): string[] {
+  const text = fullText.trim();
+  if (text.length <= maxLen) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let rest = text;
+
+  while (rest.length > 0) {
+    if (rest.length <= maxLen) {
+      chunks.push(rest.trim());
+      break;
+    }
+
+    let slice = rest.slice(0, maxLen);
+    const breakAt = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf("\n"), slice.lastIndexOf(" "));
+    if (breakAt > maxLen * 0.5) {
+      slice = rest.slice(0, breakAt);
+    }
+
+    chunks.push(slice.trim());
+    rest = rest.slice(slice.length).trimStart();
+  }
+
+  return chunks.filter(Boolean);
+}
+
+function buildTelegramHtmlChunks(article: ArticleSocialPayload): string[] {
+  const fullText = composeFullArticlePlainText(article);
+  const plainChunks = splitTextForTelegramChunks(fullText, TELEGRAM_MESSAGE_MAX);
+
+  return plainChunks.map((chunk, index) => {
+    if (index === 0) {
+      const lines = chunk.split("\n");
+      const firstLine = lines[0]?.trim() ?? "";
+      const rest = lines.slice(1).join("\n").trim();
+      const titleLine = firstLine || article.title.trim();
+      const bodyRest = rest || (firstLine ? "" : chunk);
+
+      if (bodyRest.length > 0) {
+        return `<b>${escapeTelegram(titleLine)}</b>\n\n${escapeTelegram(bodyRest)}`;
+      }
+
+      return `<b>${escapeTelegram(titleLine)}</b>`;
+    }
+
+    return escapeTelegram(chunk);
+  });
+}
+
+function buildVkFullMessage(article: ArticleSocialPayload): string {
+  const full = composeFullArticlePlainText(article);
+  if (full.length <= VK_MESSAGE_MAX) {
+    return full;
+  }
+
+  return `${full.slice(0, VK_MESSAGE_MAX - 40).trimEnd()}…\n\n[Текст обрезан по лимиту VK API]`;
 }
 
 export async function publishArticleToTelegram(articleId: string) {
@@ -86,22 +409,52 @@ export async function publishArticleToTelegram(articleId: string) {
     throw new Error("Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID.");
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: buildTelegramMessage(article),
-      parse_mode: "HTML",
-      disable_web_page_preview: false
-    })
-  });
+  const payload = article as ArticleSocialPayload;
+  const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
+  const chunks = buildTelegramHtmlChunks(payload);
+  let startChunkIndex = 0;
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Telegram API error: ${response.status} ${text}`);
+  if (coverUrl && chunks.length > 0) {
+    const firstChunk = chunks[0] ?? "";
+    const caption = firstChunk.length <= TELEGRAM_CAPTION_MAX ? firstChunk : firstChunk.slice(0, TELEGRAM_CAPTION_MAX).trimEnd();
+    try {
+      await telegramSendPhoto(token, chatId, coverUrl, caption);
+      startChunkIndex = 1;
+      if (firstChunk.length > TELEGRAM_CAPTION_MAX) {
+        chunks[0] = firstChunk.slice(TELEGRAM_CAPTION_MAX).trimStart();
+        startChunkIndex = 0;
+      }
+    } catch (error) {
+      logger.warn("Telegram sendPhoto skipped", {
+        articleId: article.id,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  for (let index = startChunkIndex; index < chunks.length; index += 1) {
+    const text = chunks[index] ?? "";
+    if (!text.trim()) {
+      continue;
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Telegram API error: ${response.status} ${errBody}`);
+    }
   }
 
   await prisma.article.update({
@@ -137,26 +490,27 @@ export async function publishArticleToVk(articleId: string) {
     throw new Error("VK is not configured. Set VK_GROUP_TOKEN and VK_GROUP_ID.");
   }
 
-  const url = new URL("https://api.vk.com/method/wall.post");
-  url.searchParams.set("access_token", token);
-  url.searchParams.set("v", apiVersion);
-  url.searchParams.set("owner_id", `-${String(groupId).replace(/^-+/, "")}`);
-  url.searchParams.set("from_group", "1");
-  url.searchParams.set("message", buildVkMessage(article));
+  const payload = article as ArticleSocialPayload;
+  const vkMessage = buildVkFullMessage(payload);
+  let attachment: string | undefined;
+  const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
+  console.log(`[VK] Article ${article.id} | coverImageUrl raw: "${payload.coverImageUrl}" | resolved: "${coverUrl}"`);
 
-  const response = await fetch(url, {
-    method: "POST"
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`VK API error: ${response.status} ${text}`);
+  if (coverUrl) {
+    try {
+      attachment = await vkUploadWallPhotoFromUrl(token, apiVersion, groupId, coverUrl);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[VK] Photo upload failed for article ${article.id}: ${errMsg}`);
+      logger.warn("VK wall photo upload skipped", {
+        articleId: article.id,
+        coverUrl,
+        message: errMsg
+      });
+    }
   }
 
-  const payload = await response.json();
-  if (payload?.error) {
-    throw new Error(`VK API error: ${payload.error.error_msg || "Unknown error"}`);
-  }
+  await vkWallPost(token, apiVersion, groupId, vkMessage, attachment);
 
   await prisma.article.update({
     where: { id: article.id },
@@ -166,6 +520,121 @@ export async function publishArticleToVk(articleId: string) {
   });
 
   return article;
+}
+
+function logAutoPublishError(channel: "telegram" | "vk", articleId: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("already been sent")) {
+    return;
+  }
+  if (message.includes("not configured")) {
+    logger.info(`Auto-publish skipped (${channel} not configured)`, { articleId });
+    return;
+  }
+  logger.error(`Auto-publish to ${channel} failed`, { articleId, message });
+}
+
+/**
+ * Вызывает публикацию в Telegram и VK для уже опубликованной статьи (если ещё не отправляли).
+ * Ошибки отдельных каналов логируются и не прерывают второй канал.
+ */
+export async function autoPublishArticleToSocialNetworks(articleId: string): Promise<void> {
+  const initial = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { status: true, telegramPostedAt: true, vkPostedAt: true }
+  });
+
+  if (!initial || initial.status !== "published") {
+    return;
+  }
+
+  if (!initial.telegramPostedAt) {
+    try {
+      await publishArticleToTelegram(articleId);
+      logger.info("Article auto-published to Telegram", { articleId });
+    } catch (error) {
+      logAutoPublishError("telegram", articleId, error);
+    }
+  }
+
+  const afterTg = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { status: true, vkPostedAt: true }
+  });
+
+  if (!afterTg || afterTg.status !== "published" || afterTg.vkPostedAt) {
+    return;
+  }
+
+  try {
+    await publishArticleToVk(articleId);
+    logger.info("Article auto-published to VK", { articleId });
+  } catch (error) {
+    logAutoPublishError("vk", articleId, error);
+  }
+}
+
+/**
+ * Откладывает авто-постинг на следующий тик event loop, чтобы не блокировать ответ админки/API.
+ * Без `after()` из next/server — устраняет проблемы со сломанными webpack-chunk и ISE после частичной сборки.
+ */
+export function scheduleArticleSocialPublish(articleId: string) {
+  queueMicrotask(() => {
+    void autoPublishArticleToSocialNetworks(articleId).catch((error) => {
+      logger.error("scheduleArticleSocialPublish failed", {
+        articleId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    });
+  });
+}
+
+/**
+ * Drip-feed: finds the oldest published article that hasn't been posted to TG or VK yet
+ * and publishes it to one platform. Call every 30 minutes from a scheduler.
+ * Returns info about what was published, or null if nothing pending.
+ */
+export async function dripPublishNextArticle(): Promise<{
+  articleId: string;
+  title: string;
+  telegram: boolean;
+  vk: boolean;
+} | null> {
+  const article = await prisma.article.findFirst({
+    where: {
+      status: "published",
+      OR: [{ telegramPostedAt: null }, { vkPostedAt: null }]
+    },
+    orderBy: { publishedAt: "asc" },
+    select: { id: true, title: true, telegramPostedAt: true, vkPostedAt: true }
+  });
+
+  if (!article) {
+    return null;
+  }
+
+  let tgSent = false;
+  let vkSent = false;
+
+  if (!article.telegramPostedAt) {
+    try {
+      await publishArticleToTelegram(article.id);
+      tgSent = true;
+    } catch (error) {
+      logAutoPublishError("telegram", article.id, error);
+    }
+  }
+
+  if (!article.vkPostedAt) {
+    try {
+      await publishArticleToVk(article.id);
+      vkSent = true;
+    } catch (error) {
+      logAutoPublishError("vk", article.id, error);
+    }
+  }
+
+  return { articleId: article.id, title: article.title, telegram: tgSent, vk: vkSent };
 }
 
 export type { PublishTarget };

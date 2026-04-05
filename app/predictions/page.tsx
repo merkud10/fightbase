@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ArticleCard } from "@/components/cards";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
-import { getPredictionEditorialPageData, getPredictionsPageData } from "@/lib/db";
+import { getPredictionsPageData } from "@/lib/db";
 import { formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -33,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PredictionsPage() {
   const locale = await getLocale();
-  const [events, articles] = await Promise.all([getPredictionsPageData(), getPredictionEditorialPageData()]);
+  const events = await getPredictionsPageData();
   const siteUrl = getSiteUrl();
   const eventsWithSnapshots = events.map((event) => ({
     ...event,
@@ -84,7 +83,7 @@ export default async function PredictionsPage() {
         }
       />
 
-      {eventsWithSnapshots.length === 0 && articles.length === 0 ? (
+      {eventsWithSnapshots.length === 0 ? (
         <section className="filter-empty-state">
           <h3>{locale === "ru" ? "Прогнозные страницы пока не готовы" : "Prediction pages are not ready yet"}</h3>
           <p className="copy">
@@ -92,22 +91,6 @@ export default async function PredictionsPage() {
               ? "После ближайшего суточного обновления коэффициентов и snapshot-данных здесь появятся готовые превью боев UFC."
               : "Ready-made UFC fight previews will appear here after the next scheduled odds and snapshot update."}
           </p>
-        </section>
-      ) : null}
-
-      {articles.length > 0 ? (
-        <section className="section">
-          <div className="section-head">
-            <div>
-                <p className="eyebrow">{locale === "ru" ? "Материалы" : "Stories"}</p>
-                <h2>{locale === "ru" ? "Превью и разборы" : "Previews and breakdowns"}</h2>
-            </div>
-          </div>
-          <div className="story-grid">
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} locale={locale} />
-            ))}
-          </div>
         </section>
       ) : null}
 

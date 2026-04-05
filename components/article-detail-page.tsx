@@ -172,7 +172,7 @@ export async function ArticleDetailPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={articleJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero title={article.title} description={article.excerpt} />
+      <PageHero title={article.title} />
 
       <section className="detail-grid">
         <article className="stack">
@@ -230,6 +230,21 @@ export async function ArticleDetailPage({
               )}
             </p>
           </div>
+
+          {article.sourceMap.length > 0 ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Источник" : "Source"}</h3>
+              <ul className="event-side-list">
+                {article.sourceMap.map(({ source }) => (
+                  <li key={source.id}>
+                    <a href={source.url} target="_blank" rel="noopener noreferrer">
+                      {source.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </aside>
       </section>
     </main>

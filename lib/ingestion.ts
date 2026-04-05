@@ -846,7 +846,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       : null;
   const finalStatus = forcedDraftReason ? "draft" : requestedStatus;
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const duplicateCandidate = await findDuplicateCandidate(
       normalizeComparableText(normalized.articleDraft.title),
       source.id,
@@ -937,4 +937,6 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       promotionSlug: article.promotion?.slug ?? null
     };
   });
+
+  return result;
 }

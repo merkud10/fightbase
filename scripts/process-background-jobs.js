@@ -15,6 +15,7 @@ const JOB_SCRIPT_MAP = {
   "ai-discovery": "discover-ai-news-repaired.js",
   "weekly-analysis": "discover-weekly-analysis.js",
   "sync-odds": "sync-upcoming-pipeline.js",
+  "sync-roster": "sync-ufc-roster.js",
   "operational-alerts": "send-telegram-operational-alerts.js"
 };
 
@@ -40,6 +41,10 @@ function buildArgs(job, baseUrl) {
     args.push("--base-url", payload.baseUrl || baseUrl);
     if (payload.limit) {
       args.push("--limit-per-source", String(payload.limit));
+    }
+  } else if (job.type === "sync-roster") {
+    if (payload.limit) {
+      args.push("--limit", String(payload.limit));
     }
   } else if (job.type === "operational-alerts") {
     if (payload.limit) {

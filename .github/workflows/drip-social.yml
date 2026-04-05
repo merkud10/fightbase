@@ -1,0 +1,26 @@
+name: Drip Social Publish
+
+on:
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  drip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Publish next article to TG/VK
+        run: |
+          response=$(curl -sf -w "\n%{http_code}" -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/drip-social" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
+            -d '{}')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "HTTP status: $http_code"
+          echo "Response: $body"
