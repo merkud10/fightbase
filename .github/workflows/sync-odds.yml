@@ -1,4 +1,4 @@
-name: Sync Events + Odds
+name: "Sync Events + Odds"
 
 on:
   schedule:

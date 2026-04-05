@@ -1,4 +1,4 @@
-name: Sync News
+name: "Sync News"
 
 on:
   schedule:

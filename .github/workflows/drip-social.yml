@@ -1,4 +1,4 @@
-name: Drip Social Publish
+name: "Drip Social Publish"
 
 on:
   schedule:

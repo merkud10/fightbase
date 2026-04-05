@@ -1,4 +1,4 @@
-name: Sync Fighter Roster
+name: "Sync Fighter Roster"
 
 on:
   schedule:
