@@ -740,6 +740,186 @@ async function findDuplicateCandidate(
   return null;
 }
 
+/** Латиница + кириллица: одна и та же новость с разных сайтов не совпадает по заголовку. */
+const INJURY_STORY_MARKERS = [
+  "nose",
+  "нос",
+  "fracture",
+  "перелом",
+  "shatter",
+  "broken",
+  "сломан",
+  "сломал",
+  "surgery",
+  "операци",
+  "injury",
+  "травм",
+  "medical",
+  "медицин",
+  "corrective",
+  "training",
+  "трениров",
+  "withdraw",
+  "отказ"
+];
+
+const CROSS_SOURCE_WINDOW_DAYS = 14;
+
+function fighterNameTokens(fighter: { name: string; nameRu: string | null; slug: string }): string[] {
+  const out: string[] = [];
+  const parts = [fighter.name, fighter.nameRu || "", ...fighter.slug.split("-")];
+  for (const part of parts) {
+    for (const raw of part.split(/\s+/)) {
+      const t = raw.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "");
+      if (t.length >= 4) {
+        out.push(t);
+      }
+    }
+  }
+  return [...new Set(out)];
+}
+
+function hasInjurySignal(text: string) {
+  const lower = text.toLowerCase();
+  return INJURY_STORY_MARKERS.some((m) => lower.includes(m));
+}
+
+/** Подстроки, которые есть в обоих текстах (как следы одной темы). */
+function countSharedSubstringsInBoth(textA: string, textB: string, markers: string[]) {
+  const la = textA.toLowerCase();
+  const lb = textB.toLowerCase();
+  let n = 0;
+  for (const m of markers) {
+    if (m.length < 3) continue;
+    if (la.includes(m) && lb.includes(m)) {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+function sharedFighterNameAppearsInBoth(textA: string, textB: string, tokens: string[]) {
+  const la = textA.toLowerCase();
+  const lb = textB.toLowerCase();
+  return tokens.some((t) => t.length >= 4 && la.includes(t) && lb.includes(t));
+}
+
+type ArticleDupRow = {
+  id: string;
+  slug: string;
+  status: import("@prisma/client").ArticleStatus;
+  title: string;
+  excerpt: string;
+  meaning: string;
+  publishedAt: Date;
+  promotionId: string | null;
+  eventId: string | null;
+  event: { slug: string } | null;
+  promotion: { slug: string } | null;
+  fighterMap: Array<{
+    fighterId: string;
+    fighter: { id: string; name: string; nameRu: string | null; slug: string };
+  }>;
+  tagMap: Array<{ tag: { slug: string } }>;
+};
+
+async function findCrossSourceNewsDuplicate(
+  tx: { article: typeof prisma.article },
+  params: {
+    category: ArticleCategory;
+    relations: Awaited<ReturnType<typeof inferRelations>>;
+    incomingPublishedAt: Date;
+    incomingTextBlob: string;
+  }
+): Promise<{ article: ArticleDupRow; reason: string } | null> {
+  const { category, relations, incomingPublishedAt, incomingTextBlob } = params;
+
+  if (category !== "news" || relations.fighters.length === 0) {
+    return null;
+  }
+
+  const fighterIds = relations.fighters.map((f) => f.id);
+  const incomingFighterTokens = relations.fighters.flatMap(fighterNameTokens);
+
+  const windowStart = new Date(incomingPublishedAt);
+  windowStart.setDate(windowStart.getDate() - CROSS_SOURCE_WINDOW_DAYS);
+  const windowEnd = new Date(incomingPublishedAt);
+  windowEnd.setDate(windowEnd.getDate() + 1);
+
+  const candidates = await tx.article.findMany({
+    where: {
+      category: "news",
+      publishedAt: { gte: windowStart, lte: windowEnd },
+      fighterMap: { some: { fighterId: { in: fighterIds } } }
+    },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      title: true,
+      excerpt: true,
+      meaning: true,
+      publishedAt: true,
+      promotionId: true,
+      eventId: true,
+      event: { select: { slug: true } },
+      promotion: { select: { slug: true } },
+      fighterMap: {
+        include: {
+          fighter: { select: { id: true, name: true, nameRu: true, slug: true } }
+        }
+      },
+      tagMap: { include: { tag: { select: { slug: true } } } }
+    },
+    take: 50,
+    orderBy: { publishedAt: "desc" }
+  });
+
+  const incomingNorm = normalizeComparableText(incomingTextBlob);
+  const incomingTokens = buildTokenSet(incomingNorm);
+
+  for (const article of candidates) {
+    const sharedFighterIds = article.fighterMap.filter((m) => fighterIds.includes(m.fighterId)).length;
+    if (sharedFighterIds < 1) continue;
+
+    const existingBlob = [article.title, article.excerpt, article.meaning].join("\n");
+    const existingNorm = normalizeComparableText(existingBlob);
+    const existingTokens = buildTokenSet(existingNorm);
+    const tokenOverlap = calculateTokenOverlap(incomingTokens, existingTokens);
+
+    const existingFighterTokens = article.fighterMap.flatMap((m) => fighterNameTokens(m.fighter));
+    const markerPool = [...new Set([...incomingFighterTokens, ...existingFighterTokens, ...INJURY_STORY_MARKERS])];
+    const sharedMarkers = countSharedSubstringsInBoth(incomingTextBlob, existingBlob, markerPool);
+
+    const crossLangSameStory =
+      sharedFighterNameAppearsInBoth(incomingTextBlob, existingBlob, incomingFighterTokens) &&
+      hasInjurySignal(incomingTextBlob) &&
+      hasInjurySignal(existingBlob);
+
+    const sameHeadlineFamily = tokenOverlap >= 0.24;
+    const strongMarkerOverlap = sharedMarkers >= 3;
+    const mediumMarkerAndOverlap = sharedMarkers >= 2 && tokenOverlap >= 0.1;
+    const injuryCrossLang = crossLangSameStory && sharedFighterIds >= 1;
+
+    if (sameHeadlineFamily || strongMarkerOverlap || mediumMarkerAndOverlap || injuryCrossLang) {
+      const reason = sameHeadlineFamily
+        ? `cross-source text overlap ${tokenOverlap.toFixed(2)}`
+        : strongMarkerOverlap
+          ? `cross-source shared markers (${sharedMarkers})`
+          : mediumMarkerAndOverlap
+            ? "cross-source markers + overlap"
+            : "cross-source same fighter + injury signals (different outlets/languages)";
+
+      return {
+        article: article as ArticleDupRow,
+        reason
+      };
+    }
+  }
+
+  return null;
+}
+
 function adjustConfidence(
   baseConfidence: number,
   relations: Awaited<ReturnType<typeof inferRelations>>,
@@ -853,7 +1033,17 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       relations,
       input.category ?? normalized.articleDraft.category
     );
-    const confidence = adjustConfidence(normalized.confidence, relations, Boolean(duplicateCandidate));
+    const crossSourceDup = await findCrossSourceNewsDuplicate(tx, {
+      category: editorialCategory,
+      relations,
+      incomingPublishedAt: new Date(normalized.articleDraft.publishedAt),
+      incomingTextBlob: `${cleanedTitle}\n${cleanedExcerpt}\n${cleanedBody}`
+    });
+    const confidence = adjustConfidence(
+      normalized.confidence,
+      relations,
+      Boolean(duplicateCandidate || crossSourceDup)
+    );
 
     if (duplicateCandidate) {
       return {
@@ -867,6 +1057,22 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
         tagSlugs: duplicateCandidate.article.tagMap.map((item) => item.tag.slug),
         eventSlug: duplicateCandidate.article.event?.slug ?? null,
         promotionSlug: duplicateCandidate.article.promotion?.slug ?? null
+      };
+    }
+
+    if (crossSourceDup) {
+      const a = crossSourceDup.article;
+      return {
+        articleId: a.id,
+        slug: a.slug,
+        status: a.status,
+        confidence,
+        duplicate: true,
+        sourceId: source.id,
+        fighterSlugs: a.fighterMap.map((item) => item.fighter.slug),
+        tagSlugs: a.tagMap.map((item) => item.tag.slug),
+        eventSlug: a.event?.slug ?? null,
+        promotionSlug: a.promotion?.slug ?? null
       };
     }
 
