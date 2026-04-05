@@ -273,14 +273,18 @@ This layer is intentionally provider-agnostic, so it can later connect to:
 
 For public deployment, configure:
 
-- production database URL
+- production database URL (Postgres)
 - `INGEST_CRON_SECRET`
 - `NEXT_PUBLIC_SITE_URL`
 - `DEPLOYMENT_ENV="production"`
+- admin auth: `AUTH_SESSION_SECRET`, `ADMIN_EMAIL`, password (`ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`)
 - optional `OPENAI_API_KEY`
 - optional `OLLAMA_URL` and `OLLAMA_MODEL` if self-hosted translation is used
+- optional social: `TELEGRAM_*`, `VK_*` (see [DEPLOY_CHECKLIST.md](DEPLOY_CHECKLIST.md))
 - health probe at `/api/health`
 - ingestion run visibility in `/admin` and `/api/health`
+
+Full variable list and production DB steps: **[DEPLOY_CHECKLIST.md](DEPLOY_CHECKLIST.md)**.
 
 Health now also reports:
 
@@ -323,7 +327,7 @@ Recommended Postgres workflow:
 1. Start local Postgres with `npm run db:start:pg`
 2. Set `DATABASE_URL` to a Postgres URL
 3. Run `npm run prisma:generate:pg`
-4. Run `npm run db:push:pg`
+4. Apply schema: **`npm run db:migrate:deploy:pg`** (versioned migrations), or **`npm run db:push:pg`** only for a fresh empty DB / prototyping
 5. Run `npm run db:seed`
 6. Smoke-test the app and `/api/health`
 

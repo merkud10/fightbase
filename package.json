@@ -17,6 +17,7 @@
     "db:push:pg": "prisma db push --schema prisma/schema.postgres.prisma",
     "db:migrate": "prisma migrate dev",
     "db:migrate:pg": "prisma migrate dev --schema prisma/schema.postgres.prisma",
+    "db:migrate:deploy:pg": "prisma migrate deploy --schema prisma/schema.postgres.prisma",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:start:pg": "docker compose -f docker-compose.postgres.yml up -d",
@@ -78,9 +79,9 @@
     "ingest:analysis-cron": "node scripts/trigger-ingest-cron.js --job weekly-analysis"
   },
   "dependencies": {
-    "@prisma/client": "6.18.0",
+    "@prisma/client": "6.19.3",
     "dotenv": "^17.3.1",
-    "next": "15.5.9",
+    "next": "15.5.14",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "web-push": "^3.6.7",
@@ -90,7 +91,7 @@
     "@types/node": "22.14.0",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
-    "prisma": "6.18.0",
+    "prisma": "6.19.3",
     "tsx": "^4.21.0",
     "typescript": "5.8.3"
   },

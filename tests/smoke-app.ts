@@ -2,6 +2,13 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
+import dotenv from "dotenv";
+
+const repoRoot = path.resolve(process.cwd());
+for (const name of [".env", ".env.local", ".env.production", ".env.production.local"]) {
+  dotenv.config({ path: path.join(repoRoot, name), override: true });
+}
+
 const PORT = Number(process.env.SMOKE_TEST_PORT || String(3200 + Math.floor(Math.random() * 400)));
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
