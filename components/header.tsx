@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { HeaderShell } from "@/components/header-shell";
@@ -23,14 +22,11 @@ export async function Header() {
       <header className="site-header">
         <div className="container site-header-inner">
           <Link href={localizePath("/", locale)} className="brand">
-            <Image
-              src="/logo.png"
-              alt="FightBase.ru"
-              width={180}
-              height={48}
-              className="brand-logo"
-              priority
-            />
+            <span className="brand-mark">FB</span>
+            <span className="brand-copy">
+              <span>FightBase</span>
+              <small>{t.brandTagline}</small>
+            </span>
           </Link>
 
           <div className="header-nav-shell">
