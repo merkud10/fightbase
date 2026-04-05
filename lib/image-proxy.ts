@@ -1,5 +1,7 @@
-const HOTLINK_PROTECTED_HOSTS = new Set(["www1-cdn.sherdog.com"]);
-
+/**
+ * Все внешние картинки проксируем через /api/image-proxy,
+ * чтобы обойти блокировки и hotlink-protection.
+ */
 export function getDisplayImageUrl(url?: string | null) {
   const raw = String(url || "").trim();
 
@@ -9,10 +11,10 @@ export function getDisplayImageUrl(url?: string | null) {
 
   try {
     const parsed = new URL(raw);
-    if (HOTLINK_PROTECTED_HOSTS.has(parsed.hostname)) {
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
       return `/api/image-proxy?url=${encodeURIComponent(parsed.toString())}`;
     }
-    return parsed.toString();
+    return raw;
   } catch {
     return raw;
   }

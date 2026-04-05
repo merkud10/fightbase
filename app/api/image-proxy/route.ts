@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   const authorization = await authorizeRequest(request, {
     rateLimit: {
       scope: "api:image-proxy",
-      limit: 180,
+      limit: 600,
       windowMs: 60_000
     }
   });
