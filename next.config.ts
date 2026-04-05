@@ -13,7 +13,12 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www1-cdn.sherdog.com" },
       { protocol: "https", hostname: "ss.sport-express.net" },
       { protocol: "https", hostname: "www.sport-express.net" },
-      { protocol: "https", hostname: "upload.wikimedia.org" }
+      { protocol: "https", hostname: "upload.wikimedia.org" },
+      { protocol: "https", hostname: "www.sports.ru" },
+      { protocol: "https", hostname: "storage.yandexcloud.net" },
+      { protocol: "https", hostname: "cdn-mmajunkie-com.translate.goog" },
+      { protocol: "https", hostname: "mmajunkie.usatoday.com" },
+      { protocol: "https", hostname: "cdn.vox-cdn.com" }
     ],
     formats: ["image/avif", "image/webp"]
   },
@@ -24,7 +29,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://dmxg5wxfqgb4u.cloudfront.net https://*.ufc.com https://ufc.com https://images.tapology.com https://www1-cdn.sherdog.com https://ss.sport-express.net https://www.sport-express.net https://upload.wikimedia.org",
+      "img-src 'self' data: https://dmxg5wxfqgb4u.cloudfront.net https://*.ufc.com https://ufc.com https://images.tapology.com https://www1-cdn.sherdog.com https://ss.sport-express.net https://www.sport-express.net https://upload.wikimedia.org https://www.sports.ru https://storage.yandexcloud.net https://cdn.vox-cdn.com https://mmajunkie.usatoday.com",
       "font-src 'self'",
       "connect-src 'self'",
       "frame-ancestors 'self'",
