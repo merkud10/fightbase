@@ -151,8 +151,33 @@ function applyFighterNames(value: string, fighters: RelatedFighter[]) {
   return next;
 }
 
+/** Паттерны рекламных/промо абзацев источников, которые нужно вырезать. */
+const PROMO_PARAGRAPH_PATTERNS = [
+  /читайте\s+(metaratings|meta-ratings|мета\s*рейтинг)/i,
+  /подписывайтесь\s+на\s+(наш|нас)\b/i,
+  /follow\s+us\s+on\b/i,
+  /stay\s+tuned\s+to\b/i,
+  /subscribe\s+to\s+(our|the)\b/i,
+  /чтобы\s+быть\s+в\s+курсе\s+(свежих|последних|новых)\s+новостей/i,
+  /присоединяйтесь\s+к\s+(нашему|нашей|нам)\b/i,
+  /не\s+пропустите\s+самые\s+(важные|интересные|свежие)/i,
+  /больше\s+новостей\s+(на|в)\s+(нашем|канале|сайте)/i,
+  /для\s+получения\s+(свежих|последних|актуальных)\s+новостей/i,
+  /fightnews\.info/i,
+  /mmafighting\.com/i,
+  /sherdog\.com/i,
+  /mmajunkie/i,
+];
+
+function removePromoParas(text: string): string {
+  return text
+    .split(/\n\n+/)
+    .filter((para) => !PROMO_PARAGRAPH_PATTERNS.some((rx) => rx.test(para)))
+    .join("\n\n");
+}
+
 export function cleanNewsText(value: string, fighters: RelatedFighter[] = []) {
-  return applyFighterNames(applyCommonReplacements(value), fighters);
+  return removePromoParas(applyFighterNames(applyCommonReplacements(value), fighters));
 }
 
 export function cleanNewsTitle(value: string, fighters: RelatedFighter[] = []) {

@@ -423,6 +423,7 @@ function buildPrompt(input: IngestDraftInput) {
     "- If the text feels too close to the source, rewrite it to improve originality",
     "- Avoid repetitive phrasing",
     "- Ensure the article reads like a native publication",
+    "- REMOVE any promotional paragraphs, subscription calls-to-action, or self-referential plugs from the source (e.g. 'Читайте Metaratings...', 'Подписывайтесь на наш канал...', 'Follow us on...', 'Stay tuned to...'). These must NOT appear in the output.",
     "",
     "OUTPUT FORMAT:",
     'Return strict JSON: { "headline": "...", "body": "..." }',
