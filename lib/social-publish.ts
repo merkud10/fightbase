@@ -292,6 +292,44 @@ async function vkWallPost(
   return json.response;
 }
 
+/**
+ * Разбивает длинные абзацы на короткие (1-2 предложения).
+ * Telegram-посты с частыми переносами строк читаются значительно лучше.
+ */
+function splitIntoShortParagraphs(text: string): string {
+  return text
+    .split(/\n\n+/)
+    .flatMap((para) => {
+      const trimmed = para.trim();
+      if (!trimmed) return [];
+      // Если абзац уже короткий (≤ 200 символов), оставляем как есть
+      if (trimmed.length <= 200) return [trimmed];
+
+      // Разбиваем по предложениям (точка/!/? + пробел + заглавная буква или кириллица)
+      const sentences = trimmed.match(/[^.!?]*[.!?]+(?:\s|$)/g) || [trimmed];
+      const shortParas: string[] = [];
+      let current = "";
+
+      for (const sentence of sentences) {
+        const s = sentence.trim();
+        if (!s) continue;
+
+        if (current && (current + " " + s).length > 200) {
+          shortParas.push(current.trim());
+          current = s;
+        } else {
+          current = current ? current + " " + s : s;
+        }
+      }
+      if (current.trim()) {
+        shortParas.push(current.trim());
+      }
+
+      return shortParas.length > 0 ? shortParas : [trimmed];
+    })
+    .join("\n\n");
+}
+
 function composeFullArticlePlainText(article: Pick<ArticleSocialPayload, "title" | "excerpt" | "meaning" | "sections">): string {
   const blocks: string[] = [];
   const title = String(article.title || "").trim();
@@ -326,6 +364,11 @@ function composeFullArticlePlainText(article: Pick<ArticleSocialPayload, "title"
   return composed;
 }
 
+/** Версия текста для Telegram — с короткими абзацами. */
+function composeTelegramText(article: Pick<ArticleSocialPayload, "title" | "excerpt" | "meaning" | "sections">): string {
+  return splitIntoShortParagraphs(composeFullArticlePlainText(article));
+}
+
 /** Режет текст на части по границам абзацев, чтобы уместиться в лимит Telegram. */
 function splitTextForTelegramChunks(fullText: string, maxLen: number): string[] {
   const text = fullText.trim();
@@ -356,7 +399,7 @@ function splitTextForTelegramChunks(fullText: string, maxLen: number): string[] 
 }
 
 function buildTelegramHtmlChunks(article: ArticleSocialPayload): string[] {
-  const fullText = composeFullArticlePlainText(article);
+  const fullText = composeTelegramText(article);
   const plainChunks = splitTextForTelegramChunks(fullText, TELEGRAM_MESSAGE_MAX);
 
   return plainChunks.map((chunk, index) => {
