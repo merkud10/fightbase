@@ -16,3 +16,6 @@ tmp/
 tmp-*.json
 benchmark-data/
 .claude/
+
+# Локальный клон репозитория
+Гитхаб/
