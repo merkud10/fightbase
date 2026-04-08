@@ -51,5 +51,8 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Sync DB schema before smoke (standalone uses a copy under .next/standalone)
+        run: npm run db:push
+
       - name: Run smoke checks
         run: npm run test:smoke

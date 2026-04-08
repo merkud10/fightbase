@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-
 import dotenv from "dotenv";
 
 const repoRoot = path.resolve(process.cwd());
@@ -9,24 +10,57 @@ for (const name of [".env", ".env.local", ".env.production", ".env.production.lo
   dotenv.config({ path: path.join(repoRoot, name), override: true });
 }
 
-/**
- * Standalone-сервер стартует с cwd `.next/standalone`; относительный `file:./prisma/...`
- * иначе резолвится в несуществующий путь. Для SQLite приводим к абсолютному пути от корня репо.
- */
-function resolveDatabaseUrlForSmoke(): string {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) {
-    return `file:${path.join(repoRoot, "prisma", "dev.db")}`;
-  }
+/** Абсолютный путь к файлу SQLite из DATABASE_URL (относительно корня репозитория). */
+function resolveRepoSqliteAbsolutePath(raw: string): string {
   if (!raw.startsWith("file:")) {
-    return raw;
+    throw new Error("Smoke test: expected SQLite DATABASE_URL to start with file:");
   }
   const rest = raw.slice("file:".length);
-  if (rest.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(rest)) {
-    return raw;
+  if (rest.startsWith("/") && !rest.startsWith("//")) {
+    return rest;
+  }
+  if (/^[a-zA-Z]:[\\/]/.test(rest)) {
+    return rest;
   }
   const normalized = rest.replace(/^\.\//, "");
-  return `file:${path.resolve(repoRoot, normalized)}`;
+  const canonical = path.resolve(repoRoot, normalized);
+  if (fs.existsSync(canonical)) {
+    return canonical;
+  }
+  const nested = path.resolve(repoRoot, "prisma", normalized);
+  if (fs.existsSync(nested)) {
+    return nested;
+  }
+  return canonical;
+}
+
+/** Формат SQLite URL для Prisma. На Windows нужно `file:C:/...`, не `file:/C:/...` (иначе error 14). */
+function prismaSqliteFileUrl(absPath: string): string {
+  return `file:${absPath.replace(/\\/g, "/")}`;
+}
+
+let smokeTempDbPath: string | null = null;
+
+/**
+ * Копируем SQLite во временный путь только из ASCII (os.tmpdir), иначе Prisma/SQLite на Windows
+ * не открывают file: URL с кириллицей в пути (например OneDrive/«Рабочий стол»).
+ */
+function prepareDatabaseUrlForStandaloneServer(): string {
+  let raw = process.env.DATABASE_URL?.trim() || "";
+  if (!raw.startsWith("file:")) {
+    const dev = path.join(repoRoot, "prisma", "dev.db");
+    const ci = path.join(repoRoot, "prisma", "ci.db");
+    raw = fs.existsSync(dev) ? "file:./prisma/dev.db" : fs.existsSync(ci) ? "file:./prisma/ci.db" : "file:./prisma/dev.db";
+  }
+  const src = resolveRepoSqliteAbsolutePath(raw);
+  if (!fs.existsSync(src)) {
+    throw new Error(
+      `Smoke test: database file missing at ${src}. Run \`npm run db:push\` (or create the DB) before test:smoke.`
+    );
+  }
+  smokeTempDbPath = path.join(os.tmpdir(), `fightbase-smoke-${process.pid}-${Date.now()}.db`);
+  fs.copyFileSync(src, smokeTempDbPath);
+  return prismaSqliteFileUrl(fs.realpathSync(smokeTempDbPath));
 }
 
 const PORT = Number(process.env.SMOKE_TEST_PORT || String(3200 + Math.floor(Math.random() * 400)));
@@ -80,13 +114,14 @@ async function runCheck(name: string, check: () => Promise<void>): Promise<Check
 
 async function main() {
   const serverCwd = path.resolve(process.cwd(), ".next", "standalone");
+  const dbUrl = prepareDatabaseUrlForStandaloneServer();
   const server = spawn(process.execPath, ["server.js"], {
     cwd: serverCwd,
     env: {
       ...process.env,
       PORT: String(PORT),
       HOSTNAME: "127.0.0.1",
-      DATABASE_URL: resolveDatabaseUrlForSmoke()
+      DATABASE_URL: dbUrl
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -210,6 +245,14 @@ async function main() {
     await sleep(1_000);
     if (!server.killed) {
       server.kill("SIGKILL");
+    }
+    if (smokeTempDbPath && fs.existsSync(smokeTempDbPath)) {
+      try {
+        fs.unlinkSync(smokeTempDbPath);
+      } catch {
+        /* ignore */
+      }
+      smokeTempDbPath = null;
     }
   }
 }
