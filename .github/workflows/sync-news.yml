@@ -55,4 +55,4 @@ jobs:
         run: |
           curl -sf -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}\", \"text\": \"✅ Новости обновлены\", \"disable_notification\": true}"
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}\", \"text\": \"✅ Задача сбора новостей поставлена в очередь на сервере. Новые материалы появятся только после обработки воркером; при отсутствии дублей и ошибок — обычно в течение нескольких минут.\", \"disable_notification\": true}"

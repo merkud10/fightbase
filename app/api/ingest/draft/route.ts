@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { authorizeRequest } from "@/lib/api-security";
 import { createDraftFromIngestion } from "@/lib/ingestion";
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
 
   try {
     const draft = await createDraftFromIngestion(parsed.data);
+    if (draft.status === "published" && !draft.duplicate) {
+      revalidatePath("/");
+      revalidatePath("/news");
+    }
     logger.info("Draft ingestion succeeded", {
       ...authorization.context,
       authKind: authorization.kind,
