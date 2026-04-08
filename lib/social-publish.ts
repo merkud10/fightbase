@@ -1,3 +1,4 @@
+import { TELEGRAM_DIGEST_MAX } from "@/lib/ai-localization";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
@@ -31,6 +32,7 @@ type ArticleSocialPayload = {
   vkPostedAt: Date | null;
   meaning: string;
   sections: { heading: string; body: string; sortOrder: number }[];
+  telegramDigest: string | null;
 };
 
 export async function getPublishableArticle(articleId: string) {
@@ -47,6 +49,7 @@ export async function getPublishableArticle(articleId: string) {
       vkPostedAt: true,
       coverImageUrl: true,
       meaning: true,
+      telegramDigest: true,
       sections: {
         orderBy: { sortOrder: "asc" },
         select: { heading: true, body: true, sortOrder: true }
@@ -80,14 +83,22 @@ function resolveCoverImageUrlForSocial(raw: string | null | undefined): string |
 /** Telegram sendPhoto caption limit: 1024 chars */
 const TELEGRAM_CAPTION_MAX = 1020;
 
-async function telegramSendPhoto(token: string, chatId: string, photoUrl: string, caption?: string) {
+async function telegramSendPhoto(
+  token: string,
+  chatId: string,
+  photoUrl: string,
+  caption?: string,
+  parseMode: "HTML" | undefined = "HTML"
+) {
   const payload: Record<string, string> = {
     chat_id: chatId,
     photo: photoUrl
   };
   if (caption) {
     payload.caption = caption;
-    payload.parse_mode = "HTML";
+    if (parseMode) {
+      payload.parse_mode = parseMode;
+    }
   }
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
@@ -421,6 +432,15 @@ function buildTelegramHtmlChunks(article: ArticleSocialPayload): string[] {
   });
 }
 
+/** Один пост для TG из DeepSeek-digest; лимит 1024 символа (как в TELEGRAM_DIGEST_MAX). */
+function clampPlainTelegramDigest(text: string): string {
+  const t = text.trim();
+  if (t.length <= TELEGRAM_DIGEST_MAX) {
+    return t;
+  }
+  return `${t.slice(0, TELEGRAM_DIGEST_MAX - 1).trimEnd()}…`;
+}
+
 function buildVkFullMessage(article: ArticleSocialPayload): string {
   const full = composeFullArticlePlainText(article);
   if (full.length <= VK_MESSAGE_MAX) {
@@ -454,17 +474,23 @@ export async function publishArticleToTelegram(articleId: string) {
 
   const payload = article as ArticleSocialPayload;
   const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
-  const chunks = buildTelegramHtmlChunks(payload);
+  const digest = String(payload.telegramDigest || "").trim();
+  const chunks = digest
+    ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
+    : buildTelegramHtmlChunks(payload);
+  const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
   let startChunkIndex = 0;
 
   if (coverUrl && chunks.length > 0) {
     const firstChunk = chunks[0] ?? "";
-    const caption = firstChunk.length <= TELEGRAM_CAPTION_MAX ? firstChunk : firstChunk.slice(0, TELEGRAM_CAPTION_MAX).trimEnd();
+    const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
+    const caption =
+      firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
     try {
-      await telegramSendPhoto(token, chatId, coverUrl, caption);
+      await telegramSendPhoto(token, chatId, coverUrl, caption, parseMode);
       startChunkIndex = 1;
-      if (firstChunk.length > TELEGRAM_CAPTION_MAX) {
-        chunks[0] = firstChunk.slice(TELEGRAM_CAPTION_MAX).trimStart();
+      if (firstChunk.length > captionMax) {
+        chunks[0] = firstChunk.slice(captionMax).trimStart();
         startChunkIndex = 0;
       }
     } catch (error) {
@@ -489,7 +515,7 @@ export async function publishArticleToTelegram(articleId: string) {
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: "HTML",
+        ...(parseMode ? { parse_mode: parseMode } : {}),
         disable_web_page_preview: true
       })
     });

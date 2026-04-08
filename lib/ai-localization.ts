@@ -171,6 +171,117 @@ function parseLocalizationResponse(rawText: string) {
   };
 }
 
+/** Лимит текста поста Telegram (caption и обычное сообщение для короткого формата). */
+export const TELEGRAM_DIGEST_MAX = 1024;
+
+function parseSingleTextJsonResponse(rawText: string) {
+  const sanitized = sanitizeJsonPayload(rawText);
+  const parsed = JSON.parse(sanitized) as { text?: string };
+  const text = String(parsed.text ?? "").trim();
+  if (!text) {
+    throw new Error("Telegram digest response is missing text");
+  }
+  return text;
+}
+
+function buildTelegramDigestUserPrompt(title: string, body: string) {
+  return [
+    "Создай один готовый текст поста для Telegram-канала о MMA.",
+    "Сохрани суть, ключевые факты, имена бойцов, даты, цифры и результаты.",
+    "Пиши естественным русским новостным языком, без воды и без призывов подписаться.",
+    `Строгий лимит: не более ${TELEGRAM_DIGEST_MAX} символов, включая пробелы и переводы строк (подсчёт как в JavaScript String.length — соответствует лимиту Telegram Bot API для подписи).`,
+    "Если не помещается — сокращай второстепенное; не обрывай мысль посреди предложения без необходимости.",
+    'Верни строгий JSON одного поля: { "text": "..." }',
+    "",
+    `Заголовок:\n${title}`,
+    "",
+    `Текст материала:\n${body}`
+  ].join("\n");
+}
+
+async function sendOpenAiCompatibleSingleTextPrompt(options: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature?: number;
+}) {
+  const requestBody = JSON.stringify({
+    model: options.model,
+    messages: [
+      {
+        role: "system",
+        content: options.systemPrompt
+      },
+      {
+        role: "user",
+        content: options.userPrompt
+      }
+    ],
+    response_format: {
+      type: "json_object"
+    },
+    temperature: options.temperature ?? 0.2
+  });
+
+  const rawPayload = await postJson(`${options.baseUrl.replace(/\/$/, "")}/chat/completions`, requestBody, {
+    Authorization: `Bearer ${options.apiKey}`
+  });
+  const payload = JSON.parse(rawPayload) as unknown;
+  return parseSingleTextJsonResponse(extractChatCompletionText(payload));
+}
+
+function clampTelegramDigest(text: string) {
+  const t = text.trim();
+  if (t.length <= TELEGRAM_DIGEST_MAX) {
+    return t;
+  }
+  return `${t.slice(0, TELEGRAM_DIGEST_MAX - 1).trimEnd()}…`;
+}
+
+/**
+ * Сжимает материал для поста в Telegram (≤1024 символов). Только DeepSeek; без ключа возвращает null.
+ * Короткие тексты возвращает без дополнительного запроса.
+ */
+export async function generateTelegramDigestForArticle(title: string, body: string): Promise<string | null> {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  const t = String(title || "").trim();
+  const b = String(body || "").trim();
+  const combined = [t, b].filter(Boolean).join("\n\n").trim();
+  if (!combined) {
+    return null;
+  }
+
+  if (combined.length <= TELEGRAM_DIGEST_MAX) {
+    return combined;
+  }
+
+  const model = getDeepSeekModel();
+  const baseUrl = getDeepSeekBaseUrl();
+
+  try {
+    let text = await sendOpenAiCompatibleSingleTextPrompt({
+      baseUrl,
+      apiKey,
+      model,
+      systemPrompt:
+        "Ты редактор русскоязычного MMA-медиа. Сожми материал в один пост для Telegram. Отвечай только валидным JSON с одним ключом text. Русский язык, без выдуманных фактов.",
+      userPrompt: buildTelegramDigestUserPrompt(t, b),
+      temperature: 0.2
+    });
+    text = clampTelegramDigest(text);
+    return text || null;
+  } catch (error) {
+    console.error("DeepSeek telegram digest failed", error);
+    return null;
+  }
+}
+
 function enforcePromotionLabel(input: IngestDraftInput, localizedHeadline: string) {
   const sourceLabel = input.sourceLabel.trim();
   if (!sourceLabel) {

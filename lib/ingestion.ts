@@ -3,7 +3,7 @@ import type { ArticleCategory, ArticleStatus, SourceType } from "@prisma/client"
 import http from "node:http";
 import https from "node:https";
 
-import { localizeIngestionInput } from "@/lib/ai-localization";
+import { generateTelegramDigestForArticle, localizeIngestionInput } from "@/lib/ai-localization";
 import { slugify } from "@/lib/admin";
 import { buildRussianMeaningBlock, cleanNewsText, cleanNewsTitle } from "@/lib/article-quality";
 import {
@@ -1026,6 +1026,13 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       : null;
   const finalStatus = forcedDraftReason ? "draft" : requestedStatus;
 
+  let telegramDigest: string | null = null;
+  try {
+    telegramDigest = await generateTelegramDigestForArticle(cleanedTitle, cleanedBody);
+  } catch (error) {
+    console.error("Telegram digest generation failed", error);
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const duplicateCandidate = await findDuplicateCandidate(
       normalizeComparableText(normalized.articleDraft.title),
@@ -1100,6 +1107,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
           localizedInput,
           forcedDraftReason ?? undefined
         ),
+        telegramDigest,
         publishedAt: new Date(normalized.articleDraft.publishedAt),
         promotionId: relations.promotion?.id ?? null,
         eventId: relations.event?.id ?? null,

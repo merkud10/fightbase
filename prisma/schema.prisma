@@ -350,6 +350,8 @@ model Article {
   aiConfidence Float?
   ingestionSourceSummary String?
   ingestionNotes String?
+  /// Сжатый текст для Telegram (≤1024 символов), DeepSeek при ингесте; иначе null — старая логика нарезки.
+  telegramDigest String?
   publishedAt DateTime
   browserPushNotifiedAt DateTime?
   telegramPostedAt DateTime?
