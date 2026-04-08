@@ -21,6 +21,10 @@ echo "=== Prisma Client (Postgres schema) ==="
 # (например, после добавления полей в schema.postgres.prisma).
 sudo -u ${APP_USER} npm run prisma:generate:pg
 
+echo "=== Database migrations (Postgres) ==="
+# Иначе next build падает на prerender (P2022: column does not exist).
+sudo -u ${APP_USER} npm run db:migrate:deploy:pg
+
 echo "=== Building ==="
 sudo -u ${APP_USER} npm run build
 
