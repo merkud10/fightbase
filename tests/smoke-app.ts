@@ -9,6 +9,26 @@ for (const name of [".env", ".env.local", ".env.production", ".env.production.lo
   dotenv.config({ path: path.join(repoRoot, name), override: true });
 }
 
+/**
+ * Standalone-сервер стартует с cwd `.next/standalone`; относительный `file:./prisma/...`
+ * иначе резолвится в несуществующий путь. Для SQLite приводим к абсолютному пути от корня репо.
+ */
+function resolveDatabaseUrlForSmoke(): string {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) {
+    return `file:${path.join(repoRoot, "prisma", "dev.db")}`;
+  }
+  if (!raw.startsWith("file:")) {
+    return raw;
+  }
+  const rest = raw.slice("file:".length);
+  if (rest.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(rest)) {
+    return raw;
+  }
+  const normalized = rest.replace(/^\.\//, "");
+  return `file:${path.resolve(repoRoot, normalized)}`;
+}
+
 const PORT = Number(process.env.SMOKE_TEST_PORT || String(3200 + Math.floor(Math.random() * 400)));
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
@@ -65,7 +85,8 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(PORT),
-      HOSTNAME: "127.0.0.1"
+      HOSTNAME: "127.0.0.1",
+      DATABASE_URL: resolveDatabaseUrlForSmoke()
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
