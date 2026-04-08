@@ -16,6 +16,11 @@ echo "=== Pulling latest code ==="
 cd ${APP_DIR}
 sudo -u ${APP_USER} git pull
 
+echo "=== Prisma Client (Postgres schema) ==="
+# Обязательно после git pull: иначе типы ArticleCreateInput устаревают и next build падает
+# (например, после добавления полей в schema.postgres.prisma).
+sudo -u ${APP_USER} npm run prisma:generate:pg
+
 echo "=== Building ==="
 sudo -u ${APP_USER} npm run build
 
