@@ -37,6 +37,8 @@ jobs:
             exit 1
           fi
 
+          queued_job_id=$(echo "$body" | jq -r '.queuedJobId // empty')
+          echo "queued_job_id=$queued_job_id" >> "$GITHUB_OUTPUT"
           echo "sync_ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Wait for background job to process
@@ -50,9 +52,88 @@ jobs:
             sleep 20
           done
 
-      - name: Send Telegram notification
+      - name: Resolve news job stats
+        id: jobstats
         if: steps.sync.outputs.sync_ok == 'true'
         run: |
-          curl -sf -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}\", \"text\": \"✅ Задача сбора новостей поставлена в очередь на сервере. Новые материалы появятся только после обработки воркером; при отсутствии дублей и ошибок — обычно в течение нескольких минут.\", \"disable_notification\": true}"
+          JOB_ID="${{ steps.sync.outputs.queued_job_id }}"
+          BASE="${{ secrets.NEXT_PUBLIC_SITE_URL }}"
+          SECRET="${{ secrets.INGEST_CRON_SECRET }}"
+
+          if [ -z "$JOB_ID" ]; then
+            echo "summary=queued_job_id_missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for _ in $(seq 1 48); do
+            data=$(curl -sf "${BASE}/api/cron/background-job/${JOB_ID}" \
+              -H "Authorization: Bearer ${SECRET}") || { sleep 5; continue; }
+
+            status=$(echo "$data" | jq -r '.job.status // empty')
+
+            if [ "$status" = "succeeded" ]; then
+              CREATED=$(echo "$data" | jq -r '.stats.created // empty')
+              DUPS=$(echo "$data" | jq -r '.stats.duplicates // empty')
+              FAIL=$(echo "$data" | jq -r '.stats.failed // empty')
+              echo "created=${CREATED}" >> "$GITHUB_OUTPUT"
+              echo "duplicates=${DUPS}" >> "$GITHUB_OUTPUT"
+              echo "failed=${FAIL}" >> "$GITHUB_OUTPUT"
+              echo "summary=ok" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [ "$status" = "failed" ]; then
+              echo "created=0" >> "$GITHUB_OUTPUT"
+              echo "duplicates=" >> "$GITHUB_OUTPUT"
+              echo "failed=" >> "$GITHUB_OUTPUT"
+              echo "summary=failed" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "created=" >> "$GITHUB_OUTPUT"
+          echo "duplicates=" >> "$GITHUB_OUTPUT"
+          echo "failed=" >> "$GITHUB_OUTPUT"
+          echo "summary=timeout" >> "$GITHUB_OUTPUT"
+
+      - name: Send Telegram notification
+        if: steps.sync.outputs.sync_ok == 'true'
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}
+        run: |
+          CREATED='${{ steps.jobstats.outputs.created }}'
+          DUPS='${{ steps.jobstats.outputs.duplicates }}'
+          FAIL='${{ steps.jobstats.outputs.failed }}'
+          SUMMARY='${{ steps.jobstats.outputs.summary }}'
+
+          case "$SUMMARY" in
+            queued_job_id_missing)
+              TEXT="⚠️ Сбор новостей: задача поставлена в очередь, но не удалось получить id задачи для отчёта."
+              ;;
+            failed)
+              TEXT="❌ Сбор новостей: фоновая задача завершилась с ошибкой (новых материалов: 0)."
+              ;;
+            timeout)
+              TEXT="⚠️ Сбор новостей: не дождались завершения задачи за отведённое время; число новых материалов неизвестно."
+              ;;
+            ok)
+              C_LABEL="${CREATED:-0}"
+              D_LABEL="${DUPS:-0}"
+              F_LABEL="${FAIL:-0}"
+              TEXT="✅ Сбор новостей завершён. Новых материалов: ${C_LABEL}. Дубликатов: ${D_LABEL}. Ошибок при загрузке: ${F_LABEL}."
+              ;;
+            *)
+              TEXT="✅ Сбор новостей: задача поставлена в очередь (отчёт недоступен)."
+              ;;
+          esac
+
+          jq -n \
+            --arg chat "$TG_CHAT" \
+            --arg text "$TEXT" \
+            '{chat_id: $chat, text: $text, disable_notification: true}' \
+            | curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+              -H "Content-Type: application/json" \
+              -d @-
