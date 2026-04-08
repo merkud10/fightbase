@@ -1,6 +1,7 @@
 import { TELEGRAM_DIGEST_MAX } from "@/lib/ai-localization";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { getSiteUrl } from "@/lib/site";
 
 type PublishTarget = "telegram" | "vk";
 
@@ -59,9 +60,9 @@ export async function getPublishableArticle(articleId: string) {
 }
 
 /**
- * Возвращает оригинальный URL картинки для Telegram/VK.
- * Использует исходный URL напрямую (не через image-proxy),
- * потому что VK/TG сами скачивают картинку — им нужен публичный URL.
+ * Возвращает абсолютный URL картинки для Telegram/VK.
+ * Относительный `/api/image-proxy?...` приводится к публичному URL сайта (как в UI).
+ * Внешние https URL остаются как есть — дальше downloadImageBuffer может подставить тот же proxy.
  */
 function resolveCoverImageUrlForSocial(raw: string | null | undefined): string | null {
   const url = String(raw || "").trim();
@@ -69,15 +70,28 @@ function resolveCoverImageUrlForSocial(raw: string | null | undefined): string |
     return null;
   }
 
-  try {
-    if (url.startsWith("https://") || url.startsWith("http://")) {
-      return url;
-    }
-  } catch {
-    return null;
+  if (url.startsWith("/api/image-proxy")) {
+    return `${getSiteUrl().origin}${url}`;
+  }
+
+  if (url.startsWith("https://") || url.startsWith("http://")) {
+    return url;
   }
 
   return null;
+}
+
+type VkErrorBody = { error_msg?: string; error_code?: number };
+
+function formatVkApiError(method: string, error: VkErrorBody): string {
+  const code = error.error_code;
+  const msg = error.error_msg || `VK ${method} failed`;
+  const codeStr = code != null ? String(code) : "?";
+  const permissionHint =
+    code === 5 || code === 7 || code === 15 || code === 200
+      ? " Проверьте VK_GROUP_TOKEN: для фото и поста нужны scope wall и photos."
+      : "";
+  return `${msg} (VK error ${codeStr})${permissionHint}`;
 }
 
 /** Telegram sendPhoto caption limit: 1024 chars */
@@ -124,10 +138,10 @@ async function vkApiMethod<T>(method: string, params: Record<string, string | nu
   }
 
   const response = await fetch(url.toString());
-  const json = (await response.json()) as { response?: T; error?: { error_msg?: string } };
+  const json = (await response.json()) as { response?: T; error?: VkErrorBody };
 
   if (json.error) {
-    throw new Error(json.error.error_msg || `VK ${method} failed`);
+    throw new Error(formatVkApiError(method, json.error));
   }
 
   return json.response as T;
@@ -147,20 +161,48 @@ async function vkApiMethodPost<T>(method: string, params: Record<string, string 
     body: body.toString()
   });
 
-  const json = (await response.json()) as { response?: T; error?: { error_msg?: string } };
+  const json = (await response.json()) as { response?: T; error?: VkErrorBody };
 
   if (json.error) {
-    throw new Error(json.error.error_msg || `VK ${method} failed`);
+    throw new Error(formatVkApiError(method, json.error));
   }
 
   return json.response as T;
 }
 
 /**
+ * Сначала — запрос к своему `/api/image-proxy` для внешних URL (как в браузере: Referer к UFC/Sherdog).
+ * Затем прямой URL, wsrv.nl и images.weserv.nl.
+ */
+function buildImageDownloadCandidates(imageUrl: string): string[] {
+  const trimmed = imageUrl.trim();
+  const origin = getSiteUrl().origin;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return [trimmed];
+  }
+
+  if (parsed.pathname.startsWith("/api/image-proxy") && parsed.origin === origin) {
+    return [trimmed];
+  }
+
+  const isExternal = (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin !== origin;
+  const ordered: string[] = [];
+  if (isExternal) {
+    ordered.push(`${origin}/api/image-proxy?url=${encodeURIComponent(trimmed)}`);
+  }
+  ordered.push(trimmed);
+  return [...new Set(ordered)];
+}
+
+/**
  * Пробует скачать изображение по URL. Если прямой запрос не удался (403 и т.д.),
  * пытается через wsrv.nl — внешний прокси, обходящий CDN-блокировки.
  */
-async function downloadImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+async function downloadImageBufferSingle(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
   const fetchHeaders: Record<string, string> = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
@@ -212,6 +254,20 @@ async function downloadImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; 
   }
 
   throw new Error(`Image download failed from all sources (direct: ${directRes.status}, wsrv: ${proxyRes.status}, weserv: ${weservRes.status})`);
+}
+
+async function downloadImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const candidates = buildImageDownloadCandidates(imageUrl);
+  let lastError: Error | null = null;
+  for (const candidate of candidates) {
+    try {
+      return await downloadImageBufferSingle(candidate);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.log(`[VK] Image candidate failed (${candidate.slice(0, 120)}…): ${lastError.message}`);
+    }
+  }
+  throw lastError ?? new Error("Image download failed");
 }
 
 /**
@@ -294,10 +350,10 @@ async function vkWallPost(
     body: params.toString()
   });
 
-  const json = (await response.json()) as { response?: { post_id?: number }; error?: { error_msg?: string } };
+  const json = (await response.json()) as { response?: { post_id?: number }; error?: VkErrorBody };
 
   if (json.error) {
-    throw new Error(`VK API error: ${json.error.error_msg || "wall.post failed"}`);
+    throw new Error(formatVkApiError("wall.post", json.error));
   }
 
   return json.response;
