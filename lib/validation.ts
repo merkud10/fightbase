@@ -34,9 +34,13 @@ export const IngestPreviewInputSchema = z.object({
 export const CronIngestInputSchema = z.object({
   file: z.string().optional(),
   dryRun: z.boolean().optional(),
-  job: z.enum(["watchlist", "ai-discovery", "sync-odds", "weekly-analysis", "sync-roster"]).optional(),
+  job: z.enum(["watchlist", "weekly-news", "ai-discovery", "sync-odds", "weekly-analysis", "sync-roster"]).optional(),
   lookbackHours: z.number().finite().positive().optional(),
   limit: z.number().finite().int().positive().optional(),
+  days: z.number().finite().positive().optional(),
+  limitPerSource: z.number().finite().int().positive().optional(),
+  target: z.enum(["all", "news", "quotes", "predictions", "analysis"]).optional(),
+  sourceLabel: z.string().min(1).optional(),
   status: z.enum(["draft", "review", "published"]).optional(),
   priority: z.number().finite().int().min(1).max(1000).optional()
 });

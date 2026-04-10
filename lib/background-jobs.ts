@@ -3,6 +3,7 @@ import { recordSystemEvent } from "@/lib/system-events";
 
 export const backgroundJobTypes = [
   "watchlist",
+  "weekly-news",
   "ai-discovery",
   "sync-odds",
   "weekly-analysis",

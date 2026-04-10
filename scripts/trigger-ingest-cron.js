@@ -8,9 +8,11 @@ function parseArgs(argv) {
     file: "ingestion/sample-watchlist.json",
     dryRun: false,
     secret: getInternalApiSecret(),
-    job: process.env.INGEST_CRON_JOB || "ai-discovery",
-    lookbackHours: Number(process.env.AI_DISCOVERY_LOOKBACK_HOURS || "8") || 8,
-    limit: Number(process.env.AI_DISCOVERY_ITEM_LIMIT || "8") || 8,
+    job: process.env.INGEST_CRON_JOB || "weekly-news",
+    days: Number(process.env.WEEKLY_NEWS_DAYS || "7") || 7,
+    limitPerSource: Number(process.env.WEEKLY_NEWS_LIMIT_PER_SOURCE || "8") || 8,
+    target: process.env.WEEKLY_NEWS_TARGET || "all",
+    sourceLabel: process.env.WEEKLY_NEWS_SOURCE_LABEL || "",
     status: process.env.AI_DISCOVERY_STATUS || "published"
   };
 
@@ -41,14 +43,26 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (arg === "--lookback-hours" && argv[index + 1]) {
-      options.lookbackHours = Number(argv[index + 1]) || options.lookbackHours;
+    if (arg === "--days" && argv[index + 1]) {
+      options.days = Number(argv[index + 1]) || options.days;
       index += 1;
       continue;
     }
 
-    if (arg === "--limit" && argv[index + 1]) {
-      options.limit = Number(argv[index + 1]) || options.limit;
+    if (arg === "--limit-per-source" && argv[index + 1]) {
+      options.limitPerSource = Number(argv[index + 1]) || options.limitPerSource;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--target" && argv[index + 1]) {
+      options.target = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--source-label" && argv[index + 1]) {
+      options.sourceLabel = argv[index + 1];
       index += 1;
       continue;
     }
@@ -84,8 +98,10 @@ async function main() {
       job: options.job,
       file: options.file,
       dryRun: options.dryRun,
-      lookbackHours: options.lookbackHours,
-      limit: options.limit,
+      days: options.days,
+      limitPerSource: options.limitPerSource,
+      target: options.target,
+      sourceLabel: options.sourceLabel || undefined,
       status: options.status
     })
   });

@@ -34,13 +34,15 @@ export async function POST(request: Request) {
   const job =
     body.job === "watchlist"
       ? "watchlist"
+      : body.job === "weekly-news" || body.job === "ai-discovery"
+        ? "weekly-news"
       : body.job === "sync-odds"
         ? "sync-odds"
-        : body.job === "weekly-analysis"
+      : body.job === "weekly-analysis"
           ? "weekly-analysis"
-          : body.job === "sync-roster"
+        : body.job === "sync-roster"
             ? "sync-roster"
-            : "ai-discovery";
+            : "weekly-news";
 
   try {
     const enqueuedJob = await enqueueBackgroundJob({
@@ -52,6 +54,10 @@ export async function POST(request: Request) {
         dryRun: body.dryRun,
         lookbackHours: body.lookbackHours,
         limit: body.limit,
+        days: body.days,
+        limitPerSource: body.limitPerSource,
+        target: body.target,
+        sourceLabel: body.sourceLabel,
         status: body.status
       }
     });

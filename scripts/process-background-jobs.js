@@ -12,7 +12,8 @@ const execFileAsync = promisify(execFile);
 
 const JOB_SCRIPT_MAP = {
   watchlist: "fetch-source-feed.js",
-  "ai-discovery": "discover-ai-news-repaired.js",
+  "weekly-news": "discover-weekly-news.js",
+  "ai-discovery": "discover-weekly-news.js",
   "weekly-analysis": "discover-weekly-analysis.js",
   "sync-odds": "sync-upcoming-pipeline.js",
   "sync-roster": "sync-ufc-roster.js",
@@ -26,16 +27,25 @@ function buildArgs(job, baseUrl) {
   if (job.type === "watchlist") {
     args.push("--base-url", payload.baseUrl || baseUrl);
     args.push("--file", payload.file || "ingestion/sample-watchlist.json");
-  } else if (job.type === "ai-discovery") {
+  } else if (job.type === "weekly-news" || job.type === "ai-discovery") {
     args.push("--base-url", payload.baseUrl || baseUrl);
-    if (payload.lookbackHours) {
-      args.push("--lookback-hours", String(payload.lookbackHours));
+    if (payload.days) {
+      args.push("--days", String(payload.days));
     }
-    if (payload.limit) {
-      args.push("--limit", String(payload.limit));
+    if (payload.limitPerSource) {
+      args.push("--limit-per-source", String(payload.limitPerSource));
     }
-    if (payload.status) {
-      args.push("--status", String(payload.status));
+    if (payload.target) {
+      args.push("--target", String(payload.target));
+    }
+    if (payload.sourceLabel) {
+      args.push("--source-label", String(payload.sourceLabel));
+    }
+    if (!payload.days && payload.lookbackHours) {
+      args.push("--days", String(Math.max(1, Math.ceil(Number(payload.lookbackHours) / 24))));
+    }
+    if (!payload.limitPerSource && payload.limit) {
+      args.push("--limit-per-source", String(payload.limit));
     }
   } else if (job.type === "weekly-analysis") {
     args.push("--base-url", payload.baseUrl || baseUrl);
