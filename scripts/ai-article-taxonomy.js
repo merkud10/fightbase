@@ -374,10 +374,11 @@ async function classifyArticleWithAi(input) {
   };
 
   try {
-    const parsed =
-      getAiProvider() === "deepseek" && getDeepSeekApiKey()
-        ? await classifyWithDeepSeek(promptContext.prompt)
-        : await classifyWithOllama(promptContext.prompt);
+    if (!getDeepSeekApiKey()) {
+      return fallbackResult;
+    }
+
+    const parsed = await classifyWithDeepSeek(promptContext.prompt);
 
     const promotionSlug = String(parsed.promotionSlug || "").trim();
     const fighterSlugs = uniqueStrings(Array.isArray(parsed.fighterSlugs) ? parsed.fighterSlugs : []).filter((slug) =>

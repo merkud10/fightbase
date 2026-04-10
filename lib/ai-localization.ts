@@ -1014,6 +1014,10 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
 
 export async function localizeIngestionInput(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
   const sourceText = `${input.headline}\n${input.body}`.trim();
+  const provider = getAiProvider();
+  const hasDeepSeek = Boolean(getDeepSeekApiKey());
+  const hasOpenAi = Boolean(getOpenAiApiKey());
+  const hasAlibaba = Boolean(getAlibabaApiKey());
 
   if (!sourceText) {
     return {
@@ -1025,18 +1029,12 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
   }
 
   if (looksRussian(sourceText) && isPredominantlyRussian(sourceText)) {
-    if (getAiProvider() === "deepseek" && getDeepSeekApiKey()) {
+    if ((provider === "deepseek" || !provider) && hasDeepSeek) {
       try {
         return await rewriteWithDeepSeek(input);
       } catch (error) {
-        console.error("DeepSeek Russian rewrite failed, falling back to Ollama/original text", error);
+        console.error("DeepSeek Russian rewrite failed, saving original text", error);
       }
-    }
-
-    try {
-      return await rewriteWithOllama(input);
-    } catch (error) {
-      console.error("Russian rewrite failed, saving original text", error);
     }
 
     return {
@@ -1047,31 +1045,23 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
     };
   }
 
-  const provider = getAiProvider();
-
-  if (provider === "deepseek" && getDeepSeekApiKey()) {
+  if ((provider === "deepseek" || !provider) && hasDeepSeek) {
     try {
       return await localizeWithDeepSeek(input);
     } catch (error) {
-      console.error("DeepSeek localization failed, falling back to Ollama/OpenAI/source language", error);
+      console.error("DeepSeek localization failed, falling back to OpenAI/source language", error);
     }
   }
 
-  if (provider === "alibaba" && getAlibabaApiKey()) {
+  if (provider === "alibaba" && hasAlibaba) {
     try {
       return await localizeWithAlibaba(input);
     } catch (error) {
-      console.error("Alibaba localization failed, falling back to Ollama/OpenAI/source language", error);
+      console.error("Alibaba localization failed, falling back to OpenAI/source language", error);
     }
   }
 
-  try {
-    return await localizeWithOllama(input);
-  } catch (error) {
-    console.error("Ollama localization failed, falling back to OpenAI/source language", error);
-  }
-
-  if (getOpenAiApiKey()) {
+  if (hasOpenAi) {
     try {
       return await localizeWithOpenAi(input);
     } catch (error) {
