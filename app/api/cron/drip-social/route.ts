@@ -28,16 +28,15 @@ export async function POST(request: Request) {
 
     logger.info("Drip social: published article", {
       ...authorization.context,
-      articleId: result.articleId,
-      telegram: result.telegram,
-      vk: result.vk
+      telegramArticleId: result.telegram.articleId,
+      telegramSent: result.telegram.sent,
+      vkArticleId: result.vk.articleId,
+      vkSent: result.vk.sent
     });
 
     return NextResponse.json({
       ok: true,
-      published: true,
-      articleId: result.articleId,
-      title: result.title,
+      published: result.processed,
       telegram: result.telegram,
       vk: result.vk
     });

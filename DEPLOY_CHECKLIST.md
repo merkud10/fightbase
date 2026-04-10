@@ -63,7 +63,8 @@ Set these in the host environment, Docker `--env-file`, or your platform’s sec
 | `TELEGRAM_BOT_TOKEN` | Bot token |
 | `TELEGRAM_CHANNEL_ID` | Target channel; also used for alerts if `TELEGRAM_ALERTS_CHAT_ID` unset |
 | `TELEGRAM_ALERTS_CHAT_ID` | Optional separate chat for operational alerts |
-| `VK_GROUP_TOKEN` | VK API token with wall/photos scope |
+| `VK_GROUP_TOKEN` | VK token used for `wall.post` |
+| `VK_USER_TOKEN` | Optional user OAuth token used for VK photo upload; recommended when `photos.getWallUploadServer` fails with group auth |
 | `VK_GROUP_ID` | Numeric group id |
 | `VK_API_VERSION` | Default `5.199` if unset |
 

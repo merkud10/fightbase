@@ -29,8 +29,15 @@ async function main() {
     return;
   }
 
-  console.log(`[drip] Published: ${data.title}`);
-  console.log(`[drip] TG: ${data.telegram ? "sent" : "skipped"}, VK: ${data.vk ? "sent" : "skipped"}`);
+  const tgSummary = data.telegram?.articleId
+    ? `${data.telegram.sent ? "sent" : "pending"}: ${data.telegram.title || data.telegram.articleId}`
+    : "none";
+  const vkSummary = data.vk?.articleId
+    ? `${data.vk.sent ? "sent" : "pending"}: ${data.vk.title || data.vk.articleId}`
+    : "none";
+
+  console.log(`[drip] TG ${tgSummary}`);
+  console.log(`[drip] VK ${vkSummary}`);
 }
 
 main().catch((error) => {

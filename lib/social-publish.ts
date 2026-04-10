@@ -4,6 +4,55 @@ import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
 
 type PublishTarget = "telegram" | "vk";
+const SOCIAL_PUBLISH_TIME_ZONE = process.env.SOCIAL_PUBLISH_TIME_ZONE || "Europe/Moscow";
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  ) - date.getTime();
+}
+
+function getTodayPublishWindow(timeZone: string): { start: Date; end: Date } {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  const parts = formatter.formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+
+  const startGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const endGuess = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+
+  return {
+    start: new Date(startGuess.getTime() - getTimeZoneOffsetMs(startGuess, timeZone)),
+    end: new Date(endGuess.getTime() - getTimeZoneOffsetMs(endGuess, timeZone))
+  };
+}
 
 /** Telegram Bot API: максимум ~4096 символов на сообщение (UTF-16). */
 const TELEGRAM_MESSAGE_MAX = 4090;
@@ -90,6 +139,8 @@ function formatVkApiError(method: string, error: VkErrorBody): string {
   const permissionHint =
     code === 5 || code === 7 || code === 15 || code === 200
       ? " Проверьте VK_GROUP_TOKEN: для фото и поста нужны scope wall и photos."
+      : code === 27
+        ? " VK считает этот токен group auth для загрузки wall photo. Нужен user OAuth token администратора сообщества со scope wall, photos, offline."
       : "";
   return `${msg} (VK error ${codeStr})${permissionHint}`;
 }
@@ -130,6 +181,12 @@ async function telegramSendPhoto(
 }
 
 type VkSavedPhoto = { id: number; owner_id: number };
+type VkWallUploadResponse = {
+  server?: string | number;
+  photo?: string;
+  photos_list?: string;
+  hash?: string;
+};
 
 async function vkApiMethod<T>(method: string, params: Record<string, string | number>): Promise<T> {
   const url = new URL(`https://api.vk.com/method/${method}`);
@@ -168,6 +225,31 @@ async function vkApiMethodPost<T>(method: string, params: Record<string, string 
   }
 
   return json.response as T;
+}
+
+function parseVkUploadResponse(rawBody: string): { server: string | number; photo: string; hash: string } {
+  let json: VkWallUploadResponse;
+  try {
+    json = JSON.parse(rawBody) as VkWallUploadResponse;
+  } catch {
+    throw new Error(`VK upload server returned invalid JSON: ${rawBody.slice(0, 300)}`);
+  }
+
+  const photo = typeof json.photo === "string" && json.photo.trim()
+    ? json.photo
+    : typeof json.photos_list === "string" && json.photos_list.trim()
+      ? json.photos_list
+      : "";
+
+  if (!json.server || !photo || !json.hash) {
+    throw new Error(`VK upload server returned unexpected payload: ${rawBody.slice(0, 500)}`);
+  }
+
+  return {
+    server: json.server,
+    photo,
+    hash: json.hash
+  };
 }
 
 /**
@@ -280,48 +362,59 @@ async function vkUploadWallPhotoFromUrl(
   imageUrl: string
 ): Promise<string> {
   const gid = String(groupId).replace(/^-+/, "");
-
-  const uploadPayload = await vkApiMethod<{ upload_url: string }>("photos.getWallUploadServer", {
-    access_token: token,
-    v: apiVersion,
-    group_id: gid
-  });
-
   const { buffer, contentType } = await downloadImageBuffer(imageUrl);
   const ext = contentType.includes("png") ? "png" : "jpeg";
+  let lastError: Error | null = null;
 
-  const form = new FormData();
-  form.append("photo", new Blob([buffer], { type: contentType }), `cover.${ext}`);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const uploadPayload = await vkApiMethod<{ upload_url: string }>("photos.getWallUploadServer", {
+        access_token: token,
+        v: apiVersion,
+        group_id: gid
+      });
 
-  const uploadRes = await fetch(uploadPayload.upload_url, {
-    method: "POST",
-    body: form
-  });
+      const form = new FormData();
+      form.append("photo", new Blob([buffer], { type: contentType }), `cover.${ext}`);
 
-  const uploadJson = (await uploadRes.json()) as { server?: string | number; photo?: string; hash?: string };
+      const uploadRes = await fetch(uploadPayload.upload_url, {
+        method: "POST",
+        body: form
+      });
 
-  if (!uploadJson.server || uploadJson.photo === undefined || !uploadJson.hash) {
-    throw new Error(`VK upload server returned unexpected payload: ${JSON.stringify(uploadJson)}`);
+      const uploadRaw = await uploadRes.text();
+      const uploadJson = parseVkUploadResponse(uploadRaw);
+
+      const saved = await vkApiMethodPost<VkSavedPhoto[]>("photos.saveWallPhoto", {
+        access_token: token,
+        v: apiVersion,
+        group_id: gid,
+        server: uploadJson.server,
+        photo: uploadJson.photo,
+        hash: uploadJson.hash
+      });
+
+      const ph = saved[0];
+      if (!ph) {
+        throw new Error("VK photos.saveWallPhoto returned empty array");
+      }
+
+      return `photo${ph.owner_id}_${ph.id}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < 2) {
+        logger.warn("VK wall photo upload attempt failed, retrying", {
+          groupId: gid,
+          imageUrl,
+          attempt,
+          message: lastError.message
+        });
+        continue;
+      }
+    }
   }
 
-  const photoForSave =
-    typeof uploadJson.photo === "string" ? uploadJson.photo : JSON.stringify(uploadJson.photo);
-
-  const saved = await vkApiMethodPost<VkSavedPhoto[]>("photos.saveWallPhoto", {
-    access_token: token,
-    v: apiVersion,
-    group_id: gid,
-    server: uploadJson.server,
-    photo: photoForSave,
-    hash: uploadJson.hash
-  });
-
-  const ph = saved[0];
-  if (!ph) {
-    throw new Error("VK photos.saveWallPhoto returned empty array");
-  }
-
-  return `photo${ph.owner_id}_${ph.id}`;
+  throw lastError ?? new Error("VK photo upload failed");
 }
 
 async function vkWallPost(
@@ -607,11 +700,12 @@ export async function publishArticleToVk(articleId: string) {
     throw new Error("This article has already been sent to VK.");
   }
 
-  const token = process.env.VK_GROUP_TOKEN;
+  const groupToken = process.env.VK_GROUP_TOKEN;
+  const userToken = process.env.VK_USER_TOKEN || groupToken;
   const groupId = process.env.VK_GROUP_ID;
   const apiVersion = process.env.VK_API_VERSION || "5.199";
 
-  if (!token || !groupId) {
+  if (!groupToken || !groupId) {
     throw new Error("VK is not configured. Set VK_GROUP_TOKEN and VK_GROUP_ID.");
   }
 
@@ -623,7 +717,7 @@ export async function publishArticleToVk(articleId: string) {
 
   if (coverUrl) {
     try {
-      attachment = await vkUploadWallPhotoFromUrl(token, apiVersion, groupId, coverUrl);
+      attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error(`[VK] Photo upload failed for article ${article.id}: ${errMsg}`);
@@ -635,7 +729,7 @@ export async function publishArticleToVk(articleId: string) {
     }
   }
 
-  await vkWallPost(token, apiVersion, groupId, vkMessage, attachment);
+  await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
 
   await prisma.article.update({
     where: { id: article.id },
@@ -714,52 +808,98 @@ export function scheduleArticleSocialPublish(articleId: string) {
   });
 }
 
-/**
- * Drip-feed: finds the oldest published article that hasn't been posted to TG or VK yet
- * and publishes it to one platform. Call every 30 minutes from a scheduler.
- * Returns info about what was published, or null if nothing pending.
- */
-export async function dripPublishNextArticle(): Promise<{
-  articleId: string;
+type SocialDripCandidate = {
+  id: string;
   title: string;
-  telegram: boolean;
-  vk: boolean;
-} | null> {
-  const article = await prisma.article.findFirst({
-    where: {
-      status: "published",
-      OR: [{ telegramPostedAt: null }, { vkPostedAt: null }]
-    },
-    orderBy: { publishedAt: "asc" },
-    select: { id: true, title: true, telegramPostedAt: true, vkPostedAt: true }
-  });
+};
 
-  if (!article) {
+export async function dripPublishNextArticle(): Promise<{
+  processed: boolean;
+  telegram: { sent: boolean; articleId: string | null; title: string | null };
+  vk: { sent: boolean; articleId: string | null; title: string | null };
+} | null> {
+  const todayWindow = getTodayPublishWindow(SOCIAL_PUBLISH_TIME_ZONE);
+
+  const [telegramCandidate, vkCandidate] = await Promise.all([
+    prisma.article.findFirst({
+      where: {
+        status: "published",
+        telegramPostedAt: null,
+        publishedAt: {
+          gte: todayWindow.start,
+          lt: todayWindow.end
+        }
+      },
+      orderBy: { publishedAt: "asc" },
+      select: { id: true, title: true }
+    }),
+    prisma.article.findFirst({
+      where: {
+        status: "published",
+        vkPostedAt: null,
+        publishedAt: {
+          gte: todayWindow.start,
+          lt: todayWindow.end
+        }
+      },
+      orderBy: { publishedAt: "asc" },
+      select: { id: true, title: true }
+    })
+  ]);
+
+  if (!telegramCandidate && !vkCandidate) {
     return null;
   }
 
-  let tgSent = false;
-  let vkSent = false;
-
-  if (!article.telegramPostedAt) {
-    try {
-      await publishArticleToTelegram(article.id);
-      tgSent = true;
-    } catch (error) {
-      logAutoPublishError("telegram", article.id, error);
+  const result = {
+    processed: false,
+    telegram: {
+      sent: false,
+      articleId: telegramCandidate?.id ?? null,
+      title: telegramCandidate?.title ?? null
+    },
+    vk: {
+      sent: false,
+      articleId: vkCandidate?.id ?? null,
+      title: vkCandidate?.title ?? null
     }
+  };
+
+  const publishTelegramCandidate = async (candidate: SocialDripCandidate) => {
+    try {
+      await publishArticleToTelegram(candidate.id);
+      result.telegram.sent = true;
+      result.processed = true;
+    } catch (error) {
+      logAutoPublishError("telegram", candidate.id, error);
+    }
+  };
+
+  const publishVkCandidate = async (candidate: SocialDripCandidate) => {
+    try {
+      await publishArticleToVk(candidate.id);
+      result.vk.sent = true;
+      result.processed = true;
+    } catch (error) {
+      logAutoPublishError("vk", candidate.id, error);
+    }
+  };
+
+  if (telegramCandidate && vkCandidate && telegramCandidate.id === vkCandidate.id) {
+    await publishTelegramCandidate(telegramCandidate);
+    await publishVkCandidate(vkCandidate);
+    return result;
   }
 
-  if (!article.vkPostedAt) {
-    try {
-      await publishArticleToVk(article.id);
-      vkSent = true;
-    } catch (error) {
-      logAutoPublishError("vk", article.id, error);
-    }
+  if (telegramCandidate) {
+    await publishTelegramCandidate(telegramCandidate);
   }
 
-  return { articleId: article.id, title: article.title, telegram: tgSent, vk: vkSent };
+  if (vkCandidate) {
+    await publishVkCandidate(vkCandidate);
+  }
+
+  return result;
 }
 
 export type { PublishTarget };
