@@ -387,8 +387,13 @@ export async function getPromotionRankingLinks(promotionSlug: string) {
 
 const FIGHTERS_PER_PAGE = 36;
 
+function normalizeFighterSearchValue(value: string | null | undefined) {
+  return String(value || "").trim().toLocaleLowerCase("ru-RU");
+}
+
 export async function getFightersPageData(filters: FightersPageFilters = {}) {
   const query = filters.query?.trim();
+  const normalizedQuery = normalizeFighterSearchValue(query);
   const validStatuses: FighterStatus[] = ["active", "champion", "retired", "prospect"];
   const normalizedStatus = validStatuses.includes(filters.status as FighterStatus)
     ? (filters.status as FighterStatus)
@@ -397,15 +402,6 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
   const promotionSlug = "ufc";
   const fightersWhere: Prisma.FighterWhereInput = {
     AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
-    ...(query
-      ? {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { nameRu: { contains: query, mode: "insensitive" } },
-            { nickname: { contains: query, mode: "insensitive" } }
-          ]
-        }
-      : {}),
     promotion: { slug: promotionSlug },
     ...(normalizedStatus ? { status: normalizedStatus } : {}),
     ...(normalizedWeightClass ? { weightClass: { in: getWeightClassFilterValues(normalizedWeightClass) } } : {})
@@ -445,7 +441,15 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     })
   ]);
 
-  const allFighters = dedupeFightersForPublicList(fighters);
+  const allFighters = dedupeFightersForPublicList(fighters).filter((fighter) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return [fighter.name, fighter.nameRu, fighter.nickname].some((value) =>
+      normalizeFighterSearchValue(value).includes(normalizedQuery)
+    );
+  });
   const totalCount = allFighters.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const safePage = Math.min(page, totalPages);
