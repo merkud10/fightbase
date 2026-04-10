@@ -1,4 +1,4 @@
-﻿import http from "node:http";
+import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
@@ -594,9 +594,9 @@ function buildRedFlagRepairPrompt(
 }
 
 const FIGHT_RESULT_PATTERN =
-  /(?:РїРѕР±РµРґРёР»|РїРѕР±РµРґРёР»Р°|РЅРѕРєР°СѓС‚РёСЂРѕРІР°Р»|РЅРѕРєР°СѓС‚РёСЂРѕРІР°Р»Р°|РІС‹РёРіСЂР°Р»|РІС‹РёРіСЂР°Р»Р°|РѕРґРѕР»РµР»|РѕРґРѕР»РµР»Р°|РѕРґРµСЂР¶Р°Р»|РѕРґРµСЂР¶Р°Р»Р°|Р·Р°РІРµСЂС€РёР»Рё|СЃР°Р±РјРёС€РµРЅ|С‚РµС…РЅРёС‡РµСЃРєРёРј РЅРѕРєР°СѓС‚РѕРј|РµРґРёРЅРѕРіР»Р°СЃРЅС‹Рј СЂРµС€РµРЅРёРµРј|СЂРµС€РµРЅРёРµРј Р±РѕР»СЊС€РёРЅСЃС‚РІР°|СЂР°Р·РґРµР»СЊРЅС‹Рј СЂРµС€РµРЅРёРµРј|РІРЅРёС‡СЊСЋ)/i;
+  /(?:победил|победила|нокаутировал|нокаутировала|выиграл|выиграла|одолел|одолела|одержал|одержала|завершили|сабмишен|техническим нокаутом|единогласным решением|решением большинства|раздельным решением|вничью)/i;
 
-const CARD_HEADER_PATTERN = /^(?:РіР»Р°РІРЅС‹Р№ РєР°СЂРґ|РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅС‹Р№ РєР°СЂРґ|РѕСЃРЅРѕРІРЅРѕР№ РєР°СЂРґ|СЂР°РЅРЅРёРµ РїСЂРµР»РёРјС‹)/i;
+const CARD_HEADER_PATTERN = /^(?:главный кард|предварительный кард|основной кард|ранние прелимы)/i;
 
 function splitNarrativeAndResults(body: string) {
   const paragraphs = body.split(/\n\n+/);
@@ -629,7 +629,7 @@ function buildRewritePrompt(input: IngestDraftInput) {
     "Change sentence structure, wording, and phrasing while keeping the same meaning.",
     "Preserve ALL facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly.",
     "Do not add any information that is not in the original article.",
-    "Do not aggressively summarize вЂ” keep the same informational density.",
+    "Do not aggressively summarize — keep the same informational density.",
     "Output must be in natural Russian only.",
     "Return strict JSON with keys headline and body.",
     "",
