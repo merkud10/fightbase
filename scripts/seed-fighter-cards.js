@@ -3,6 +3,7 @@
 const https = require("https");
 
 const { PrismaClient } = require("@prisma/client");
+const { persistImageLocally } = require("./local-image-store");
 
 const prisma = new PrismaClient();
 
@@ -448,7 +449,11 @@ async function main() {
       throw new Error(`Promotion not found for slug: ${fighter.promotionSlug}`);
     }
 
-    const photoUrl = await resolvePhotoUrl(fighter);
+    const photoUrl = await persistImageLocally({
+      bucket: "fighters",
+      key: fighter.slug,
+      sourceUrl: await resolvePhotoUrl(fighter)
+    }).catch(() => fighter.photoUrl || null);
 
     const payload = {
       slug: fighter.slug,

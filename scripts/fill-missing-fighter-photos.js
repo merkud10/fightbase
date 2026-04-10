@@ -3,6 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { extractMetaContent, fetchJson, fetchText } = require("./fighter-import-utils");
+const { persistImageLocally } = require("./local-image-store");
 
 const prisma = new PrismaClient();
 
@@ -166,9 +167,15 @@ async function main() {
       continue;
     }
 
+    const localizedPhotoUrl = await persistImageLocally({
+      bucket: "fighters",
+      key: fighter.slug,
+      sourceUrl: photoUrl
+    }).catch(() => photoUrl);
+
     await prisma.fighter.update({
       where: { id: fighter.id },
-      data: { photoUrl }
+      data: { photoUrl: localizedPhotoUrl }
     });
     updated += 1;
   }

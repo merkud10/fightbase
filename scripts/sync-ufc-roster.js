@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require("@prisma/client");
+const { persistImageLocally } = require("./local-image-store");
 
 const {
   buildGenericBio,
@@ -712,12 +713,18 @@ async function syncUfcRosterEntry(prismaClient, promotion, entry, options = {}) 
     }
   }
 
+  const localizedPhotoUrl = await persistImageLocally({
+    bucket: "fighters",
+    key: slug,
+    sourceUrl: profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null
+  }).catch(() => profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null);
+
   const data = {
     slug: profile.slug,
     name: profile.name,
     nameRu: profile.nameRu,
     nickname: profile.nickname,
-    photoUrl: profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null,
+    photoUrl: localizedPhotoUrl,
     country: profile.country,
     weightClass: titleCase(profile.weightClass),
     status: profile.status,

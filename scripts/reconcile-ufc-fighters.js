@@ -3,6 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { fetchText } = require("./fighter-import-utils");
+const { persistImageLocally } = require("./local-image-store");
 
 const prisma = new PrismaClient();
 
@@ -72,14 +73,21 @@ async function main() {
       const html = await fetchText(`https://www.ufc.com/athlete/${fighter.slug}`);
       const nextStatus = parseStatusFromHtml(html, fighter.status);
       const nextPhotoUrl = fighter.photoUrl || parsePhotoFromHtml(html);
+      const localizedPhotoUrl = nextPhotoUrl
+        ? await persistImageLocally({
+            bucket: "fighters",
+            key: fighter.slug,
+            sourceUrl: nextPhotoUrl
+          }).catch(() => nextPhotoUrl)
+        : null;
       const data = {};
 
       if (nextStatus !== fighter.status) {
         data.status = nextStatus;
       }
 
-      if (!fighter.photoUrl && nextPhotoUrl) {
-        data.photoUrl = nextPhotoUrl;
+      if (!fighter.photoUrl && localizedPhotoUrl) {
+        data.photoUrl = localizedPhotoUrl;
       }
 
       if (!Object.keys(data).length) {

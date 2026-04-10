@@ -6,6 +6,7 @@ import https from "node:https";
 import { generateTelegramDigestForArticle, localizeIngestionInput } from "@/lib/ai-localization";
 import { slugify } from "@/lib/admin";
 import { buildRussianMeaningBlock, cleanNewsText, cleanNewsTitle } from "@/lib/article-quality";
+import { persistImageLocally } from "@/lib/local-image-storage";
 import {
   buildMeaningBlock,
   buildTokenSet,
@@ -1007,6 +1008,14 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const cleanedBody = cleanNewsText(normalized.articleDraft.body, qualityFighters);
   const articleCover = await extractArticleCoverImage(source.url);
   const providedCoverImageUrl = normalizeAbsoluteUrl(input.coverImageUrl);
+  const persistedCoverImageUrl = await persistImageLocally({
+    bucket: "articles",
+    key: normalized.articleDraft.slug || fallbackSourceSlug || cleanedTitle,
+    sourceUrl: providedCoverImageUrl ?? articleCover?.url ?? null
+  }).catch((error) => {
+    console.error("Article cover localization failed", error);
+    return providedCoverImageUrl ?? articleCover?.url ?? null;
+  });
   const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
   const requestedStatus = hydratedInput.status ?? "draft";
   const editorialCategory = input.category ?? normalized.articleDraft.category;
@@ -1091,7 +1100,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
             : normalized.articleDraft.slug || fallbackSourceSlug
         ),
         title: cleanedTitle,
-        coverImageUrl: providedCoverImageUrl ?? articleCover?.url ?? null,
+        coverImageUrl: persistedCoverImageUrl,
         coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,
         excerpt: cleanedExcerpt,
         meaning: buildRussianMeaningBlock(cleanedBody) || buildMeaningBlock(localizedInput.body),

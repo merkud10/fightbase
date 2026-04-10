@@ -4,6 +4,7 @@ const http = require("node:http");
 const https = require("node:https");
 
 const { PrismaClient } = require("@prisma/client");
+const { persistImageLocally } = require("./local-image-store");
 
 const prisma = new PrismaClient();
 
@@ -92,7 +93,7 @@ async function extractArticleCover(sourceUrl) {
 async function main() {
   const articles = await prisma.article.findMany({
     where: {
-      OR: [{ coverImageUrl: null }, { coverImageUrl: "" }]
+      OR: [{ coverImageUrl: null }, { coverImageUrl: "" }, { coverImageUrl: { startsWith: "http" } }]
     },
     include: {
       sourceMap: {
@@ -108,23 +109,36 @@ async function main() {
   let failed = 0;
 
   for (const article of articles) {
-    const sourceUrl = article.sourceMap[0]?.source?.url;
-
-    if (!sourceUrl) {
-      continue;
-    }
-
     try {
-      const cover = await extractArticleCover(sourceUrl);
+      const existingExternalCover =
+        typeof article.coverImageUrl === "string" && article.coverImageUrl.startsWith("http")
+          ? article.coverImageUrl
+          : null;
+      const sourceUrl = article.sourceMap[0]?.source?.url;
+      const cover =
+        existingExternalCover
+          ? {
+              coverImageUrl: existingExternalCover,
+              coverImageAlt: article.coverImageAlt || article.title
+            }
+          : sourceUrl
+            ? await extractArticleCover(sourceUrl)
+            : null;
 
       if (!cover?.coverImageUrl) {
         continue;
       }
 
+      const localizedCoverImageUrl = await persistImageLocally({
+        bucket: "articles",
+        key: article.slug,
+        sourceUrl: cover.coverImageUrl
+      }).catch(() => cover.coverImageUrl);
+
       await prisma.article.update({
         where: { id: article.id },
         data: {
-          coverImageUrl: cover.coverImageUrl,
+          coverImageUrl: localizedCoverImageUrl,
           coverImageAlt: cover.coverImageAlt || article.title
         }
       });

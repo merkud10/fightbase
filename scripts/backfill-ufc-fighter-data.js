@@ -3,6 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { fetchText, parseArgs, saveRecentFights, titleCase } = require("./fighter-import-utils");
+const { persistImageLocally } = require("./local-image-store");
 const { parseUfcProfile, parseUfcRecentFights } = require("./sync-ufc-roster");
 
 const prisma = new PrismaClient();
@@ -59,6 +60,11 @@ async function main() {
     const url = `https://www.ufc.com/athlete/${fighter.slug}`;
     const html = await fetchText(url);
     const profile = parseUfcProfile(html, fighter.slug, fighter);
+    const localizedPhotoUrl = await persistImageLocally({
+      bucket: "fighters",
+      key: fighter.slug,
+      sourceUrl: profile.photoUrl || fighter.photoUrl || null
+    }).catch(() => profile.photoUrl || fighter.photoUrl || null);
     const recentFights = parseUfcRecentFights(html, fighter.slug, profile.name, titleCase(profile.weightClass || fighter.weightClass || ""));
 
     await prisma.fighter.update({
@@ -67,7 +73,7 @@ async function main() {
         name: profile.name,
         nameRu: profile.nameRu,
         nickname: profile.nickname,
-        photoUrl: profile.photoUrl || fighter.photoUrl || null,
+        photoUrl: localizedPhotoUrl,
         country: profile.country || fighter.country,
         weightClass: titleCase(profile.weightClass || fighter.weightClass),
         status: profile.status,

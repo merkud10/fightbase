@@ -48,6 +48,7 @@
     "content:cleanup-ufc-history": "node scripts/cleanup-ufc-fight-history.js",
     "content:audit-russian-fighter-names": "node scripts/audit-russian-fighter-names.js",
     "content:backfill-fighter-bio-en": "node scripts/backfill-fighter-bio-en.js",
+    "content:backfill-fighter-images": "node scripts/backfill-fighter-images.js",
     "content:fill-missing-fighter-bio-en": "node scripts/fill-missing-fighter-bio-en.js",
     "content:refresh-fighter-bio-ru-quality": "node scripts/refresh-fighter-bio-ru-quality.js",
     "content:refresh-fighter-bio-en-quality": "node scripts/refresh-fighter-bio-en-quality.js",

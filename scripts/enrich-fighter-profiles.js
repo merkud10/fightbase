@@ -3,6 +3,7 @@
 const https = require("https");
 
 const { PrismaClient } = require("@prisma/client");
+const { persistImageLocally } = require("./local-image-store");
 
 const prisma = new PrismaClient();
 const fighterConfigs = [
@@ -566,13 +567,18 @@ async function enrichFighter(config) {
   }
 
   const sourceData = await fetchFighterSourceData(config);
+  const localizedPhotoUrl = await persistImageLocally({
+    bucket: "fighters",
+    key: config.slug,
+    sourceUrl: sourceData.photoUrl ?? fighter.photoUrl
+  }).catch(() => sourceData.photoUrl ?? fighter.photoUrl);
   const recentFights = extractRecentFightRows(sourceData.html);
 
   await prisma.fighter.update({
     where: { id: fighter.id },
     data: {
       nameRu: config.nameRu,
-      photoUrl: sourceData.photoUrl ?? fighter.photoUrl,
+      photoUrl: localizedPhotoUrl,
       bio: config.bioRu,
       bioEn: sourceData.summary || fighter.bioEn || null
     }
