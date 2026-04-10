@@ -16,7 +16,7 @@ jobs:
         run: |
           response=$(curl -sf -w "\n%{http_code}" -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/drip-social" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_API_SECRET }}" \
             -d '{}')
 
           http_code=$(echo "$response" | tail -n1)
