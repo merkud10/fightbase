@@ -399,7 +399,11 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
     ...(query
       ? {
-          OR: [{ name: { contains: query } }, { nameRu: { contains: query } }, { nickname: { contains: query } }]
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            { nameRu: { contains: query, mode: "insensitive" } },
+            { nickname: { contains: query, mode: "insensitive" } }
+          ]
         }
       : {}),
     promotion: { slug: promotionSlug },

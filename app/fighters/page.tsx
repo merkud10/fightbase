@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,16 +23,17 @@ type FightersPageProps = {
 export async function generateMetadata({ searchParams }: FightersPageProps): Promise<Metadata> {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
+  const query = readParam(params.query);
   const status = readParam(params.status);
   const weightClass = readParam(params.weightClass);
   const metaPage = readParam(params.page);
-  const hasFilters = Boolean(status || weightClass || metaPage);
+  const hasFilters = Boolean(query || status || weightClass || metaPage);
   const localizedUrl = localizePath("/fighters", locale);
   const title = locale === "ru" ? "Бойцы UFC" : "UFC Fighters";
   const description =
     locale === "ru"
-      ? "Профили бойцов UFC: статистика, последние бои и фильтры по дивизионам и статусу."
-      : "Fighter profiles for UFC with stats, recent fights, and filters by division and status.";
+      ? "Профили бойцов UFC: статистика, последние бои и поиск по имени на русском или английском."
+      : "UFC fighter profiles with stats, recent fights, and name search in English or Russian.";
 
   return {
     title,
@@ -53,15 +53,17 @@ export async function generateMetadata({ searchParams }: FightersPageProps): Pro
   };
 }
 
-
 export default async function FightersPage({ searchParams }: FightersPageProps) {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
+  const query = readParam(params.query);
   const status = readParam(params.status);
   const weightClass = readParam(params.weightClass);
   const pageParam = readParam(params.page);
   const page = Math.max(1, parseInt(pageParam, 10) || 1);
+  const basePath = localizePath("/fighters", locale);
   const { fighters, totalCount, page: currentPage, totalPages, filters, options } = await getFightersPageData({
+    query,
     promotion: "",
     status,
     weightClass,
@@ -73,10 +75,11 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
   }
 
   const current = {
+    query: filters.query,
     status: filters.status,
     weightClass: filters.weightClass
   };
-  const activeFiltersCount = [filters.status, filters.weightClass].filter(Boolean).length;
+  const activeFiltersCount = [filters.query, filters.status, filters.weightClass].filter(Boolean).length;
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL("/fighters", siteUrl).toString();
   const itemListElements = fighters.slice(0, 24).filter(Boolean).map((fighter, index) => ({
@@ -113,8 +116,8 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
         title={locale === "ru" ? "Бойцы" : "Fighters"}
         description={
           locale === "ru"
-            ? "Профили бойцов с фильтрами по статусам и весовым категориям."
-            : "Fighter profiles with filters for statuses and weight classes."
+            ? "Профили бойцов с фильтрами по статусам, весовым категориям и поиском по имени."
+            : "Fighter profiles with filters for statuses, weight classes, and name search."
         }
       />
 
@@ -124,11 +127,32 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
             <div className="filter-head">
               <h3>{locale === "ru" ? "Фильтры" : "Filters"}</h3>
               {activeFiltersCount > 0 ? (
-                <Link href={localizePath("/fighters", locale)} className="button-ghost filter-reset-link">
+                <Link href={basePath} className="button-ghost filter-reset-link">
                   {locale === "ru" ? "Сбросить" : "Reset"}
                 </Link>
               ) : null}
             </div>
+
+            <form action={basePath} method="get" className="fighter-search-form">
+              {filters.status ? <input type="hidden" name="status" value={filters.status} /> : null}
+              {filters.weightClass ? <input type="hidden" name="weightClass" value={filters.weightClass} /> : null}
+              <label className="fighter-search-label" htmlFor="fighter-search">
+                {locale === "ru" ? "Поиск бойца" : "Find a fighter"}
+              </label>
+              <div className="fighter-search-row">
+                <input
+                  id="fighter-search"
+                  name="query"
+                  type="search"
+                  defaultValue={filters.query}
+                  className="fighter-search-input"
+                  placeholder={locale === "ru" ? "Введите имя на русском или английском" : "Search in English or Russian"}
+                />
+                <button type="submit" className="button-primary fighter-search-button">
+                  {locale === "ru" ? "Найти" : "Search"}
+                </button>
+              </div>
+            </form>
 
             <FilterSection
               title={locale === "ru" ? "Статус" : "Status"}
@@ -137,9 +161,10 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
                 label: formatFighterStatus(item, locale)
               }))}
               activeValue={filters.status}
-              basePath={localizePath("/fighters", locale)}
+              basePath={basePath}
               current={current}
               param="status"
+              allLabel={locale === "ru" ? "Все" : "All"}
             />
 
             <FilterSection
@@ -149,9 +174,10 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
                 label: formatWeightClass(item, locale)
               }))}
               activeValue={filters.weightClass}
-              basePath={localizePath("/fighters", locale)}
+              basePath={basePath}
               current={current}
               param="weightClass"
+              allLabel={locale === "ru" ? "Все" : "All"}
             />
 
             <p className="filter-results-copy">
@@ -170,17 +196,19 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              basePath={localizePath("/fighters", locale)}
-              params={{ status: filters.status, weightClass: filters.weightClass }}
+              basePath={basePath}
+              params={{ query: filters.query, status: filters.status, weightClass: filters.weightClass }}
               locale={locale}
             />
           </div>
         ) : (
           <FilterEmptyState
-            heading={locale === "ru" ? "По этим фильтрам ничего не найдено" : "No fighters match these filters"}
-            description={locale === "ru"
-              ? "По выбранным параметрам бойцы не найдены. Сбросьте часть фильтров, чтобы расширить выборку."
-              : "No fighters match the selected filters. Clear some filters to broaden the results."}
+            heading={locale === "ru" ? "По этим параметрам ничего не найдено" : "No fighters match these filters"}
+            description={
+              locale === "ru"
+                ? "По выбранным параметрам или поисковому запросу бойцы не найдены. Сбросьте часть фильтров или измените запрос."
+                : "No fighters match the selected filters or search query. Clear some filters or refine the query."
+            }
           />
         )}
       </section>

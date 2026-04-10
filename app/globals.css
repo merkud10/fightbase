@@ -1325,6 +1325,42 @@ img {
   gap: 14px;
 }
 
+.fighter-search-form {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.fighter-search-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fighter-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.fighter-search-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 0;
+}
+
+.fighter-search-input::placeholder {
+  color: var(--muted);
+}
+
+.fighter-search-button {
+  white-space: nowrap;
+}
+
 .filter-head {
   display: flex;
   align-items: center;

@@ -1,5 +1,23 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+function readEnvValueFromFile(name) {
+  try {
+    const envPath = path.join(process.cwd(), ".env");
+    const contents = fs.readFileSync(envPath, "utf8");
+    const match = contents.match(new RegExp(`^${name}="?([^"\\r\\n]+)"?$`, "m"));
+    return match?.[1]?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+function getEnvValue(name) {
+  return process.env[name] || readEnvValueFromFile(name) || "";
+}
+
 function getInternalApiSecret() {
-  return process.env.INTERNAL_API_SECRET || process.env.INGEST_CRON_SECRET || "";
+  return getEnvValue("INTERNAL_API_SECRET") || getEnvValue("INGEST_CRON_SECRET") || "";
 }
 
 function buildInternalApiHeaders(extraHeaders = {}) {
