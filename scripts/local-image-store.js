@@ -54,8 +54,9 @@ function buildHeaders(target) {
   return headers;
 }
 
-function getImageProxyBaseUrl() {
-  return (String(process.env.NEXT_PUBLIC_SITE_URL || "").trim() || "http://localhost:3000").replace(/\/$/, "");
+function buildWeservUrl(source) {
+  const target = `${source.hostname}${source.pathname}${source.search}`;
+  return `https://images.weserv.nl/?url=${encodeURIComponent(target)}`;
 }
 
 async function fetchImage(source) {
@@ -69,22 +70,23 @@ async function fetchImage(source) {
     return directResponse;
   }
 
-  const proxyUrl = `${getImageProxyBaseUrl()}/api/image-proxy?url=${encodeURIComponent(source.toString())}`;
-  const proxyResponse = await fetch(proxyUrl, {
+  const weservUrl = buildWeservUrl(source);
+  const weservResponse = await fetch(weservUrl, {
     method: "GET",
     headers: {
       "User-Agent": "FightBaseBot/1.0",
       Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
     },
     redirect: "follow"
-  });
+  }).catch(() => null);
 
-  if (!proxyResponse.ok) {
-    const directStatus = directResponse ? `direct HTTP ${directResponse.status}` : "direct request failed";
-    throw new Error(`Image download failed (${directStatus}; proxy HTTP ${proxyResponse.status})`);
+  if (weservResponse && weservResponse.ok) {
+    return weservResponse;
   }
 
-  return proxyResponse;
+  const directStatus = directResponse ? `direct HTTP ${directResponse.status}` : "direct request failed";
+  const weservStatus = weservResponse ? `weserv HTTP ${weservResponse.status}` : "weserv request failed";
+  throw new Error(`Image download failed (${directStatus}; ${weservStatus})`);
 }
 
 function extensionFromContentType(contentType) {
