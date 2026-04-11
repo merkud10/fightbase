@@ -38,17 +38,53 @@ function normalizeExistingManagedUrl(value) {
 
 function buildHeaders(target) {
   const headers = {
-    "User-Agent": "FightBaseBot/1.0"
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8"
   };
 
   if (SHERDOG_HOSTS.has(target.hostname)) {
     headers.Referer = "https://www.sherdog.com/";
   } else if (UFC_HOSTS.has(target.hostname)) {
     headers.Referer = "https://www.ufc.com/";
+    headers.Origin = "https://www.ufc.com";
     headers.Accept = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
   }
 
   return headers;
+}
+
+function getImageProxyBaseUrl() {
+  return (String(process.env.NEXT_PUBLIC_SITE_URL || "").trim() || "http://localhost:3000").replace(/\/$/, "");
+}
+
+async function fetchImage(source) {
+  const directResponse = await fetch(source, {
+    method: "GET",
+    headers: buildHeaders(source),
+    redirect: "follow"
+  }).catch(() => null);
+
+  if (directResponse && directResponse.ok) {
+    return directResponse;
+  }
+
+  const proxyUrl = `${getImageProxyBaseUrl()}/api/image-proxy?url=${encodeURIComponent(source.toString())}`;
+  const proxyResponse = await fetch(proxyUrl, {
+    method: "GET",
+    headers: {
+      "User-Agent": "FightBaseBot/1.0",
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+    },
+    redirect: "follow"
+  });
+
+  if (!proxyResponse.ok) {
+    const directStatus = directResponse ? `direct HTTP ${directResponse.status}` : "direct request failed";
+    throw new Error(`Image download failed (${directStatus}; proxy HTTP ${proxyResponse.status})`);
+  }
+
+  return proxyResponse;
 }
 
 function extensionFromContentType(contentType) {
@@ -102,11 +138,7 @@ async function persistImageLocally({ bucket, key, sourceUrl }) {
     return null;
   }
 
-  const response = await fetch(source, {
-    method: "GET",
-    headers: buildHeaders(source),
-    redirect: "follow"
-  });
+  const response = await fetchImage(source);
 
   if (!response.ok) {
     throw new Error(`Image download failed with HTTP ${response.status}`);

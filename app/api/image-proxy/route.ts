@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { recordSystemEvent } from "@/lib/system-events";
 
 const SHERDOG_HOSTS = new Set(["www1-cdn.sherdog.com"]);
-const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com", "media.ufc.tv"]);
+const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com", "media.ufc.tv", "dmxg5wxfqgb4u.cloudfront.net"]);
 
 function isPrivateHostname(hostname: string) {
   return (
@@ -45,13 +45,16 @@ export async function GET(request: Request) {
   }
 
   const headers: Record<string, string> = {
-    "User-Agent": "FightBaseBot/1.0"
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9,ru;q=0.8"
   };
 
   if (SHERDOG_HOSTS.has(target.hostname)) {
     headers.Referer = "https://www.sherdog.com/";
   } else if (UFC_HOSTS.has(target.hostname)) {
     headers.Referer = "https://www.ufc.com/";
+    headers.Origin = "https://www.ufc.com";
     headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
   }
 
