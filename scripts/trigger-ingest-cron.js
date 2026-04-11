@@ -9,7 +9,7 @@ function parseArgs(argv) {
     dryRun: false,
     secret: getInternalApiSecret(),
     job: process.env.INGEST_CRON_JOB || "weekly-news",
-    days: Number(process.env.WEEKLY_NEWS_DAYS || "7") || 7,
+    days: Number(process.env.WEEKLY_NEWS_DAYS || "1") || 1,
     limitPerSource: Number(process.env.WEEKLY_NEWS_LIMIT_PER_SOURCE || "8") || 8,
     target: process.env.WEEKLY_NEWS_TARGET || "all",
     sourceLabel: process.env.WEEKLY_NEWS_SOURCE_LABEL || "",
