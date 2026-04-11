@@ -13,13 +13,25 @@ type NewsPageFilters = {
 
 const NEWS_PER_PAGE = 12;
 
+export function buildPublicArticleImageWhere(): Prisma.ArticleWhereInput {
+  return {
+    AND: [
+      { coverImageUrl: { not: null } },
+      { coverImageUrl: { not: "" } },
+      {
+        OR: [{ coverImageUrl: { startsWith: "/media/articles/" } }, { coverImageUrl: "/logo.png" }]
+      }
+    ]
+  };
+}
+
 export async function getNewsPageData(filters: NewsPageFilters = {}) {
   const perPage = filters.perPage ?? NEWS_PER_PAGE;
   const page = Math.max(1, filters.page ?? 1);
   const articleWhere: Prisma.ArticleWhereInput = {
     status: "published",
     category: "news",
-    AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }],
+    ...buildPublicArticleImageWhere(),
     ...(filters.promotion ? { promotion: { slug: filters.promotion } } : {}),
     ...(filters.tag
       ? {
@@ -67,7 +79,7 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
 
 export async function getAnalysisPageData() {
   return prisma.article.findMany({
-    where: { category: "analysis", status: "published" },
+    where: { category: "analysis", status: "published", ...buildPublicArticleImageWhere() },
     orderBy: { publishedAt: "desc" },
     take: 50
   });
@@ -79,7 +91,7 @@ export const getQuotesPageData = cache(async function getQuotesPageData() {
       category: "interview",
       status: "published",
       promotion: { slug: "ufc" },
-      AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+      ...buildPublicArticleImageWhere()
     },
     orderBy: { publishedAt: "desc" },
     take: 50
@@ -91,7 +103,7 @@ export async function getPredictionEditorialPageData() {
     where: {
       category: "analysis",
       status: "published",
-      AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+      ...buildPublicArticleImageWhere()
     },
     orderBy: { publishedAt: "desc" },
     include: {
@@ -107,7 +119,7 @@ export const getArticlePageData = cache(async function getArticlePageData(
   category?: "news" | "analysis" | "interview"
 ) {
   return prisma.article.findFirst({
-    where: { slug, status: "published", ...(category ? { category } : {}) },
+    where: { slug, status: "published", ...(category ? { category } : {}), ...buildPublicArticleImageWhere() },
     include: {
       promotion: true,
       event: true,

@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
 import { prisma } from "@/lib/prisma";
+import { buildPublicArticleImageWhere } from "./articles";
 
 export type FightersPageFilters = {
   query?: string;
@@ -510,6 +511,7 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
     prisma.article.findMany({
       where: {
         status: "published",
+        ...buildPublicArticleImageWhere(),
         fighterMap: {
           some: { fighterId: fighter.id }
         }

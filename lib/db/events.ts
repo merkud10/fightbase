@@ -2,6 +2,7 @@ import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
+import { buildPublicArticleImageWhere } from "./articles";
 
 type EventsPageFilters = {
   promotion?: string;
@@ -92,7 +93,7 @@ export const getEventPageData = cache(async function getEventPageData(slug: stri
   }
 
   const relatedArticles = await prisma.article.findMany({
-    where: { eventId: event.id, status: "published" },
+    where: { eventId: event.id, status: "published", ...buildPublicArticleImageWhere() },
     orderBy: { publishedAt: "desc" },
     take: 30
   });
@@ -179,6 +180,7 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
   const relatedArticles = await prisma.article.findMany({
     where: {
       status: "published",
+      ...buildPublicArticleImageWhere(),
       OR: [
         { eventId: fight.eventId },
         {
@@ -200,6 +202,7 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
     where: {
       status: "published",
       category: "analysis",
+      ...buildPublicArticleImageWhere(),
       OR: [
         { eventId: fight.eventId },
         {
@@ -222,6 +225,7 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
       status: "published",
       category: "analysis",
       eventId: fight.eventId,
+      ...buildPublicArticleImageWhere(),
       AND: [
         {
           fighterMap: {

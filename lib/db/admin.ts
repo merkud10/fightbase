@@ -2,6 +2,7 @@ import type { ArticleStatus } from "@prisma/client";
 
 import { getOperationalAlerts } from "@/lib/operational-monitoring";
 import { prisma } from "@/lib/prisma";
+import { buildPublicArticleImageWhere } from "./articles";
 import { dedupeFightersForPublicList } from "./fighters";
 
 type AdminModerationSort = "newest" | "aiDesc" | "aiAsc";
@@ -252,7 +253,7 @@ export async function getAdminArticleEditorData(articleId: string) {
 export async function getHomePageData() {
   const [articles, leadArticle, events, totalArticles, totalEvents, totalFighters] = await Promise.all([
     prisma.article.findMany({
-      where: { status: "published", category: "news" },
+      where: { status: "published", category: "news", ...buildPublicArticleImageWhere() },
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
@@ -263,7 +264,7 @@ export async function getHomePageData() {
     prisma.article.findFirst({
       where: {
         status: "published",
-        AND: [{ coverImageUrl: { not: null } }, { coverImageUrl: { not: "" } }]
+        ...buildPublicArticleImageWhere()
       },
       orderBy: { publishedAt: "desc" },
       include: {

@@ -73,6 +73,11 @@ function normalizeAbsoluteUrl(value: string | null | undefined) {
   }
 }
 
+function hasManagedArticleImage(value: string | null | undefined) {
+  const normalized = String(value || "").trim();
+  return normalized.startsWith("/media/articles/") || normalized === "/logo.png";
+}
+
 function looksWeakSlug(value: string) {
   const clean = String(value || "").trim().toLowerCase();
   return (
@@ -1014,7 +1019,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     sourceUrl: providedCoverImageUrl ?? articleCover?.url ?? null
   }).catch((error) => {
     console.error("Article cover localization failed", error);
-    return providedCoverImageUrl ?? articleCover?.url ?? null;
+    return null;
   });
   const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
   const requestedStatus = hydratedInput.status ?? "draft";
@@ -1040,6 +1045,10 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     telegramDigest = await generateTelegramDigestForArticle(cleanedTitle, cleanedBody);
   } catch (error) {
     console.error("Telegram digest generation failed", error);
+  }
+
+  if (editorialCategory === "news" && !hasManagedArticleImage(persistedCoverImageUrl)) {
+    throw new Error(`Article cover image was not saved locally for "${cleanedTitle}"`);
   }
 
   const result = await prisma.$transaction(async (tx) => {
