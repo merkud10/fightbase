@@ -318,10 +318,12 @@ img {
 }
 
 .nav-links {
-  grid-auto-flow: column;
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   align-items: center;
   gap: 18px;
+  row-gap: 8px;
 }
 
 .nav-link {
