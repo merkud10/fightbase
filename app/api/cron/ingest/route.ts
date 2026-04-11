@@ -49,7 +49,9 @@ export async function POST(request: Request) {
       type: job,
       priority: body.priority ?? (job === "sync-odds" ? 25 : 100),
       payload: {
-        baseUrl: new URL(request.url).origin,
+        baseUrl:
+          String(process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/$/, "") ||
+          new URL(request.url).origin,
         file: body.file,
         dryRun: body.dryRun,
         lookbackHours: body.lookbackHours,
