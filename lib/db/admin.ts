@@ -2,7 +2,7 @@ import type { ArticleStatus } from "@prisma/client";
 
 import { getOperationalAlerts } from "@/lib/operational-monitoring";
 import { prisma } from "@/lib/prisma";
-import { buildPublicArticleImageWhere } from "./articles";
+import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 import { dedupeFightersForPublicList } from "./fighters";
 
 type AdminModerationSort = "newest" | "aiDesc" | "aiAsc";
@@ -259,7 +259,7 @@ export async function getHomePageData() {
         promotion: true,
         tagMap: { include: { tag: true } }
       },
-      take: 3
+      take: 12
     }),
     prisma.article.findFirst({
       where: {
@@ -296,6 +296,8 @@ export async function getHomePageData() {
     prisma.event.count(),
     prisma.fighter.count()
   ]);
+  const visibleArticles = articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 3);
+  const visibleLeadArticle = leadArticle && hasRenderablePublicArticleImage(leadArticle.coverImageUrl) ? leadArticle : null;
 
   const leadEvent = events[0];
   const eventFighterIds = new Set<string>();
@@ -332,8 +334,8 @@ export async function getHomePageData() {
       });
 
   return {
-    articles,
-    leadArticle,
+    articles: visibleArticles,
+    leadArticle: visibleLeadArticle,
     events,
     fighters: dedupeFightersForPublicList(fighters).slice(0, 4),
     totalArticles,

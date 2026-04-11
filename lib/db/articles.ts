@@ -1,4 +1,6 @@
 import type { Prisma } from "@prisma/client";
+import fs from "node:fs";
+import path from "node:path";
 import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
@@ -12,6 +14,35 @@ type NewsPageFilters = {
 };
 
 const NEWS_PER_PAGE = 12;
+
+function resolvePublicImagePath(imageUrl: string) {
+  const normalized = String(imageUrl || "").trim();
+
+  if (!normalized.startsWith("/")) {
+    return null;
+  }
+
+  return path.join(process.cwd(), "public", normalized.replace(/^\/+/, "").replace(/\//g, path.sep));
+}
+
+export function hasRenderablePublicArticleImage(imageUrl: string | null | undefined) {
+  const normalized = String(imageUrl || "").trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (!(normalized.startsWith("/media/articles/") || normalized === "/logo.png")) {
+    return false;
+  }
+
+  const filePath = resolvePublicImagePath(normalized);
+  return Boolean(filePath && fs.existsSync(filePath));
+}
+
+function filterArticlesWithRenderableImages<T extends { coverImageUrl: string | null }>(articles: T[]) {
+  return articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl));
+}
 
 export function buildPublicArticleImageWhere(): Prisma.ArticleWhereInput {
   return {
@@ -46,29 +77,29 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
       : {})
   };
 
-  const [{ promotions, tags }, totalCount, articles] = await Promise.all([
+  const [{ promotions, tags }, allArticles] = await Promise.all([
     getSiteChromeData(),
-    prisma.article.count({ where: articleWhere }),
     prisma.article.findMany({
       where: articleWhere,
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
         tagMap: { include: { tag: true } }
-      },
-      skip: (page - 1) * perPage,
-      take: perPage
+      }
     })
   ]);
-
+  const filteredArticles = filterArticlesWithRenderableImages(allArticles);
+  const totalCount = filteredArticles.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const safePage = Math.min(page, totalPages);
+  const articles = filteredArticles.slice((safePage - 1) * perPage, safePage * perPage);
 
   return {
     promotions,
     tags,
     articles,
     totalCount,
-    page: Math.min(page, totalPages),
+    page: safePage,
     totalPages,
     filters: {
       promotion: filters.promotion ?? "",
@@ -78,15 +109,17 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
 }
 
 export async function getAnalysisPageData() {
-  return prisma.article.findMany({
+  const articles = await prisma.article.findMany({
     where: { category: "analysis", status: "published", ...buildPublicArticleImageWhere() },
     orderBy: { publishedAt: "desc" },
     take: 50
   });
+
+  return filterArticlesWithRenderableImages(articles);
 }
 
 export const getQuotesPageData = cache(async function getQuotesPageData() {
-  return prisma.article.findMany({
+  const articles = await prisma.article.findMany({
     where: {
       category: "interview",
       status: "published",
@@ -96,10 +129,12 @@ export const getQuotesPageData = cache(async function getQuotesPageData() {
     orderBy: { publishedAt: "desc" },
     take: 50
   });
+
+  return filterArticlesWithRenderableImages(articles);
 });
 
 export async function getPredictionEditorialPageData() {
-  return prisma.article.findMany({
+  const articles = await prisma.article.findMany({
     where: {
       category: "analysis",
       status: "published",
@@ -112,13 +147,15 @@ export async function getPredictionEditorialPageData() {
     },
     take: 12
   });
+
+  return filterArticlesWithRenderableImages(articles);
 }
 
 export const getArticlePageData = cache(async function getArticlePageData(
   slug: string,
   category?: "news" | "analysis" | "interview"
 ) {
-  return prisma.article.findFirst({
+  const article = await prisma.article.findFirst({
     where: { slug, status: "published", ...(category ? { category } : {}), ...buildPublicArticleImageWhere() },
     include: {
       promotion: true,
@@ -129,4 +166,10 @@ export const getArticlePageData = cache(async function getArticlePageData(
       sourceMap: { include: { source: true } }
     }
   });
+
+  if (!article || !hasRenderablePublicArticleImage(article.coverImageUrl)) {
+    return null;
+  }
+
+  return article;
 });

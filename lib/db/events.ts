@@ -2,7 +2,7 @@ import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { buildPublicArticleImageWhere } from "./articles";
+import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
 type EventsPageFilters = {
   promotion?: string;
@@ -95,10 +95,13 @@ export const getEventPageData = cache(async function getEventPageData(slug: stri
   const relatedArticles = await prisma.article.findMany({
     where: { eventId: event.id, status: "published", ...buildPublicArticleImageWhere() },
     orderBy: { publishedAt: "desc" },
-    take: 30
+    take: 60
   });
 
-  return { event, relatedArticles };
+  return {
+    event,
+    relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 30)
+  };
 });
 
 export async function getPredictionsPageData() {
@@ -195,7 +198,7 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
       ]
     },
     orderBy: { publishedAt: "desc" },
-    take: 4
+    take: 12
   });
 
   const relatedPredictionArticles = await prisma.article.findMany({
@@ -217,7 +220,7 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
       ]
     },
     orderBy: { publishedAt: "desc" },
-    take: 4
+    take: 12
   });
 
   const fightPredictionArticle = await prisma.article.findFirst({
@@ -250,8 +253,10 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
   return {
     fight,
     snapshot: fight.predictionSnapshot,
-    relatedArticles,
-    relatedPredictionArticles,
+    relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 4),
+    relatedPredictionArticles: relatedPredictionArticles
+      .filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl))
+      .slice(0, 4),
     fightPredictionArticle
   };
 });

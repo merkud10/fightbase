@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
 import { prisma } from "@/lib/prisma";
-import { buildPublicArticleImageWhere } from "./articles";
+import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
 export type FightersPageFilters = {
   query?: string;
@@ -517,7 +517,7 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
         }
       },
       orderBy: { publishedAt: "desc" },
-      take: 20
+      take: 40
     })
   ]);
 
@@ -557,5 +557,10 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
     return Boolean(String(opponent || "").trim());
   });
 
-  return { fighter, recentFights: visibleRecentFights, profileRecentFights: visibleProfileRecentFights, relatedArticles };
+  return {
+    fighter,
+    recentFights: visibleRecentFights,
+    profileRecentFights: visibleProfileRecentFights,
+    relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 20)
+  };
 });
