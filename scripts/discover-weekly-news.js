@@ -27,7 +27,7 @@ const ALL_SOURCES = [
   {
     label: "Sherdog News",
     listingUrl: "https://www.sherdog.com/news/news/list",
-    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/news\/[^?#]+$/i,
+    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/news\/[^?#/]+-\d+$/i,
     streams: ["news", "quotes"],
     targetKeywords: {
       quotes: ["says", "reacts", "interview", "admits", "vows", "expects", "discusses", "reveals", "talks", "responds"]
@@ -37,7 +37,7 @@ const ALL_SOURCES = [
   {
     label: "Sherdog Features",
     listingUrl: "https://www.sherdog.com/news/articles/list",
-    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/articles\/[^?#]+$/i,
+    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/articles\/[^?#/]+-\d+$/i,
     streams: ["predictions", "analysis"],
     targetKeywords: {
       predictions: ["preview", "breakdown", "picks", "analysis", "matchup", "by-the-numbers"],
