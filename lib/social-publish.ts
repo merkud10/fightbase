@@ -41,20 +41,26 @@ function getTodayPublishWindow(timeZone: string): { start: Date; end: Date } {
     timeZone,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23"
   });
   const parts = formatter.formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   const year = Number(values.year);
   const month = Number(values.month);
   const day = Number(values.day);
+  const hour = Number(values.hour);
 
-  const startGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-  const endGuess = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+  const todayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const tomorrowStart = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+  const yesterdayStart = new Date(Date.UTC(year, month - 1, day - 1, 0, 0, 0, 0));
+
+  const startGuess = hour < 10 ? yesterdayStart : todayStart;
 
   return {
     start: new Date(startGuess.getTime() - getTimeZoneOffsetMs(startGuess, timeZone)),
-    end: new Date(endGuess.getTime() - getTimeZoneOffsetMs(endGuess, timeZone))
+    end: new Date(tomorrowStart.getTime() - getTimeZoneOffsetMs(tomorrowStart, timeZone))
   };
 }
 
