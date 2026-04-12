@@ -14,7 +14,8 @@ export async function Header() {
     { href: "/fighters", label: t.nav.fighters },
     { href: "/rankings", label: t.nav.rankings },
     { href: "/predictions", label: t.nav.predictions },
-    { href: "/analysis", label: locale === "ru" ? "Аналитика" : "Analysis" }
+    { href: "/analysis", label: locale === "ru" ? "Аналитика" : "Analysis" },
+    { href: "/quotes", label: t.nav.quotes }
   ];
 
   return (
