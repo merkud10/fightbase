@@ -73,10 +73,23 @@ process_jobs() {
 case "${TASK}" in
   drip-social)
     log "Starting drip-social"
-    response=$(call_api "/api/cron/drip-social") || { log "drip-social FAILED"; exit 1; }
+    response=$(call_api "/api/cron/drip-social") || {
+      log "drip-social FAILED"
+      send_tg_alert "❌ Drip social: ошибка при запуске"
+      exit 1
+    }
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | head -n -1)
     log "drip-social HTTP ${http_code}: ${body}"
+    if [ "$http_code" = "200" ]; then
+      published=$(echo "$body" | grep -o '"published":true' || true)
+      if [ -n "$published" ]; then
+        tg_title=$(echo "$body" | sed -n 's/.*"telegram":{[^}]*"title":"\([^"]*\)".*/\1/p')
+        send_tg_alert "📢 Статья отправлена в ТГ/ВК: ${tg_title:-без названия}"
+      fi
+    else
+      send_tg_alert "❌ Drip social: HTTP ${http_code}"
+    fi
     ;;
 
   sync-news)
