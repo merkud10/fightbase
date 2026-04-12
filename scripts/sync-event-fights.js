@@ -209,6 +209,7 @@ async function ensureFighter(name) {
     data: {
       slug: uniqueSlug,
       name,
+      status: "active",
       country: "",
       record: "",
       weightClass: "",
