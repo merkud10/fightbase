@@ -196,6 +196,32 @@ async function main() {
       const slug = slugFromLabel(entry.label);
       const { venue, city } = await fetchEventVenue(entry.dateStr);
 
+      const existing = await prisma.event.findUnique({ where: { slug } });
+
+      let matchedEvent = existing || null;
+
+      if (!matchedEvent) {
+        const dayStart = new Date(entry.date);
+        dayStart.setUTCHours(0, 0, 0, 0);
+        dayStart.setUTCDate(dayStart.getUTCDate() - 1);
+        const dayEnd = new Date(entry.date);
+        dayEnd.setUTCHours(0, 0, 0, 0);
+        dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
+
+        matchedEvent = await prisma.event.findFirst({
+          where: {
+            promotionId: promotion.id,
+            date: { gte: dayStart, lt: dayEnd }
+          }
+        });
+      }
+
+      if (matchedEvent && matchedEvent.status === "completed") {
+        skipped += 1;
+        console.log(`[skipped] ${matchedEvent.slug}: already completed`);
+        continue;
+      }
+
       const data = {
         slug,
         name: entry.label,
@@ -207,33 +233,11 @@ async function main() {
         promotionId: promotion.id
       };
 
-      const existing = await prisma.event.findUnique({ where: { slug } });
-
-      if (existing) {
-        await prisma.event.update({ where: { id: existing.id }, data });
+      if (matchedEvent) {
+        await prisma.event.update({ where: { id: matchedEvent.id }, data });
         updated += 1;
-        console.log(`[updated] ${slug}`);
-        continue;
-      }
-
-      const dayStart = new Date(entry.date);
-      dayStart.setUTCHours(0, 0, 0, 0);
-      dayStart.setUTCDate(dayStart.getUTCDate() - 1);
-      const dayEnd = new Date(entry.date);
-      dayEnd.setUTCHours(0, 0, 0, 0);
-      dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
-
-      const existingByDate = await prisma.event.findFirst({
-        where: {
-          promotionId: promotion.id,
-          date: { gte: dayStart, lt: dayEnd }
-        }
-      });
-
-      if (existingByDate) {
-        await prisma.event.update({ where: { id: existingByDate.id }, data });
-        updated += 1;
-        console.log(`[updated] ${existingByDate.slug} -> ${slug}`);
+        const oldSlug = matchedEvent.slug !== slug ? ` ${matchedEvent.slug} ->` : "";
+        console.log(`[updated]${oldSlug} ${slug}`);
         continue;
       }
 
