@@ -86,6 +86,8 @@ case "${TASK}" in
       if [ -n "$published" ]; then
         tg_title=$(echo "$body" | sed -n 's/.*"telegram":{[^}]*"title":"\([^"]*\)".*/\1/p')
         send_tg_alert "📢 Статья отправлена в ТГ/ВК: ${tg_title:-без названия}"
+      else
+        send_tg_alert "ℹ️ Drip social: нет статей для отправки"
       fi
     else
       send_tg_alert "❌ Drip social: HTTP ${http_code}"
