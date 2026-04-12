@@ -502,8 +502,6 @@ async function main() {
 
   const fights = await prisma.fight.findMany({
     where: {
-      oddsA: { not: null },
-      oddsB: { not: null },
       status: "scheduled",
       event: {
         status: { in: ["upcoming", "live"] }
