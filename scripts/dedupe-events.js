@@ -14,22 +14,34 @@ async function main() {
     }
   });
 
-  const dateGroups = new Map();
-  for (const event of events) {
-    const dayKey = `${event.promotionId}_${event.date.toISOString().slice(0, 10)}`;
-    if (!dateGroups.has(dayKey)) {
-      dateGroups.set(dayKey, []);
+  const dateGroups = [];
+  const assigned = new Set();
+
+  for (let i = 0; i < events.length; i++) {
+    if (assigned.has(events[i].id)) continue;
+
+    const group = [events[i]];
+    assigned.add(events[i].id);
+
+    for (let j = i + 1; j < events.length; j++) {
+      if (assigned.has(events[j].id)) continue;
+      if (events[i].promotionId !== events[j].promotionId) continue;
+
+      const diff = Math.abs(events[i].date.getTime() - events[j].date.getTime());
+      if (diff <= 2 * 24 * 60 * 60 * 1000) {
+        group.push(events[j]);
+        assigned.add(events[j].id);
+      }
     }
-    dateGroups.get(dayKey).push(event);
+
+    if (group.length > 1) {
+      dateGroups.push(group);
+    }
   }
 
   let deleted = 0;
 
-  for (const [dayKey, group] of dateGroups) {
-    if (group.length <= 1) {
-      continue;
-    }
-
+  for (const group of dateGroups) {
     group.sort((a, b) => {
       const aRels = a.fights.length + a.articles.length + a.predictionSnapshots.length;
       const bRels = b.fights.length + b.articles.length + b.predictionSnapshots.length;
@@ -40,7 +52,7 @@ async function main() {
     const keep = group[0];
     const duplicates = group.slice(1);
 
-    console.log(`\n${dayKey}: keeping "${keep.name}" (slug: ${keep.slug}, relations: ${keep.fights.length}F ${keep.articles.length}A)`);
+    console.log(`\nkeeping "${keep.name}" (slug: ${keep.slug}, relations: ${keep.fights.length}F ${keep.articles.length}A)`);
 
     for (const dup of duplicates) {
       const dupRels = dup.fights.length + dup.articles.length + dup.predictionSnapshots.length;

@@ -218,7 +218,9 @@ async function main() {
 
       const dayStart = new Date(entry.date);
       dayStart.setUTCHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
+      dayStart.setUTCDate(dayStart.getUTCDate() - 1);
+      const dayEnd = new Date(entry.date);
+      dayEnd.setUTCHours(0, 0, 0, 0);
       dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
 
       const existingByDate = await prisma.event.findFirst({
