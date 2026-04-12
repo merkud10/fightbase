@@ -119,7 +119,7 @@ function resolveCoverImageUrlForSocial(raw: string | null | undefined): string |
     return null;
   }
 
-  if (url.startsWith("/api/image-proxy")) {
+  if (url.startsWith("/api/image-proxy") || url.startsWith("/media/")) {
     return `${getSiteUrl().origin}${url}`;
   }
 
