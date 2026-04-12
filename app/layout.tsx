@@ -8,6 +8,7 @@ import { FloatingSocialLinks } from "@/components/floating-social-links";
 import { Header } from "@/components/header";
 import { ScrollToTop } from "@/components/header-shell";
 import { JsonLd } from "@/components/json-ld";
+import { YandexMetrika } from "@/components/yandex-metrika";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -146,6 +147,7 @@ export default async function RootLayout({
         </div>
         <FloatingSocialLinks />
         <ScrollToTop />
+        <YandexMetrika />
       </body>
     </html>
   );
