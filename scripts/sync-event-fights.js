@@ -92,15 +92,11 @@ function parseResultTime(competition) {
   return status.displayClock || null;
 }
 
-function inferStage(competition, index, total) {
-  const broadcasts = competition.broadcasts || [];
-  const broadcastNames = broadcasts.flatMap((b) => b.names || []).map((n) => n.toLowerCase());
-  const isTvBroadcast = broadcastNames.some((n) => n.includes("cbs") || n.includes("fox") || n.includes("abc"));
-
-  if (isTvBroadcast || index >= total - 5) {
+function inferStage(reversedIndex, total) {
+  if (reversedIndex < 5 || reversedIndex < Math.ceil(total * 0.4)) {
     return "main_card";
   }
-  if (index >= total - 9) {
+  if (reversedIndex < 9 || reversedIndex < Math.ceil(total * 0.7)) {
     return "prelims";
   }
   return "early_prelims";
@@ -110,10 +106,11 @@ function parseFightsFromEspn(data) {
   const event = data.events?.[0];
   if (!event) return [];
 
-  const competitions = event.competitions || [];
+  const competitions = [...(event.competitions || [])].reverse();
+  const total = competitions.length;
   const fights = [];
 
-  for (let i = 0; i < competitions.length; i++) {
+  for (let i = 0; i < total; i++) {
     const comp = competitions[i];
     const competitors = comp.competitors || [];
     if (competitors.length < 2) continue;
@@ -136,7 +133,7 @@ function parseFightsFromEspn(data) {
     const resultTime = isCompleted && method !== "Decision" ? parseResultTime(comp) : null;
 
     fights.push({
-      stage: inferStage(comp, i, competitions.length),
+      stage: inferStage(i, total),
       weightClass: weightClass || "Unknown",
       fighterA: {
         name: fighterA.athlete?.displayName || fighterA.athlete?.fullName || "Unknown",
