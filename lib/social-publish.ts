@@ -1,3 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { TELEGRAM_DIGEST_MAX } from "@/lib/ai-localization";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -148,16 +152,48 @@ function formatVkApiError(method: string, error: VkErrorBody): string {
 /** Telegram sendPhoto caption limit: 1024 chars */
 const TELEGRAM_CAPTION_MAX = 1020;
 
+function resolveLocalMediaPath(mediaUrl: string): string | null {
+  if (!mediaUrl.startsWith("/media/")) return null;
+  const appRoot = process.env.APP_ROOT || process.cwd();
+  const filePath = path.join(appRoot, "public", mediaUrl.replace(/^\//, ""));
+  return existsSync(filePath) ? filePath : null;
+}
+
 async function telegramSendPhoto(
   token: string,
   chatId: string,
-  photoUrl: string,
+  photoSource: string,
   caption?: string,
   parseMode: "HTML" | undefined = "HTML"
 ) {
+  const apiUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
+
+  const localPath = photoSource.startsWith("/media/")
+    ? resolveLocalMediaPath(photoSource)
+    : null;
+
+  if (localPath) {
+    const fileBuffer = await readFile(localPath);
+    const ext = path.extname(localPath).replace(/^\./, "") || "jpg";
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("photo", new Blob([fileBuffer], { type: `image/${ext === "jpg" ? "jpeg" : ext}` }), `photo.${ext}`);
+    if (caption) {
+      form.append("caption", caption);
+      if (parseMode) form.append("parse_mode", parseMode);
+    }
+
+    const response = await fetch(apiUrl, { method: "POST", body: form });
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Telegram sendPhoto (file upload): ${response.status} ${errBody}`);
+    }
+    return;
+  }
+
   const payload: Record<string, string> = {
     chat_id: chatId,
-    photo: photoUrl
+    photo: photoSource
   };
   if (caption) {
     payload.caption = caption;
@@ -166,11 +202,9 @@ async function telegramSendPhoto(
     }
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+  const response = await fetch(apiUrl, {
     method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
 
@@ -339,6 +373,14 @@ async function downloadImageBufferSingle(imageUrl: string): Promise<{ buffer: Bu
 }
 
 async function downloadImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const localPath = resolveLocalMediaPath(imageUrl);
+  if (localPath) {
+    const buffer = await readFile(localPath);
+    const ext = path.extname(localPath).replace(/^\./, "").toLowerCase();
+    const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", avif: "image/avif" };
+    return { buffer, contentType: mimeMap[ext] || "image/jpeg" };
+  }
+
   const candidates = buildImageDownloadCandidates(imageUrl);
   let lastError: Error | null = null;
   for (const candidate of candidates) {
@@ -622,7 +664,10 @@ export async function publishArticleToTelegram(articleId: string) {
   }
 
   const payload = article as ArticleSocialPayload;
-  const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
+  const rawCoverUrl = String(payload.coverImageUrl || "").trim();
+  const photoSource = rawCoverUrl.startsWith("/media/")
+    ? rawCoverUrl
+    : resolveCoverImageUrlForSocial(rawCoverUrl);
   const digest = String(payload.telegramDigest || "").trim();
   const chunks = digest
     ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
@@ -630,13 +675,13 @@ export async function publishArticleToTelegram(articleId: string) {
   const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
   let startChunkIndex = 0;
 
-  if (coverUrl && chunks.length > 0) {
+  if (photoSource && chunks.length > 0) {
     const firstChunk = chunks[0] ?? "";
     const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
     const caption =
       firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
     try {
-      await telegramSendPhoto(token, chatId, coverUrl, caption, parseMode);
+      await telegramSendPhoto(token, chatId, photoSource, caption, parseMode);
       startChunkIndex = 1;
       if (firstChunk.length > captionMax) {
         chunks[0] = firstChunk.slice(captionMax).trimStart();
