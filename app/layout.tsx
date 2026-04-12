@@ -8,7 +8,7 @@ import { FloatingSocialLinks } from "@/components/floating-social-links";
 import { Header } from "@/components/header";
 import { ScrollToTop } from "@/components/header-shell";
 import { JsonLd } from "@/components/json-ld";
-import { YandexMetrika } from "@/components/yandex-metrika";
+import { YandexMetrikaHit } from "@/components/yandex-metrika";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -114,6 +114,19 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(m,e,t,r,i,k,a){
+              m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+              m[i].l=1*new Date();
+              for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
+              k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+            })(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=108511042','ym');
+            ym(108511042,'init',{defer:true,webvisor:true,clickmap:true,trackLinks:true,accurateTrackBounce:true});`
+          }}
+        />
+      </head>
       <body className={`${bodyFont.variable} ${headingFont.variable} ${navFont.variable}`}>
         <JsonLd
           data={{
@@ -147,7 +160,16 @@ export default async function RootLayout({
         </div>
         <FloatingSocialLinks />
         <ScrollToTop />
-        <YandexMetrika />
+        <YandexMetrikaHit />
+        <noscript>
+          <div>
+            <img
+              src="https://mc.yandex.ru/watch/108511042"
+              style={{ position: "absolute", left: "-9999px" }}
+              alt=""
+            />
+          </div>
+        </noscript>
       </body>
     </html>
   );
