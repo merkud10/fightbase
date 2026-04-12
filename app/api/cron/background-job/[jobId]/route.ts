@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/api-security";
 import { prisma } from "@/lib/prisma";
 
-/** Парсит блок Summary из stdout discover-weekly-news.js (внутри discover-ai-news-repaired.js). */
+/** Парсит блок Summary из stdout discover-weekly-news.js. */
 function parseWeeklyNewsSummary(result: string | null): {
   created: number;
   duplicates: number;

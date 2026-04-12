@@ -11,10 +11,8 @@ const prisma = new PrismaClient();
 const execFileAsync = promisify(execFile);
 
 const JOB_SCRIPT_MAP = {
-  watchlist: "fetch-source-feed.js",
   "weekly-news": "discover-weekly-news.js",
   "ai-discovery": "discover-weekly-news.js",
-  "weekly-analysis": "discover-weekly-analysis.js",
   "sync-odds": "sync-upcoming-pipeline.js",
   "sync-roster": "sync-ufc-roster.js",
   "operational-alerts": "send-telegram-operational-alerts.js"
@@ -24,10 +22,7 @@ function buildArgs(job, baseUrl) {
   const payload = JSON.parse(job.payload || "{}");
   const args = [path.resolve(process.cwd(), "scripts", JOB_SCRIPT_MAP[job.type])];
 
-  if (job.type === "watchlist") {
-    args.push("--base-url", payload.baseUrl || baseUrl);
-    args.push("--file", payload.file || "ingestion/sample-watchlist.json");
-  } else if (job.type === "weekly-news" || job.type === "ai-discovery") {
+  if (job.type === "weekly-news" || job.type === "ai-discovery") {
     args.push("--base-url", payload.baseUrl || baseUrl);
     if (payload.days) {
       args.push("--days", String(payload.days));
@@ -45,11 +40,6 @@ function buildArgs(job, baseUrl) {
       args.push("--days", String(Math.max(1, Math.ceil(Number(payload.lookbackHours) / 24))));
     }
     if (!payload.limitPerSource && payload.limit) {
-      args.push("--limit-per-source", String(payload.limit));
-    }
-  } else if (job.type === "weekly-analysis") {
-    args.push("--base-url", payload.baseUrl || baseUrl);
-    if (payload.limit) {
       args.push("--limit-per-source", String(payload.limit));
     }
   } else if (job.type === "sync-roster") {

@@ -262,9 +262,10 @@ img {
 
 .site-header-inner {
   min-height: 78px;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 28px;
+  padding: 12px 0;
 }
 
 .brand {
@@ -297,7 +298,8 @@ img {
   display: grid;
   gap: 8px;
   min-width: 0;
-  justify-self: center;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .header-topline {
@@ -322,6 +324,11 @@ img {
   justify-content: start;
   align-items: center;
   gap: 18px;
+<<<<<<< Updated upstream
+=======
+  row-gap: 8px;
+  width: 100%;
+>>>>>>> Stashed changes
 }
 
 .nav-link {

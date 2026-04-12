@@ -54,9 +54,7 @@ npm run content:enrich-fighters
 npm run content:refresh-fighters
 npm run content:sync-ufc-roster
 npm run content:refresh-fighters-full
-npm run ingest:feed -- --dry-run
-npm run ingest:fetch -- --dry-run
-npm run content:discover-ai-news -- --dry-run
+npm run content:discover-weekly-news -- --dry-run
 npm run ingest:cron -- --dry-run --secret YOUR_SECRET
 ```
 
@@ -88,9 +86,7 @@ Current Prisma-backed additions:
 - `/api/health` health endpoint for deployment checks
 - ingestion run tracking with status, counts, duration, and last-run visibility
 - article workflow with `draft`, `review`, and `published` states
-- `npm run ingest:feed` worker for batch JSON ingestion into draft articles
-- `npm run ingest:fetch` worker with parser registry for source pages and fixtures
-- `npm run content:discover-ai-news` worker that asks the local model to browse the web for fresh MMA news and ingest the results
+- `npm run content:discover-weekly-news` main content discovery from configured sources
 - `npm run ingest:cron` client for hitting the protected cron endpoint
 - RU-first ingestion localization via OpenAI Responses API when `OPENAI_API_KEY` is configured
 - local-first ingestion localization via Ollama when `OLLAMA_MODEL` is configured
@@ -210,7 +206,7 @@ npm run ingest:cron -- --base-url http://localhost:3000 --secret YOUR_SECRET --d
 AI discovery dry run:
 
 ```bash
-npm run content:discover-ai-news -- --base-url http://localhost:3000 --dry-run
+npm run content:discover-weekly-news -- --base-url http://localhost:3000 --dry-run
 ```
 
 Windows Task Scheduler helper:

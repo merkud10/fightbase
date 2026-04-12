@@ -27,7 +27,7 @@ const SCHEDULE = [
     name: "news",
     label: "✅ Новости обновлены",
     intervalMs: 6 * HOUR,
-    scripts: ["discover-ai-news-repaired.js"]
+    scripts: ["discover-weekly-news.js"]
   },
   {
     name: "events",

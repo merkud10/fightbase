@@ -62,10 +62,7 @@
     "content:discover-news": "node scripts/discover-weekly-editorial.js --target news",
     "content:discover-quotes": "node scripts/discover-weekly-news.js --target quotes",
     "content:discover-interviews": "node scripts/discover-weekly-editorial.js --target quotes",
-    "content:discover-analysis": "node scripts/discover-weekly-analysis.js",
     "content:discover-predictions": "node scripts/discover-weekly-news.js --target predictions",
-    "content:discover-fight-predictions": "node scripts/discover-fight-predictions.js",
-    "content:discover-ai-news": "node scripts/discover-ai-news-repaired.js",
     "content:generate-prediction-snapshots": "node scripts/generate-prediction-snapshots.js",
     "push:send-pending": "node scripts/send-pending-push-notifications.js",
     "alerts:send-telegram": "node scripts/send-telegram-operational-alerts.js",
@@ -73,11 +70,7 @@
     "jobs:loop": "node scripts/process-background-jobs-loop.js",
     "jobs:trigger": "node scripts/trigger-background-jobs.js",
     "content:refresh-fighters-full": "node scripts/seed-fighter-cards.js && node scripts/sync-ufc-roster.js && node scripts/sync-ufc-russian-names.js --concurrency 24 && node scripts/enrich-fighter-profiles.js && node scripts/normalize-fighter-profiles.js && node scripts/normalize-imported-fighters.js && node scripts/backfill-fighter-bio-en.js && node scripts/fill-missing-fighter-bio-en.js && node scripts/refresh-fighter-bio-en-quality.js && node scripts/refresh-fighter-bio-ru-quality.js && node scripts/fill-missing-fighter-photos.js",
-    "ingest:feed": "node scripts/ingest-feed.js",
-    "ingest:smoke": "node scripts/ingest-feed.js --file ingestion/smoke-published-news.json",
-    "ingest:fetch": "node scripts/fetch-source-feed.js",
-    "ingest:cron": "node scripts/trigger-ingest-cron.js",
-    "ingest:analysis-cron": "node scripts/trigger-ingest-cron.js --job weekly-analysis"
+    "ingest:cron": "node scripts/trigger-ingest-cron.js"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
