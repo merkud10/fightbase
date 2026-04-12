@@ -324,11 +324,8 @@ img {
   justify-content: start;
   align-items: center;
   gap: 18px;
-<<<<<<< Updated upstream
-=======
   row-gap: 8px;
   width: 100%;
->>>>>>> Stashed changes
 }
 
 .nav-link {
