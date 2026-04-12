@@ -215,7 +215,6 @@ async function ensureFighter(name) {
       country: "",
       record: "",
       weightClass: "",
-      stance: "",
       bio: "",
       age: 0,
       heightCm: 0,
