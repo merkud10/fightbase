@@ -984,13 +984,6 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     throw new Error(`Article rejected: interestScore ${localizedInput.interestScore} is below threshold ${MIN_INTEREST_SCORE}`);
   }
 
-  if (input.category === "analysis" && (input.fighterSlugs?.length || 0) >= 2) {
-    localizedInput = {
-      ...localizedInput,
-      headline: hydratedInput.headline
-    };
-  }
-
   const normalized = normalizeIngestionItem({
     headline: localizedInput.headline,
     body: localizedInput.body,
