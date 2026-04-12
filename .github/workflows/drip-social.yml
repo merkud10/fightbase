@@ -1,9 +1,7 @@
 name: "Drip Social Publish"
 
 on:
-  schedule:
-    # Every hour
-    - cron: '0 * * * *'
+  # Schedule moved to server crontab — see scripts/cron-tasks.sh
   workflow_dispatch:
 
 jobs:

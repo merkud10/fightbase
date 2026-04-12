@@ -1,9 +1,7 @@
 name: "Sync Fighter Roster"
 
 on:
-  schedule:
-    # Каждый понедельник в 04:00 UTC (07:00 МСК)
-    - cron: '0 4 * * 1'
+  # Schedule moved to server crontab — see scripts/cron-tasks.sh
   workflow_dispatch:
     inputs:
       reason:
