@@ -189,7 +189,8 @@ async function persistImageLocally({ bucket, key, sourceUrl }) {
 
   const extension = extensionFromContentType(contentType) || extensionFromUrl(source.toString()) || "jpg";
   const fileName = `${sanitizePathSegment(key)}-${createHash("sha256").update(source.toString()).digest("hex").slice(0, 12)}.${extension}`;
-  const publicDir = path.join(process.cwd(), "public", "media", bucket);
+  const appRoot = process.env.APP_ROOT || process.cwd();
+  const publicDir = path.join(appRoot, "public", "media", bucket);
   const filePath = path.join(publicDir, fileName);
   const publicUrl = `/media/${bucket}/${fileName}`;
 

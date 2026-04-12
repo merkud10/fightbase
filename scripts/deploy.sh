@@ -32,9 +32,11 @@ echo "=== Copying static assets ==="
 cp -r ${APP_DIR}/.next/static ${APP_DIR}/.next/standalone/.next/static
 chown -R ${APP_USER}:${APP_USER} ${APP_DIR}/.next
 
-echo "=== Linking scripts and node_modules ==="
+echo "=== Linking public, scripts and node_modules ==="
+rm -rf ${APP_DIR}/.next/standalone/public
 rm -rf ${APP_DIR}/.next/standalone/scripts
 rm -rf ${APP_DIR}/.next/standalone/node_modules
+ln -s ${APP_DIR}/public ${APP_DIR}/.next/standalone/public
 ln -s ${APP_DIR}/scripts ${APP_DIR}/.next/standalone/scripts
 ln -s ${APP_DIR}/node_modules ${APP_DIR}/.next/standalone/node_modules
 

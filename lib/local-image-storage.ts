@@ -210,7 +210,8 @@ export async function persistImageLocally(options: PersistImageOptions) {
 
   const extension = extensionFromContentType(contentType) || extensionFromUrl(source.toString()) || "jpg";
   const fileName = `${sanitizePathSegment(options.key)}-${createHash("sha256").update(source.toString()).digest("hex").slice(0, 12)}.${extension}`;
-  const publicDir = path.join(process.cwd(), "public", "media", options.bucket);
+  const appRoot = process.env.APP_ROOT || process.cwd();
+  const publicDir = path.join(appRoot, "public", "media", options.bucket);
   const filePath = path.join(publicDir, fileName);
   const publicUrl = `/media/${options.bucket}/${fileName}`;
 
