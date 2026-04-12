@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { execFileSync } = require("node:child_process");
 const https = require("https");
 const ufcNameDictionary = require("../lib/ufc-name-dictionary.json");
 
@@ -113,7 +114,32 @@ function buildFetchHeaders(url) {
   return headers;
 }
 
-function fetchText(url, redirectCount = 0) {
+function fetchTextViaCurl(url) {
+  const headers = buildFetchHeaders(url);
+  const args = [
+    "-sS", "-L", "--max-time", "30",
+    "--max-redirs", "5",
+    "-o", "-",
+    "-w", "\n%{http_code}"
+  ];
+  for (const [key, value] of Object.entries(headers)) {
+    args.push("-H", `${key}: ${value}`);
+  }
+  args.push(url);
+
+  const raw = execFileSync("curl", args, { maxBuffer: 20 * 1024 * 1024, encoding: "utf8" });
+  const lastNewline = raw.lastIndexOf("\n");
+  const body = raw.slice(0, lastNewline);
+  const statusCode = Number(raw.slice(lastNewline + 1).trim());
+
+  if (statusCode >= 400) {
+    throw new Error(`curl HTTP ${statusCode} for ${url}`);
+  }
+
+  return body;
+}
+
+function fetchTextViaNode(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     https
       .get(
@@ -132,7 +158,7 @@ function fetchText(url, redirectCount = 0) {
 
             const redirectedUrl = new URL(response.headers.location, url).toString();
             response.resume();
-            fetchText(redirectedUrl, redirectCount + 1).then(resolve).catch(reject);
+            fetchTextViaNode(redirectedUrl, redirectCount + 1).then(resolve).catch(reject);
             return;
           }
 
@@ -155,6 +181,18 @@ function fetchText(url, redirectCount = 0) {
       )
       .on("error", reject);
   });
+}
+
+async function fetchText(url, redirectCount = 0) {
+  try {
+    return await fetchTextViaNode(url, redirectCount);
+  } catch (nodeError) {
+    try {
+      return fetchTextViaCurl(url);
+    } catch {
+      throw nodeError;
+    }
+  }
 }
 
 async function fetchJson(url) {
