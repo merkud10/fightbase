@@ -1013,31 +1013,46 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const cleanedBody = cleanNewsText(normalized.articleDraft.body, qualityFighters);
   const articleCover = await extractArticleCoverImage(source.url);
   const providedCoverImageUrl = normalizeAbsoluteUrl(input.coverImageUrl);
-  const persistedCoverImageUrl = await persistImageLocally({
-    bucket: "articles",
-    key: normalized.articleDraft.slug || fallbackSourceSlug || cleanedTitle,
-    sourceUrl: providedCoverImageUrl ?? articleCover?.url ?? null
-  }).catch((error) => {
-    console.error("Article cover localization failed", error);
-    return null;
-  });
+  let persistedCoverImageUrl: string | null = null;
+  let coverDownloadFailed = false;
+  const coverSourceUrl = providedCoverImageUrl ?? articleCover?.url ?? null;
+
+  try {
+    persistedCoverImageUrl = await persistImageLocally({
+      bucket: "articles",
+      key: normalized.articleDraft.slug || fallbackSourceSlug || cleanedTitle,
+      sourceUrl: coverSourceUrl
+    });
+  } catch (error) {
+    coverDownloadFailed = true;
+    console.error(`Article cover download failed for "${cleanedTitle}":`, error instanceof Error ? error.message : error);
+  }
+
   const providedCoverImageAlt = String(input.coverImageAlt || "").trim() || null;
   const requestedStatus = hydratedInput.status ?? "draft";
   const editorialCategory = input.category ?? normalized.articleDraft.category;
+  if (!hasManagedArticleImage(persistedCoverImageUrl)) {
+    const reason = coverDownloadFailed
+      ? `Cover image download failed after retries (source: ${coverSourceUrl ?? "none"})`
+      : `No usable cover image found (source: ${coverSourceUrl ?? "none"})`;
+    console.error(`Skipping article "${cleanedTitle}": ${reason}`);
+    throw new Error(`${reason} for "${cleanedTitle}"`);
+  }
+
   const cleanedLocalizedText = `${cleanedTitle}\n${cleanedExcerpt}\n${cleanedBody}`;
   const forcedDraftReason =
     isEditorialCategory(editorialCategory) &&
-    requestedStatus === "published" &&
-    !isPredominantlyRussianText(cleanedLocalizedText)
-      ? "English or mixed-language output detected after localization; saved as draft instead of published."
-      : editorialCategory === "news" &&
           requestedStatus === "published" &&
-          hasOffTopicUfcSignals(cleanedLocalizedText)
-        ? "Off-topic combat-sports story detected; saved as draft instead of published."
-      : requestedStatus === "published" &&
-          hasLowQualityRussianSignals(cleanedLocalizedText)
-        ? "Low-quality Russian newsroom output detected; saved as draft instead of published."
-      : null;
+          !isPredominantlyRussianText(cleanedLocalizedText)
+        ? "English or mixed-language output detected after localization; saved as draft instead of published."
+        : editorialCategory === "news" &&
+            requestedStatus === "published" &&
+            hasOffTopicUfcSignals(cleanedLocalizedText)
+          ? "Off-topic combat-sports story detected; saved as draft instead of published."
+        : requestedStatus === "published" &&
+            hasLowQualityRussianSignals(cleanedLocalizedText)
+          ? "Low-quality Russian newsroom output detected; saved as draft instead of published."
+        : null;
   const finalStatus = forcedDraftReason ? "draft" : requestedStatus;
 
   let telegramDigest: string | null = null;
@@ -1045,10 +1060,6 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     telegramDigest = await generateTelegramDigestForArticle(cleanedTitle, cleanedBody);
   } catch (error) {
     console.error("Telegram digest generation failed", error);
-  }
-
-  if (editorialCategory === "news" && !hasManagedArticleImage(persistedCoverImageUrl)) {
-    throw new Error(`Article cover image was not saved locally for "${cleanedTitle}"`);
   }
 
   const result = await prisma.$transaction(async (tx) => {

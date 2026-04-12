@@ -69,11 +69,18 @@ function buildWeservUrl(source: URL) {
   return `https://images.weserv.nl/?url=${encodeURIComponent(target)}`;
 }
 
-async function fetchImage(source: URL) {
+const RETRY_DELAYS_MS = [0, 2_000, 5_000];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchImageOnce(source: URL) {
   const directResponse = await fetch(source, {
     method: "GET",
     headers: buildHeaders(source),
-    redirect: "follow"
+    redirect: "follow",
+    signal: AbortSignal.timeout(30_000)
   }).catch(() => null);
 
   if (directResponse?.ok) {
@@ -87,7 +94,8 @@ async function fetchImage(source: URL) {
       "User-Agent": "FightBaseBot/1.0",
       Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
     },
-    redirect: "follow"
+    redirect: "follow",
+    signal: AbortSignal.timeout(30_000)
   }).catch(() => null);
 
   if (weservResponse?.ok) {
@@ -97,6 +105,25 @@ async function fetchImage(source: URL) {
   const directStatus = directResponse ? `direct HTTP ${directResponse.status}` : "direct request failed";
   const weservStatus = weservResponse ? `weserv HTTP ${weservResponse.status}` : "weserv request failed";
   throw new Error(`Image download failed (${directStatus}; ${weservStatus})`);
+}
+
+async function fetchImage(source: URL) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
+    if (RETRY_DELAYS_MS[attempt] > 0) {
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+
+    try {
+      return await fetchImageOnce(source);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`Image fetch attempt ${attempt + 1}/${RETRY_DELAYS_MS.length} failed for ${source}: ${lastError.message}`);
+    }
+  }
+
+  throw lastError ?? new Error(`Image download failed after ${RETRY_DELAYS_MS.length} attempts`);
 }
 
 function extensionFromContentType(contentType: string | null) {
