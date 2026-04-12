@@ -1,11 +1,13 @@
 import type { MetadataRoute } from "next";
 
+import { getArticleRouteBase } from "@/lib/article-routes";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
 
 const staticRoutes = [
   "",
   "/news",
+  "/analysis",
   "/events",
   "/fighters",
   "/rankings",
@@ -42,6 +44,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       select: {
         slug: true,
+        category: true,
         updatedAt: true
       },
       orderBy: {
@@ -116,7 +119,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticEntries,
     ...articles.map((article) => ({
-      url: `${siteUrl}/ru/news/${article.slug}`,
+      url: `${siteUrl}/ru${getArticleRouteBase(article.category)}/${article.slug}`,
       lastModified: article.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.9

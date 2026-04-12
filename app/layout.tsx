@@ -83,12 +83,19 @@ export async function generateMetadata(): Promise<Metadata> {
       url: rootPath,
       siteName: "FightBase Media",
       title: "FightBase Media",
-      description
+      description,
+      images: [
+        {
+          url: "/gorilla-crown-logo.png",
+          alt: "FightBase Media"
+        }
+      ]
     },
     twitter: {
       card: "summary_large_image",
       title: "FightBase Media",
-      description
+      description,
+      images: ["/gorilla-crown-logo.png"]
     },
     category: "sports"
   };

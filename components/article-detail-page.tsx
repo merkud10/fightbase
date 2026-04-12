@@ -1,5 +1,6 @@
 import type { ArticleCategory } from "@prisma/client";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -96,6 +97,8 @@ export async function generateArticlePageMetadata(
       title: article.title,
       description: article.excerpt,
       url: localizePath(articlePath, locale),
+      publishedTime: article.publishedAt.toISOString(),
+      modifiedTime: article.updatedAt.toISOString(),
       images: article.coverImageUrl
         ? [
             {
@@ -177,11 +180,14 @@ export async function ArticleDetailPage({
       <section className="detail-grid">
         <article className="stack">
           {article.coverImageUrl ? (
-            <div className="article-cover-shell">
-              <img
+            <div className="article-cover-shell article-cover-shell--hero">
+              <Image
                 src={getDisplayImageUrl(article.coverImageUrl)}
                 alt={article.coverImageAlt || article.title}
+                fill
+                priority
                 className="article-cover-image"
+                sizes="(max-width: 1200px) 100vw, min(1200px, 100vw)"
               />
             </div>
           ) : null}

@@ -2,15 +2,22 @@ import type { Metadata } from "next";
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
+import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 
-export const metadata: Metadata = {
-  title: "Политика источников",
-  description:
-    "Как FightBase Media работает с официальными источниками, интервью, статистическими провайдерами и проверкой новостей.",
-  alternates: {
-    canonical: "/sources-policy"
-  }
-};
+const SOURCES_POLICY_PATH = "/sources-policy";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return {
+    title: "Политика источников",
+    description:
+      "Как FightBase Media работает с официальными источниками, интервью, статистическими провайдерами и проверкой новостей.",
+    alternates: {
+      ...buildLocaleAlternates(SOURCES_POLICY_PATH),
+      canonical: localizePath(SOURCES_POLICY_PATH, locale)
+    }
+  };
+}
 
 export default async function SourcesPolicyPage() {
   const locale = await getLocale();
