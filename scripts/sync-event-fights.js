@@ -205,6 +205,8 @@ async function ensureFighter(name) {
     counter++;
   }
 
+  const promotion = await prisma.promotion.findUnique({ where: { slug: "ufc" } });
+
   const fighter = await prisma.fighter.create({
     data: {
       slug: uniqueSlug,
@@ -214,7 +216,13 @@ async function ensureFighter(name) {
       record: "",
       weightClass: "",
       stance: "",
-      bio: ""
+      bio: "",
+      age: 0,
+      heightCm: 0,
+      reachCm: 0,
+      team: "",
+      style: "",
+      promotionId: promotion?.id ?? ""
     },
     select: { id: true, slug: true, name: true }
   });
