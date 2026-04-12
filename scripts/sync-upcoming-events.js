@@ -208,15 +208,36 @@ async function main() {
       };
 
       const existing = await prisma.event.findUnique({ where: { slug } });
+
       if (existing) {
         await prisma.event.update({ where: { id: existing.id }, data });
         updated += 1;
         console.log(`[updated] ${slug}`);
-      } else {
-        await prisma.event.create({ data });
-        created += 1;
-        console.log(`[created] ${slug}`);
+        continue;
       }
+
+      const dayStart = new Date(entry.date);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
+
+      const existingByDate = await prisma.event.findFirst({
+        where: {
+          promotionId: promotion.id,
+          date: { gte: dayStart, lt: dayEnd }
+        }
+      });
+
+      if (existingByDate) {
+        await prisma.event.update({ where: { id: existingByDate.id }, data });
+        updated += 1;
+        console.log(`[updated] ${existingByDate.slug} -> ${slug}`);
+        continue;
+      }
+
+      await prisma.event.create({ data });
+      created += 1;
+      console.log(`[created] ${slug}`);
     } catch (error) {
       skipped += 1;
       console.error(`[skipped] ${entry.label}: ${error.message || error}`);
