@@ -108,7 +108,7 @@ const ALL_SOURCES = [
   },
   {
     label: "Combat Press",
-    listingUrl: "https://combatpress.com/category/mma/",
+    listingUrl: "https://combatpress.com/category/news/",
     articlePattern: /^https:\/\/combatpress\.com\/\d{4}\/\d{2}\/[^?#]+$/i,
     streams: ["news", "predictions", "analysis"],
     targetKeywords: {
