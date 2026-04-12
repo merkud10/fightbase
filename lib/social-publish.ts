@@ -159,47 +159,41 @@ function resolveLocalMediaPath(mediaUrl: string): string | null {
   return existsSync(filePath) ? filePath : null;
 }
 
-async function telegramSendPhoto(
-  token: string,
+async function telegramSendPhotoFile(
+  apiUrl: string,
   chatId: string,
-  photoSource: string,
+  filePath: string,
   caption?: string,
-  parseMode: "HTML" | undefined = "HTML"
+  parseMode?: "HTML"
 ) {
-  const apiUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
-
-  const localPath = photoSource.startsWith("/media/")
-    ? resolveLocalMediaPath(photoSource)
-    : null;
-
-  if (localPath) {
-    const fileBuffer = await readFile(localPath);
-    const ext = path.extname(localPath).replace(/^\./, "") || "jpg";
-    const form = new FormData();
-    form.append("chat_id", chatId);
-    form.append("photo", new Blob([fileBuffer], { type: `image/${ext === "jpg" ? "jpeg" : ext}` }), `photo.${ext}`);
-    if (caption) {
-      form.append("caption", caption);
-      if (parseMode) form.append("parse_mode", parseMode);
-    }
-
-    const response = await fetch(apiUrl, { method: "POST", body: form });
-    if (!response.ok) {
-      const errBody = await response.text();
-      throw new Error(`Telegram sendPhoto (file upload): ${response.status} ${errBody}`);
-    }
-    return;
+  const fileBuffer = await readFile(filePath);
+  const ext = path.extname(filePath).replace(/^\./, "") || "jpg";
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("photo", new Blob([fileBuffer], { type: `image/${ext === "jpg" ? "jpeg" : ext}` }), `photo.${ext}`);
+  if (caption) {
+    form.append("caption", caption);
+    if (parseMode) form.append("parse_mode", parseMode);
   }
 
-  const payload: Record<string, string> = {
-    chat_id: chatId,
-    photo: photoSource
-  };
+  const response = await fetch(apiUrl, { method: "POST", body: form });
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Telegram sendPhoto (file): ${response.status} ${errBody}`);
+  }
+}
+
+async function telegramSendPhotoUrl(
+  apiUrl: string,
+  chatId: string,
+  photoUrl: string,
+  caption?: string,
+  parseMode?: "HTML"
+) {
+  const payload: Record<string, string> = { chat_id: chatId, photo: photoUrl };
   if (caption) {
     payload.caption = caption;
-    if (parseMode) {
-      payload.parse_mode = parseMode;
-    }
+    if (parseMode) payload.parse_mode = parseMode;
   }
 
   const response = await fetch(apiUrl, {
@@ -210,8 +204,30 @@ async function telegramSendPhoto(
 
   if (!response.ok) {
     const errBody = await response.text();
-    throw new Error(`Telegram sendPhoto: ${response.status} ${errBody}`);
+    throw new Error(`Telegram sendPhoto (url): ${response.status} ${errBody}`);
   }
+}
+
+async function telegramSendPhoto(
+  token: string,
+  chatId: string,
+  coverImageUrl: string,
+  caption?: string,
+  parseMode: "HTML" | undefined = "HTML"
+) {
+  const apiUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
+  const localPath = resolveLocalMediaPath(coverImageUrl);
+
+  if (localPath) {
+    await telegramSendPhotoFile(apiUrl, chatId, localPath, caption, parseMode);
+    return;
+  }
+
+  const fullUrl = coverImageUrl.startsWith("/media/") || coverImageUrl.startsWith("/api/")
+    ? `${getSiteUrl().origin}${coverImageUrl}`
+    : coverImageUrl;
+
+  await telegramSendPhotoUrl(apiUrl, chatId, fullUrl, caption, parseMode);
 }
 
 type VkSavedPhoto = { id: number; owner_id: number };
@@ -665,9 +681,6 @@ export async function publishArticleToTelegram(articleId: string) {
 
   const payload = article as ArticleSocialPayload;
   const rawCoverUrl = String(payload.coverImageUrl || "").trim();
-  const photoSource = rawCoverUrl.startsWith("/media/")
-    ? rawCoverUrl
-    : resolveCoverImageUrlForSocial(rawCoverUrl);
   const digest = String(payload.telegramDigest || "").trim();
   const chunks = digest
     ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
@@ -675,22 +688,25 @@ export async function publishArticleToTelegram(articleId: string) {
   const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
   let startChunkIndex = 0;
 
-  if (photoSource && chunks.length > 0) {
+  if (rawCoverUrl && chunks.length > 0) {
     const firstChunk = chunks[0] ?? "";
     const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
     const caption =
       firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
     try {
-      await telegramSendPhoto(token, chatId, photoSource, caption, parseMode);
+      await telegramSendPhoto(token, chatId, rawCoverUrl, caption, parseMode);
       startChunkIndex = 1;
       if (firstChunk.length > captionMax) {
         chunks[0] = firstChunk.slice(captionMax).trimStart();
         startChunkIndex = 0;
       }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[TG] sendPhoto failed for article ${article.id}: ${errMsg} (coverImageUrl: ${rawCoverUrl})`);
       logger.warn("Telegram sendPhoto skipped", {
         articleId: article.id,
-        message: error instanceof Error ? error.message : String(error)
+        coverImageUrl: rawCoverUrl,
+        message: errMsg
       });
     }
   }
