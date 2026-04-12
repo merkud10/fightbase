@@ -151,7 +151,7 @@ export async function middleware(request: NextRequest) {
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = localizePath(pathname, locale);
 
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.redirect(redirectUrl, 308);
 }
 
 export const config = {
