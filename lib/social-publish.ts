@@ -892,6 +892,7 @@ export async function dripPublishNextArticle(): Promise<{
       where: {
         status: "published",
         telegramPostedAt: null,
+        coverImageUrl: { not: null },
         publishedAt: {
           gte: todayWindow.start,
           lt: todayWindow.end
@@ -904,6 +905,7 @@ export async function dripPublishNextArticle(): Promise<{
       where: {
         status: "published",
         vkPostedAt: null,
+        coverImageUrl: { not: null },
         publishedAt: {
           gte: todayWindow.start,
           lt: todayWindow.end
