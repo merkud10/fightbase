@@ -968,13 +968,20 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     headline: hydratedInput.headline,
     body: hydratedInput.body,
     localized: false,
-    model: null as string | null
+    model: null as string | null,
+    interestScore: null as number | null
   };
 
   try {
     localizedInput = await localizeIngestionInput(hydratedInput);
   } catch (error) {
     console.error("Failed to localize ingestion input", error);
+  }
+
+  const MIN_INTEREST_SCORE = 4;
+  if (localizedInput.interestScore !== null && localizedInput.interestScore < MIN_INTEREST_SCORE) {
+    console.log(`Skipping "${cleanNewsTitle(localizedInput.headline)}": interestScore=${localizedInput.interestScore} (below ${MIN_INTEREST_SCORE})`);
+    throw new Error(`Article rejected: interestScore ${localizedInput.interestScore} is below threshold ${MIN_INTEREST_SCORE}`);
   }
 
   if (input.category === "analysis" && (input.fighterSlugs?.length || 0) >= 2) {

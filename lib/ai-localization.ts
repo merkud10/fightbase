@@ -24,6 +24,7 @@ type LocalizedIngestionResult = {
   body: string;
   localized: boolean;
   model: string | null;
+  interestScore: number | null;
 };
 
 const openAiApiUrl = "https://api.openai.com/v1/responses";
@@ -144,6 +145,7 @@ function parseLocalizationResponse(rawText: string) {
     body?: string | string[];
     text?: string | string[];
     sectionBody?: string | string[];
+    interestScore?: number;
   };
 
   const headline =
@@ -165,9 +167,12 @@ function parseLocalizationResponse(rawText: string) {
     throw new Error("Localization response is missing headline or body");
   }
 
+  const interestScore = typeof parsed.interestScore === "number" ? parsed.interestScore : null;
+
   return {
     headline: headline.trim(),
-    body: body.trim()
+    body: body.trim(),
+    interestScore
   };
 }
 
@@ -536,9 +541,16 @@ function buildPrompt(input: IngestDraftInput) {
     "- Ensure the article reads like a native publication",
     "- REMOVE any promotional paragraphs, subscription calls-to-action, or self-referential plugs from the source (e.g. 'Читайте Metaratings...', 'Подписывайтесь на наш канал...', 'Follow us on...', 'Stay tuned to...'). These must NOT appear in the output.",
     "",
+    "INTEREST SCORE (IMPORTANT):",
+    "Rate how interesting and relevant this news is for MMA fans on a scale from 1 to 10.",
+    "HIGH score (7-10): fights announced/cancelled, results, injuries, title shots, trash talk between fighters, weight misses, dramatic events, fighter statements about opponents, comeback announcements, retirement.",
+    "MEDIUM score (4-6): ranking updates, event location changes, undercard announcements, fighter training camps, general division news.",
+    "LOW score (1-3): business deals, sponsorship agreements, broadcast partnerships, organizational restructuring, media credential updates, non-fighter personnel changes, charity events, app launches, merchandise.",
+    "Be strict: if the news is not directly about fighters, fights, or competition — score it low.",
+    "",
     "OUTPUT FORMAT:",
-    'Return strict JSON: { "headline": "...", "body": "..." }',
-    "Both headline and body must be in Russian.",
+    'Return strict JSON: { "headline": "...", "body": "...", "interestScore": <number 1-10> }',
+    "Both headline and body must be in Russian. interestScore must be an integer.",
     ...glossaryHints,
     "",
     `Source: ${input.sourceLabel}`,
@@ -631,7 +643,13 @@ function buildRewritePrompt(input: IngestDraftInput) {
     "Do not add any information that is not in the original article.",
     "Do not aggressively summarize — keep the same informational density.",
     "Output must be in natural Russian only.",
-    "Return strict JSON with keys headline and body.",
+    "",
+    "Also rate how interesting this news is for MMA fans (interestScore, 1-10).",
+    "HIGH (7-10): fights, results, injuries, title shots, trash talk, weight misses, dramatic events, fighter statements, comebacks, retirements.",
+    "MEDIUM (4-6): rankings, event locations, undercard, training camps.",
+    "LOW (1-3): business deals, sponsorships, broadcast partnerships, organizational changes, non-fighter personnel, charity, apps, merchandise.",
+    "",
+    "Return strict JSON with keys headline, body, and interestScore (integer).",
     "",
     `Source: ${input.sourceLabel}`,
     `URL: ${input.sourceUrl}`,
@@ -707,7 +725,8 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: null
   };
 }
 
@@ -719,17 +738,16 @@ async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedI
 
   const model = getDeepSeekModel();
   const baseUrl = getDeepSeekBaseUrl();
-  let localized = normalizeLocalizedOutput(
-    input,
-    await sendOpenAiCompatibleJsonPrompt({
-      baseUrl,
-      apiKey,
-      model,
-      systemPrompt:
-        "You are an MMA editor for a Russian-language media outlet focused on UFC. Translate and fully rewrite source material into a high-quality, original Russian editorial article. The text must read as a native Russian sports article, not a translation. Preserve all facts, names, records, dates, promotions, and uncertainty. Do NOT invent or hallucinate any facts. Do NOT perform a literal translation — restructure and rewrite. Expand with relevant context (fighter trajectory, division impact, event significance) using only widely known or directly implied information. Use correct Russian MMA terminology, do not distort fighter names, do not leave raw English terms. Output strict JSON with keys headline and body. Target 6-14 meaningful paragraphs without markdown.",
-      userPrompt: buildPrompt(input)
-    })
-  );
+  const initialResponse = await sendOpenAiCompatibleJsonPrompt({
+    baseUrl,
+    apiKey,
+    model,
+    systemPrompt:
+      "You are an MMA editor for a Russian-language media outlet focused on UFC. Translate and fully rewrite source material into a high-quality, original Russian editorial article. The text must read as a native Russian sports article, not a translation. Preserve all facts, names, records, dates, promotions, and uncertainty. Do NOT invent or hallucinate any facts. Do NOT perform a literal translation — restructure and rewrite. Expand with relevant context (fighter trajectory, division impact, event significance) using only widely known or directly implied information. Use correct Russian MMA terminology, do not distort fighter names, do not leave raw English terms. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; MEDIUM 4-6 for rankings/event changes/undercard; LOW 1-3 for business deals/sponsorships/broadcast partnerships/organizational changes. Output strict JSON with keys headline, body, and interestScore. Target 6-14 meaningful paragraphs without markdown.",
+    userPrompt: buildPrompt(input)
+  });
+  const interestScore = initialResponse.interestScore;
+  let localized = normalizeLocalizedOutput(input, initialResponse);
 
   if (looksUkrainian(`${localized.headline}\n${localized.body}`)) {
     localized = normalizeLocalizedOutput(
@@ -766,7 +784,8 @@ async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedI
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: interestScore ?? null
   };
 }
 
@@ -817,7 +836,8 @@ async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedInge
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: null
   };
 }
 
@@ -841,10 +861,11 @@ async function rewriteWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIn
     apiKey,
     model,
     systemPrompt:
-      "You are a Russian-language MMA news editor. Rewrite the article in your own words so the result is unique and not a copy of the original. Change sentence structure, wording, and phrasing while keeping the same meaning. Preserve all facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly. Do not add any information that is not in the original article. Do not aggressively summarize. Output natural Russian only. Return strict JSON with keys headline and body.",
+      "You are a Russian-language MMA news editor. Rewrite the article in your own words so the result is unique and not a copy of the original. Change sentence structure, wording, and phrasing while keeping the same meaning. Preserve all facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly. Do not add any information that is not in the original article. Do not aggressively summarize. Output natural Russian only. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; LOW 1-3 for business deals/sponsorships/organizational changes. Return strict JSON with keys headline, body, and interestScore.",
     userPrompt: buildRewritePrompt(rewriteInput),
     temperature: 0.2
   });
+  const interestScore = parsed.interestScore;
 
   const bodyParts = [parsed.body];
   if (results.length > 0) {
@@ -876,7 +897,8 @@ async function rewriteWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIn
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: interestScore ?? null
   };
 }
 
@@ -934,7 +956,8 @@ async function localizeWithOpenAi(input: IngestDraftInput): Promise<LocalizedIng
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: null
   };
 }
 
@@ -1008,7 +1031,8 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model
+    model,
+    interestScore: null
   };
 }
 
@@ -1024,7 +1048,8 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
       headline: input.headline,
       body: input.body,
       localized: false,
-      model: null
+      model: null,
+      interestScore: null
     };
   }
 
@@ -1041,7 +1066,8 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
       headline: input.headline,
       body: input.body,
       localized: false,
-      model: null
+      model: null,
+      interestScore: null
     };
   }
 
@@ -1073,7 +1099,8 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
     headline: input.headline,
     body: input.body,
     localized: false,
-    model: null
+    model: null,
+    interestScore: null
   };
 }
 

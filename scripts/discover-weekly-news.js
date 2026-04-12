@@ -83,6 +83,82 @@ const ALL_SOURCES = [
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
+  {
+    label: "MMA Mania",
+    listingUrl: "https://www.mmamania.com/",
+    articlePattern: /^https:\/\/www\.mmamania\.com\/\d{4}\/\d{1,2}\/\d{1,2}\/[^?#]+$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["says", "reacts", "interview", "responds", "reveals", "talks", "discusses"]
+    },
+    sourceType: "press_release"
+  },
+  {
+    label: "Bloody Elbow",
+    listingUrl: "https://bloodyelbow.com/",
+    articlePattern: /^https:\/\/bloodyelbow\.com\/\d{4}\/\d{2}\/\d{2}\/[^?#]+$/i,
+    streams: ["news", "quotes", "analysis"],
+    targetKeywords: {
+      quotes: ["says", "reacts", "interview", "responds", "reveals", "talks"],
+      analysis: ["preview", "breakdown", "analysis", "matchup", "editorial"]
+    },
+    sourceType: "press_release"
+  },
+  {
+    label: "ESPN MMA",
+    listingUrl: "https://www.espn.com/mma/",
+    articlePattern: /^https:\/\/www\.espn\.com\/mma\/story\/_\/id\/[^?#]+$/i,
+    streams: ["news", "quotes", "analysis"],
+    targetKeywords: {
+      quotes: ["interview", "says", "reacts", "responds", "reveals"],
+      analysis: ["preview", "breakdown", "analysis", "rankings", "picks"]
+    },
+    sourceType: "press_release"
+  },
+  {
+    label: "Combat Press",
+    listingUrl: "https://combatpress.com/category/mma/",
+    articlePattern: /^https:\/\/combatpress\.com\/\d{4}\/\d{2}\/[^?#]+$/i,
+    streams: ["news", "predictions", "analysis"],
+    targetKeywords: {
+      predictions: ["preview", "predictions", "picks", "breakdown"],
+      analysis: ["preview", "analysis", "breakdown", "rankings"]
+    },
+    sourceType: "press_release"
+  },
+  {
+    label: "BJPenn.com",
+    listingUrl: "https://www.bjpenn.com/mma-news/",
+    articlePattern: /^https:\/\/www\.bjpenn\.com\/mma-news\/[^?#]+$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["says", "reacts", "interview", "responds", "reveals", "calls-out"]
+    },
+    sourceType: "press_release"
+  },
+  {
+    label: "Sports.ru MMA",
+    listingUrl: "https://www.sports.ru/mma/",
+    articlePattern: /^https:\/\/www\.sports\.ru\/mma\/\d+[\w-]*\.html$/i,
+    streams: ["news", "quotes"],
+    targetKeywords: {
+      quotes: ["интервью", "заявил", "рассказал", "ответил", "отреагировал"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
+  {
+    label: "Championat MMA",
+    listingUrl: "https://www.championat.com/mma/",
+    articlePattern: /^https:\/\/www\.championat\.com\/mma\/article-\d+[\w-]*\.html$/i,
+    streams: ["news", "quotes", "analysis"],
+    targetKeywords: {
+      quotes: ["интервью", "заявил", "рассказал", "ответил", "отреагировал"],
+      analysis: ["превью", "прогноз", "разбор", "анализ"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
 ];
 
 const SOURCES = ALL_SOURCES.filter((source) => !source.promotionSlug || ENABLED_PROMOTIONS.has(source.promotionSlug));
