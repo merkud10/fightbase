@@ -29,7 +29,7 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
     prisma.event.count({ where: eventWhere }),
     prisma.event.findMany({
       where: eventWhere,
-      orderBy: [{ status: "asc" }, { date: "asc" }],
+      orderBy: [{ status: "asc" }, { date: normalizedStatus === "completed" ? "desc" : "asc" }],
       include: {
         promotion: true,
         fights: {
