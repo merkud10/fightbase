@@ -25,25 +25,16 @@ const ALL_SOURCES = [
     sourceType: "official"
   },
   {
-    label: "Sherdog News",
-    listingUrl: "https://www.sherdog.com/news/news/list",
-    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/news\/[^?#]+$/i,
-    streams: ["news", "quotes"],
+    label: "Sherdog",
+    listingUrl: "https://www.sherdog.com/tag/ufc",
+    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/(?:news|articles)\/[^?#]+$/i,
+    streams: ["news", "quotes", "predictions", "analysis"],
     targetKeywords: {
-      quotes: ["says", "reacts", "interview", "admits", "vows", "expects", "discusses", "reveals", "talks", "responds"]
-    },
-    sourceType: "press_release"
-  },
-  {
-    label: "Sherdog Features",
-    listingUrl: "https://www.sherdog.com/news/articles/list",
-    articlePattern: /^https:\/\/www\.sherdog\.com\/news\/articles\/[^?#]+$/i,
-    streams: ["predictions", "analysis"],
-    targetKeywords: {
+      quotes: ["says", "reacts", "interview", "admits", "vows", "expects", "discusses", "reveals", "talks", "responds"],
       predictions: ["preview", "breakdown", "picks", "analysis", "matchup", "by-the-numbers"],
       analysis: ["preview", "breakdown", "analysis", "matchup", "by-the-numbers", "five-things", "prime-picks"]
     },
-    sourceType: "interview"
+    sourceType: "press_release"
   },
   {
     label: "MMA Fighting",
