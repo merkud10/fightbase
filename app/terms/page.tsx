@@ -2,22 +2,14 @@ import type { Metadata } from "next";
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { buildLocaleAlternates } from "@/lib/locale-path";
 
-const TERMS_PATH = "/terms";
-
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale();
-  return {
-    title: "Условия использования",
-    description:
-      "Условия использования FightBase Media: правила доступа к материалам, допустимое цитирование и ограничения ответственности.",
-    alternates: {
-      ...buildLocaleAlternates(TERMS_PATH),
-      canonical: localizePath(TERMS_PATH, locale)
-    }
-  };
-}
+export const metadata: Metadata = {
+  title: "Условия использования",
+  description:
+    "Условия использования FightBase Media: правила доступа к материалам, допустимое цитирование и ограничения ответственности.",
+  alternates: buildLocaleAlternates("/terms")
+};
 
 export default async function TermsPage() {
   const locale = await getLocale();

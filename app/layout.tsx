@@ -87,6 +87,8 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [
         {
           url: "/gorilla-crown-logo.png",
+          width: 1024,
+          height: 1024,
           alt: "FightBase Media"
         }
       ]

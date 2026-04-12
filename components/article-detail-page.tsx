@@ -187,7 +187,7 @@ export async function ArticleDetailPage({
                 fill
                 priority
                 className="article-cover-image"
-                sizes="(max-width: 1200px) 100vw, min(1200px, 100vw)"
+                sizes="(max-width: 1200px) 100vw, 1200px"
               />
             </div>
           ) : null}
