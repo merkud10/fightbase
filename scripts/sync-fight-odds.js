@@ -36,7 +36,8 @@ function normalizeName(s) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё\s-]/gi, " ")
+    .replace(/[-]/g, " ")
+    .replace(/[^a-z0-9а-яё\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -44,6 +45,31 @@ function normalizeName(s) {
 function lastToken(s) {
   const parts = normalizeName(s).split(/\s+/).filter(Boolean);
   return parts[parts.length - 1] || "";
+}
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function fuzzyLastNameMatch(a, b) {
+  const la = lastToken(a);
+  const lb = lastToken(b);
+  if (!la || !lb || la.length < 4 || lb.length < 4) return false;
+  if (la === lb) return true;
+  const maxDist = Math.max(1, Math.floor(Math.max(la.length, lb.length) * 0.2));
+  return levenshtein(la, lb) <= maxDist;
 }
 
 function namesMatch(a, b) {
@@ -55,9 +81,7 @@ function namesMatch(a, b) {
   if (na === nb) {
     return true;
   }
-  const la = lastToken(a);
-  const lb = lastToken(b);
-  if (la && lb && la === lb && la.length >= 4) {
+  if (fuzzyLastNameMatch(a, b)) {
     return true;
   }
   return na.includes(nb) || nb.includes(na);
