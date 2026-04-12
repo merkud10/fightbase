@@ -111,8 +111,9 @@ async function fetchImage(source: URL) {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
-    if (RETRY_DELAYS_MS[attempt] > 0) {
-      await sleep(RETRY_DELAYS_MS[attempt]);
+    const delay = RETRY_DELAYS_MS[attempt] ?? 0;
+    if (delay > 0) {
+      await sleep(delay);
     }
 
     try {
