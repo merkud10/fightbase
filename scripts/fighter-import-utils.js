@@ -93,15 +93,33 @@ const monthMap = {
   dec: 11
 };
 
+const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com"]);
+
+function buildFetchHeaders(url) {
+  const headers = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9"
+  };
+
+  try {
+    const hostname = new URL(url).hostname;
+    if (UFC_HOSTS.has(hostname)) {
+      headers.Referer = "https://www.ufc.com/";
+      headers.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    }
+  } catch {}
+
+  return headers;
+}
+
 function fetchText(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     https
       .get(
         url,
         {
-          headers: {
-            "User-Agent": "FightBaseBot/1.0"
-          }
+          headers: buildFetchHeaders(url)
         },
         (response) => {
           const statusCode = response.statusCode ?? 500;
