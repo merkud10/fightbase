@@ -15,9 +15,15 @@ APP_DIR="/opt/fightbase"
 BASE_URL="http://localhost:3000"
 LOG_DIR="/var/log/fightbase"
 
-# Load secrets from .env
+# Load secrets from .env (strip surrounding quotes)
 if [ -f "${APP_DIR}/.env" ]; then
-  export $(grep -E '^(INGEST_CRON_SECRET|INTERNAL_API_SECRET|TELEGRAM_BOT_TOKEN|TELEGRAM_ALERTS_CHAT_ID)=' "${APP_DIR}/.env" | xargs)
+  while IFS='=' read -r key value; do
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    export "$key=$value"
+  done < <(grep -E '^(INGEST_CRON_SECRET|INTERNAL_API_SECRET|TELEGRAM_BOT_TOKEN|TELEGRAM_ALERTS_CHAT_ID)=' "${APP_DIR}/.env")
 fi
 
 SECRET="${INGEST_CRON_SECRET:-${INTERNAL_API_SECRET:-}}"
