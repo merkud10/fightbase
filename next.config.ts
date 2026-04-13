@@ -27,11 +27,11 @@ const nextConfig: NextConfig = {
 
     const csp = isDev ? "" : [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' https://mc.yandex.ru",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://dmxg5wxfqgb4u.cloudfront.net https://*.ufc.com https://ufc.com https://images.tapology.com https://www1-cdn.sherdog.com https://ss.sport-express.net https://www.sport-express.net https://upload.wikimedia.org https://www.sports.ru https://storage.yandexcloud.net https://cdn.vox-cdn.com https://mmajunkie.usatoday.com",
+      "img-src 'self' data: https://dmxg5wxfqgb4u.cloudfront.net https://*.ufc.com https://ufc.com https://images.tapology.com https://www1-cdn.sherdog.com https://ss.sport-express.net https://www.sport-express.net https://upload.wikimedia.org https://www.sports.ru https://storage.yandexcloud.net https://cdn.vox-cdn.com https://mmajunkie.usatoday.com https://mc.yandex.ru",
       "font-src 'self'",
-      "connect-src 'self'",
+      "connect-src 'self' https://mc.yandex.ru",
       "frame-ancestors 'self'",
       "base-uri 'self'",
       "form-action 'self'"
