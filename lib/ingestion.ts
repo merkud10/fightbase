@@ -734,8 +734,12 @@ async function findDuplicateCandidate(
       titleOverlap >= 0.75 &&
       (sameSource || samePromotion || sameEvent) &&
       (!isFightSpecificAnalysis || fighterOverlapCount >= 2);
+    const interviewSameFighter =
+      category === "interview" &&
+      fighterOverlapCount >= 1 &&
+      titleOverlap >= 0.35;
 
-    if (exactMatch || nearMatch) {
+    if (exactMatch || nearMatch || interviewSameFighter) {
       return {
         article,
         reason: getDuplicateReason(titleOverlap, sameSource, samePromotion, sameEvent) || "matched existing article"
@@ -840,7 +844,8 @@ async function findCrossSourceNewsDuplicate(
 ): Promise<{ article: ArticleDupRow; reason: string } | null> {
   const { category, relations, incomingPublishedAt, incomingTextBlob } = params;
 
-  if (category !== "news" || relations.fighters.length === 0) {
+  const eligibleCategories: ArticleCategory[] = ["news", "interview"];
+  if (!eligibleCategories.includes(category) || relations.fighters.length === 0) {
     return null;
   }
 
@@ -854,7 +859,7 @@ async function findCrossSourceNewsDuplicate(
 
   const candidates = await tx.article.findMany({
     where: {
-      category: "news",
+      category,
       publishedAt: { gte: windowStart, lte: windowEnd },
       fighterMap: { some: { fighterId: { in: fighterIds } } }
     },
