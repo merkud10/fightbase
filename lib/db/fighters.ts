@@ -392,7 +392,7 @@ function normalizeFighterSearchValue(value: string | null | undefined) {
   return String(value || "").trim().toLocaleLowerCase("ru-RU");
 }
 
-export async function getFightersPageData(filters: FightersPageFilters = {}) {
+export const getFightersPageData = cache(async function getFightersPageData(filters: FightersPageFilters = {}) {
   const query = filters.query?.trim();
   const normalizedQuery = normalizeFighterSearchValue(query);
   const validStatuses: FighterStatus[] = ["active", "champion", "retired", "prospect"];
@@ -401,8 +401,18 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     : undefined;
   const normalizedWeightClass = filters.weightClass ? normalizeWeightClassValue(filters.weightClass) : undefined;
   const promotionSlug = "ufc";
+  const searchFilter: Prisma.FighterWhereInput | undefined = normalizedQuery
+    ? {
+        OR: [
+          { name: { contains: normalizedQuery, mode: "insensitive" } },
+          { nameRu: { contains: normalizedQuery, mode: "insensitive" } },
+          { nickname: { contains: normalizedQuery, mode: "insensitive" } }
+        ]
+      }
+    : undefined;
+
   const fightersWhere: Prisma.FighterWhereInput = {
-    AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
+    AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }, ...(searchFilter ? [searchFilter] : [])],
     promotion: { slug: promotionSlug },
     ...(normalizedStatus ? { status: normalizedStatus } : {}),
     ...(normalizedWeightClass ? { weightClass: { in: getWeightClassFilterValues(normalizedWeightClass) } } : {})
@@ -442,15 +452,7 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
     })
   ]);
 
-  const allFighters = dedupeFightersForPublicList(fighters).filter((fighter) => {
-    if (!normalizedQuery) {
-      return true;
-    }
-
-    return [fighter.name, fighter.nameRu, fighter.nickname].some((value) =>
-      normalizeFighterSearchValue(value).includes(normalizedQuery)
-    );
-  });
+  const allFighters = dedupeFightersForPublicList(fighters);
   const totalCount = allFighters.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const safePage = Math.min(page, totalPages);
@@ -473,7 +475,7 @@ export async function getFightersPageData(filters: FightersPageFilters = {}) {
       statuses: ["active", "champion", "retired", "prospect"] as const
     }
   };
-}
+});
 
 export const getFighterPageData = cache(async function getFighterPageData(slug: string) {
   const fighter = await prisma.fighter.findUnique({

@@ -86,8 +86,8 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
             className="story-art-image"
             width={600}
             height={340}
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
             loading="lazy"
-            unoptimized
           />
         ) : null}
         <div className="story-art-label">{metaLabel}</div>
@@ -223,8 +223,8 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
           className="fighter-photo"
           width={300}
           height={300}
+          sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 200px"
           loading="lazy"
-          unoptimized
         />
       ) : (
         <div className="fighter-avatar" />

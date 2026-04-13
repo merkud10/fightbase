@@ -56,7 +56,7 @@ export function buildPublicArticleImageWhere(): Prisma.ArticleWhereInput {
   };
 }
 
-export async function getNewsPageData(filters: NewsPageFilters = {}) {
+export const getNewsPageData = cache(async function getNewsPageData(filters: NewsPageFilters = {}) {
   const perPage = filters.perPage ?? NEWS_PER_PAGE;
   const page = Math.max(1, filters.page ?? 1);
   const articleWhere: Prisma.ArticleWhereInput = {
@@ -106,9 +106,9 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
       tag: filters.tag ?? ""
     }
   };
-}
+});
 
-export async function getAnalysisPageData() {
+export const getAnalysisPageData = cache(async function getAnalysisPageData() {
   const articles = await prisma.article.findMany({
     where: { category: "analysis", status: "published", ...buildPublicArticleImageWhere() },
     orderBy: { publishedAt: "desc" },
@@ -116,7 +116,7 @@ export async function getAnalysisPageData() {
   });
 
   return filterArticlesWithRenderableImages(articles);
-}
+});
 
 export const getQuotesPageData = cache(async function getQuotesPageData() {
   const articles = await prisma.article.findMany({

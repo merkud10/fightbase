@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+export const revalidate = 86400;
+
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates } from "@/lib/locale-path";

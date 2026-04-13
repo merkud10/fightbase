@@ -78,8 +78,7 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     prisma.event.findMany({
       orderBy: { date: "desc" },
       include: {
-        promotion: true,
-        fights: true
+        promotion: true
       },
       take: 10
     }),
@@ -252,7 +251,7 @@ export async function getAdminArticleEditorData(articleId: string) {
 }
 
 export async function getHomePageData() {
-  const [articles, leadArticle, events, totalArticles, totalEvents, totalFighters] = await Promise.all([
+  const [articles, leadArticle, events, fallbackFighters, totalArticles, totalEvents, totalFighters] = await Promise.all([
     prisma.article.findMany({
       where: { status: "published", category: "news", ...buildPublicArticleImageWhere() },
       orderBy: { publishedAt: "desc" },
@@ -293,6 +292,18 @@ export async function getHomePageData() {
       },
       take: 3
     }),
+    prisma.fighter.findMany({
+      where: {
+        status: { in: ["champion", "active"] },
+        AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
+      },
+      orderBy: [{ status: "asc" }, { name: "asc" }],
+      include: {
+        promotion: true,
+        _count: { select: { recentFights: true } }
+      },
+      take: 8
+    }),
     prisma.article.count({ where: { status: "published" } }),
     prisma.event.count(),
     prisma.fighter.count()
@@ -321,18 +332,7 @@ export async function getHomePageData() {
           _count: { select: { recentFights: true } }
         }
       })
-    : await prisma.fighter.findMany({
-        where: {
-          status: { in: ["champion", "active"] },
-          AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }]
-        },
-        orderBy: [{ status: "asc" }, { name: "asc" }],
-        include: {
-          promotion: true,
-          _count: { select: { recentFights: true } }
-        },
-        take: 8
-      });
+    : fallbackFighters;
 
   return {
     articles: visibleArticles,

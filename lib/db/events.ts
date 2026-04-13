@@ -13,7 +13,7 @@ type EventsPageFilters = {
 
 const EVENTS_PER_PAGE = 12;
 
-export async function getEventsPageData(filters: EventsPageFilters = {}) {
+export const getEventsPageData = cache(async function getEventsPageData(filters: EventsPageFilters = {}) {
   const validStatuses: EventStatus[] = ["upcoming", "live", "completed"];
   const normalizedStatus = validStatuses.includes(filters.status as EventStatus) ? (filters.status as EventStatus) : undefined;
   const promotionSlug = "ufc";
@@ -70,7 +70,7 @@ export async function getEventsPageData(filters: EventsPageFilters = {}) {
       statuses: ["upcoming", "live", "completed"] as const
     }
   };
-}
+});
 
 export const getEventPageData = cache(async function getEventPageData(slug: string) {
   const event = await prisma.event.findUnique({
