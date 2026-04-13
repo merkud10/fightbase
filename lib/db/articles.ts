@@ -77,27 +77,27 @@ export async function getNewsPageData(filters: NewsPageFilters = {}) {
       : {})
   };
 
-  const [{ promotions, tags }, allArticles] = await Promise.all([
+  const [{ promotions, tags }, totalCount, articles] = await Promise.all([
     getSiteChromeData(),
+    prisma.article.count({ where: articleWhere }),
     prisma.article.findMany({
       where: articleWhere,
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
         tagMap: { include: { tag: true } }
-      }
+      },
+      skip: (Math.max(1, page) - 1) * perPage,
+      take: perPage
     })
   ]);
-  const filteredArticles = filterArticlesWithRenderableImages(allArticles);
-  const totalCount = filteredArticles.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const safePage = Math.min(page, totalPages);
-  const articles = filteredArticles.slice((safePage - 1) * perPage, safePage * perPage);
 
   return {
     promotions,
     tags,
-    articles,
+    articles: filterArticlesWithRenderableImages(articles),
     totalCount,
     page: safePage,
     totalPages,
