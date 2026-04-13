@@ -59,14 +59,6 @@ const ALL_SOURCES = [
     sourceType: "press_release"
   },
   {
-    label: "Metaratings MMA",
-    listingUrl: "https://meta-ratings.kz/news/mma/",
-    articlePattern: /^https:\/\/meta-ratings\.kz\/news\/[\w-]+-\d+\/$/i,
-    streams: ["news", "quotes"],
-    sourceType: "press_release",
-    sourceLanguage: "ru"
-  },
-  {
     label: "FightNews.info",
     listingUrl: "https://fightnews.info/",
     articlePattern: /^https:\/\/fightnews\.info\/(?!votes|users|on-air|reyting)[a-z0-9][\w-]+$/i,
