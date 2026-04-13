@@ -392,6 +392,19 @@ function normalizeFighterSearchValue(value: string | null | undefined) {
   return String(value || "").trim().toLocaleLowerCase("ru-RU");
 }
 
+function matchesFighterSearch(
+  fighter: Pick<FighterListItem, "name" | "nameRu" | "nickname">,
+  normalizedQuery: string
+) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [fighter.name, fighter.nameRu, fighter.nickname]
+    .map((value) => normalizeFighterSearchValue(value))
+    .some((value) => value.includes(normalizedQuery));
+}
+
 export const getFightersPageData = cache(async function getFightersPageData(filters: FightersPageFilters = {}) {
   const query = filters.query?.trim();
   const normalizedQuery = normalizeFighterSearchValue(query);
@@ -401,18 +414,9 @@ export const getFightersPageData = cache(async function getFightersPageData(filt
     : undefined;
   const normalizedWeightClass = filters.weightClass ? normalizeWeightClassValue(filters.weightClass) : undefined;
   const promotionSlug = "ufc";
-  const searchFilter: Prisma.FighterWhereInput | undefined = normalizedQuery
-    ? {
-        OR: [
-          { name: { contains: normalizedQuery, mode: "insensitive" } },
-          { nameRu: { contains: normalizedQuery, mode: "insensitive" } },
-          { nickname: { contains: normalizedQuery, mode: "insensitive" } }
-        ]
-      }
-    : undefined;
 
   const fightersWhere: Prisma.FighterWhereInput = {
-    AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }, ...(searchFilter ? [searchFilter] : [])],
+    AND: [{ photoUrl: { not: null } }, { photoUrl: { not: "" } }],
     promotion: { slug: promotionSlug },
     ...(normalizedStatus ? { status: normalizedStatus } : {}),
     ...(normalizedWeightClass ? { weightClass: { in: getWeightClassFilterValues(normalizedWeightClass) } } : {})
@@ -452,7 +456,10 @@ export const getFightersPageData = cache(async function getFightersPageData(filt
     })
   ]);
 
-  const allFighters = dedupeFightersForPublicList(fighters);
+  const filteredFighters = normalizedQuery
+    ? fighters.filter((fighter) => matchesFighterSearch(fighter, normalizedQuery))
+    : fighters;
+  const allFighters = dedupeFightersForPublicList(filteredFighters);
   const totalCount = allFighters.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const safePage = Math.min(page, totalPages);
