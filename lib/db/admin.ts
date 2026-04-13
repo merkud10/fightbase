@@ -1,4 +1,5 @@
 import type { ArticleStatus } from "@prisma/client";
+import { cache } from "react";
 
 import { getOperationalAlerts } from "@/lib/operational-monitoring";
 import { prisma } from "@/lib/prisma";
@@ -221,14 +222,14 @@ export async function getAdminTagEditorData(tagId: string) {
   });
 }
 
-export async function getSiteChromeData() {
+export const getSiteChromeData = cache(async function getSiteChromeData() {
   const [promotions, tags] = await Promise.all([
     prisma.promotion.findMany({ orderBy: { shortName: "asc" } }),
     prisma.tag.findMany({ orderBy: { label: "asc" } })
   ]);
 
   return { promotions, tags };
-}
+});
 
 export async function getAdminArticleEditorData(articleId: string) {
   const [options, article] = await Promise.all([

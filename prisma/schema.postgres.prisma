@@ -311,6 +311,7 @@ model SystemEvent {
 
   @@index([level])
   @@index([category])
+  @@index([level, createdAt])
   @@index([telegramAlertedAt])
   @@index([createdAt])
 }
@@ -333,6 +334,7 @@ model BackgroundJob {
   updatedAt    DateTime            @updatedAt
 
   @@index([status, runAt, priority])
+  @@index([status, updatedAt])
   @@index([createdAt])
 }
 
@@ -367,6 +369,7 @@ model Article {
   updatedAt              DateTime         @updatedAt
 
   @@index([status, publishedAt])
+  @@index([status, category, publishedAt])
   @@index([browserPushNotifiedAt])
   @@index([telegramPostedAt])
   @@index([vkPostedAt])
