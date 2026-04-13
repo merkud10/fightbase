@@ -72,6 +72,15 @@ export async function generateMetadata(): Promise<Metadata> {
       google: process.env.GOOGLE_SITE_VERIFICATION,
       yandex: process.env.YANDEX_VERIFICATION
     },
+    icons: {
+      icon: [
+        { url: "/icon.png", type: "image/png" }
+      ],
+      apple: [
+        { url: "/apple-icon.png", type: "image/png" }
+      ],
+      shortcut: ["/icon.png"]
+    },
     formatDetection: {
       telephone: false,
       address: false,
