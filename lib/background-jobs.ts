@@ -6,7 +6,6 @@ export const backgroundJobTypes = [
   "weekly-news",
   "ai-discovery",
   "sync-odds",
-  "weekly-analysis",
   "sync-roster",
   "operational-alerts"
 ] as const;

@@ -38,9 +38,7 @@ export async function POST(request: Request) {
         ? "weekly-news"
       : body.job === "sync-odds"
         ? "sync-odds"
-      : body.job === "weekly-analysis"
-          ? "weekly-analysis"
-        : body.job === "sync-roster"
+      : body.job === "sync-roster"
             ? "sync-roster"
             : "weekly-news";
 

@@ -61,26 +61,6 @@ export function AdminIngestForm({
 
           <article className="admin-subscription-item">
             <div className="admin-subscription-copy">
-              <strong>{locale === "ru" ? "Аналитика недели" : "Weekly analysis"}</strong>
-              <p className="table-note">
-                {locale === "ru"
-                  ? "Запустить discovery и repair-контур для long-form аналитики и превью боев."
-                  : "Run discovery and repair for long-form analysis and fight previews."}
-              </p>
-            </div>
-            <form action={enqueueBackgroundJobAction}>
-              <input type="hidden" name="returnTo" value={currentAdminHref} />
-              <input type="hidden" name="jobType" value="weekly-analysis" />
-              <input type="hidden" name="priority" value="80" />
-              <input type="hidden" name="limit" value="6" />
-              <button type="submit" className="button-secondary">
-                {locale === "ru" ? "Поставить в очередь" : "Queue job"}
-              </button>
-            </form>
-          </article>
-
-          <article className="admin-subscription-item">
-            <div className="admin-subscription-copy">
               <strong>{locale === "ru" ? "Odds и прогнозы" : "Odds and predictions"}</strong>
               <p className="table-note">
                 {locale === "ru"
