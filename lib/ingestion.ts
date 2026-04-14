@@ -833,6 +833,59 @@ type ArticleDupRow = {
   tagMap: Array<{ tag: { slug: string } }>;
 };
 
+async function findSlugCollisionDuplicate(
+  tx: { article: typeof prisma.article },
+  params: {
+    baseSlug: string;
+    sourceId: string;
+    category: ArticleCategory;
+    publishedAt: Date;
+  }
+): Promise<{ article: ArticleDupRow; reason: string } | null> {
+  const { baseSlug, sourceId, category, publishedAt } = params;
+  if (!baseSlug) return null;
+
+  const windowStart = new Date(publishedAt);
+  windowStart.setHours(windowStart.getHours() - 24);
+  const windowEnd = new Date(publishedAt);
+  windowEnd.setHours(windowEnd.getHours() + 24);
+
+  const article = await tx.article.findFirst({
+    where: {
+      category,
+      sourceMap: { some: { sourceId } },
+      publishedAt: { gte: windowStart, lte: windowEnd },
+      OR: [
+        { slug: baseSlug },
+        { slug: { startsWith: `${baseSlug}-` } }
+      ]
+    },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      title: true,
+      excerpt: true,
+      meaning: true,
+      publishedAt: true,
+      promotionId: true,
+      eventId: true,
+      event: { select: { slug: true } },
+      promotion: { select: { slug: true } },
+      fighterMap: {
+        include: {
+          fighter: { select: { id: true, name: true, nameRu: true, slug: true } }
+        }
+      },
+      tagMap: { include: { tag: { select: { slug: true } } } }
+    },
+    orderBy: { publishedAt: "desc" }
+  });
+
+  if (!article) return null;
+  return { article: article as ArticleDupRow, reason: `slug-collision dedup (base: ${baseSlug})` };
+}
+
 async function findCrossSourceNewsDuplicate(
   tx: { article: typeof prisma.article },
   params: {
@@ -1117,13 +1170,36 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       };
     }
 
+    const desiredBaseSlug = looksWeakSlug(normalized.articleDraft.slug)
+      ? fallbackSourceSlug
+      : normalized.articleDraft.slug || fallbackSourceSlug;
+
+    const slugCollisionDup = await findSlugCollisionDuplicate(tx, {
+      baseSlug: desiredBaseSlug,
+      sourceId: source.id,
+      category: editorialCategory,
+      publishedAt: new Date(normalized.articleDraft.publishedAt)
+    });
+
+    if (slugCollisionDup) {
+      const a = slugCollisionDup.article;
+      return {
+        articleId: a.id,
+        slug: a.slug,
+        status: a.status,
+        confidence,
+        duplicate: true,
+        sourceId: source.id,
+        fighterSlugs: a.fighterMap.map((item) => item.fighter.slug),
+        tagSlugs: a.tagMap.map((item) => item.tag.slug),
+        eventSlug: a.event?.slug ?? null,
+        promotionSlug: a.promotion?.slug ?? null
+      };
+    }
+
     const article = await tx.article.create({
       data: {
-        slug: await ensureUniqueArticleSlug(
-          looksWeakSlug(normalized.articleDraft.slug)
-            ? fallbackSourceSlug
-            : normalized.articleDraft.slug || fallbackSourceSlug
-        ),
+        slug: await ensureUniqueArticleSlug(desiredBaseSlug),
         title: cleanedTitle,
         coverImageUrl: persistedCoverImageUrl,
         coverImageAlt: providedCoverImageAlt ?? articleCover?.alt ?? cleanedTitle,

@@ -85,15 +85,43 @@ function buildEventMessage(event) {
   return parts.join("\n");
 }
 
+const FRESH_ALERT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const STALE_ALERT_TTL_MS = 24 * 60 * 60 * 1000;
+
 async function loadPendingAlerts(limit) {
+  const freshCutoff = new Date(Date.now() - FRESH_ALERT_WINDOW_MS);
   return prisma.systemEvent.findMany({
     where: {
       level: "error",
-      telegramAlertedAt: null
+      telegramAlertedAt: null,
+      createdAt: { gte: freshCutoff }
     },
     orderBy: { createdAt: "asc" },
     take: limit
   });
+}
+
+async function purgeStaleAlerts() {
+  const staleCutoff = new Date(Date.now() - STALE_ALERT_TTL_MS);
+  const deleted = await prisma.systemEvent.deleteMany({
+    where: {
+      level: "error",
+      telegramAlertedAt: null,
+      createdAt: { lt: staleCutoff }
+    }
+  });
+
+  const suppressCutoff = new Date(Date.now() - FRESH_ALERT_WINDOW_MS);
+  const suppressed = await prisma.systemEvent.updateMany({
+    where: {
+      level: "error",
+      telegramAlertedAt: null,
+      createdAt: { lt: suppressCutoff, gte: staleCutoff }
+    },
+    data: { telegramAlertedAt: new Date() }
+  });
+
+  return { deleted: deleted.count, suppressed: suppressed.count };
 }
 
 async function markAlerted(ids) {
@@ -154,6 +182,13 @@ async function main() {
   if (!token || !chatId) {
     console.log("[alerts] Telegram alerts are not configured, skipping.");
     return;
+  }
+
+  if (!options.dryRun) {
+    const purge = await purgeStaleAlerts();
+    if (purge.deleted > 0 || purge.suppressed > 0) {
+      console.log(`[alerts] purged stale=${purge.deleted} suppressed=${purge.suppressed}`);
+    }
   }
 
   const events = await loadPendingAlerts(options.limit);
