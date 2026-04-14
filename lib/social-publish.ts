@@ -693,6 +693,15 @@ export async function publishArticleToTelegram(articleId: string) {
     throw new Error(`Article ${article.id} has no renderable cover image (${rawCoverUrl || "empty"}) — skipping Telegram post.`);
   }
 
+  const claim = await prisma.article.updateMany({
+    where: { id: article.id, telegramPostedAt: null },
+    data: { telegramPostedAt: new Date() }
+  });
+
+  if (claim.count === 0) {
+    throw new Error(`Article ${article.id} was already claimed for Telegram publish.`);
+  }
+
   const digest = String(payload.telegramDigest || "").trim();
   const chunks = digest
     ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
@@ -738,13 +747,6 @@ export async function publishArticleToTelegram(articleId: string) {
     }
   }
 
-  await prisma.article.update({
-    where: { id: article.id },
-    data: {
-      telegramPostedAt: new Date()
-    }
-  });
-
   return article;
 }
 
@@ -786,16 +788,17 @@ export async function publishArticleToVk(articleId: string) {
     throw new Error(`Article ${article.id} cover image could not be resolved for VK upload.`);
   }
 
-  const attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
-
-  await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
-
-  await prisma.article.update({
-    where: { id: article.id },
-    data: {
-      vkPostedAt: new Date()
-    }
+  const claim = await prisma.article.updateMany({
+    where: { id: article.id, vkPostedAt: null },
+    data: { vkPostedAt: new Date() }
   });
+
+  if (claim.count === 0) {
+    throw new Error(`Article ${article.id} was already claimed for VK publish.`);
+  }
+
+  const attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
+  await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
 
   return article;
 }

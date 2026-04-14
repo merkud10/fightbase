@@ -14,6 +14,19 @@ set -euo pipefail
 APP_DIR="/opt/fightbase"
 BASE_URL="http://localhost:3000"
 LOG_DIR="/var/log/fightbase"
+LOCK_DIR="/var/lock/fightbase"
+
+mkdir -p "${LOCK_DIR}"
+
+TASK_ARG="${1:-}"
+if [ -n "${TASK_ARG}" ]; then
+  LOCKFILE="${LOCK_DIR}/${TASK_ARG}.lock"
+  exec 9>"${LOCKFILE}"
+  if ! flock -n 9; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${TASK_ARG} already running, skipping" >> "${LOG_DIR}/cron.log"
+    exit 0
+  fi
+fi
 
 # Load secrets from .env (strip surrounding quotes)
 if [ -f "${APP_DIR}/.env" ]; then
