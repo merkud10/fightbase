@@ -855,10 +855,9 @@ async function findSlugCollisionDuplicate(
       category,
       sourceMap: { some: { sourceId } },
       publishedAt: { gte: windowStart, lte: windowEnd },
-      OR: [
-        { slug: baseSlug },
-        { slug: { startsWith: `${baseSlug}-` } }
-      ]
+      slug: {
+        in: [baseSlug, ...Array.from({ length: 20 }, (_, index) => `${baseSlug}-${index + 1}`)]
+      }
     },
     select: {
       id: true,

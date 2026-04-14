@@ -401,7 +401,23 @@ function mergeTaxonomyFighters(taxonomyContext, importedFighters) {
   }
 }
 
+const HOST_CLIENT_ERROR_STREAK = new Map();
+const HOST_BAN_THRESHOLD = 3;
+
+function hostnameFromUrl(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchHtml(url) {
+  const host = hostnameFromUrl(url);
+  if (host && (HOST_CLIENT_ERROR_STREAK.get(host) ?? 0) >= HOST_BAN_THRESHOLD) {
+    throw new Error(`Skipping ${url}: host ${host} banned after repeated 4xx responses`);
+  }
+
   let lastError = null;
   const maxAttempts = 2;
   const timeoutMs = 20000;
@@ -421,12 +437,23 @@ async function fetchHtml(url) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        if (host && response.status >= 400 && response.status < 500) {
+          HOST_CLIENT_ERROR_STREAK.set(host, (HOST_CLIENT_ERROR_STREAK.get(host) ?? 0) + 1);
+          throw new Error(`HTTP ${response.status}`);
+        }
+        lastError = new Error(`HTTP ${response.status}`);
+        continue;
       }
 
+      if (host) {
+        HOST_CLIENT_ERROR_STREAK.set(host, 0);
+      }
       return await response.text();
     } catch (error) {
       lastError = error;
+      if (error?.message?.startsWith("HTTP 4")) {
+        break;
+      }
     } finally {
       clearTimeout(timeout);
     }
