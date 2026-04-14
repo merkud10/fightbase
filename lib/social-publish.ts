@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { TELEGRAM_DIGEST_MAX } from "@/lib/ai-localization";
+import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "@/lib/db/articles";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
@@ -687,6 +688,11 @@ export async function publishArticleToTelegram(articleId: string) {
 
   const payload = article as ArticleSocialPayload;
   const rawCoverUrl = String(payload.coverImageUrl || "").trim();
+
+  if (!hasRenderablePublicArticleImage(rawCoverUrl)) {
+    throw new Error(`Article ${article.id} has no renderable cover image (${rawCoverUrl || "empty"}) — skipping Telegram post.`);
+  }
+
   const digest = String(payload.telegramDigest || "").trim();
   const chunks = digest
     ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
@@ -694,26 +700,16 @@ export async function publishArticleToTelegram(articleId: string) {
   const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
   let startChunkIndex = 0;
 
-  if (rawCoverUrl && chunks.length > 0) {
+  if (chunks.length > 0) {
     const firstChunk = chunks[0] ?? "";
     const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
     const caption =
       firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
-    try {
-      await telegramSendPhoto(token, chatId, rawCoverUrl, caption, parseMode);
-      startChunkIndex = 1;
-      if (firstChunk.length > captionMax) {
-        chunks[0] = firstChunk.slice(captionMax).trimStart();
-        startChunkIndex = 0;
-      }
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[TG] sendPhoto failed for article ${article.id}: ${errMsg} (coverImageUrl: ${rawCoverUrl})`);
-      logger.warn("Telegram sendPhoto skipped", {
-        articleId: article.id,
-        coverImageUrl: rawCoverUrl,
-        message: errMsg
-      });
+    await telegramSendPhoto(token, chatId, rawCoverUrl, caption, parseMode);
+    startChunkIndex = 1;
+    if (firstChunk.length > captionMax) {
+      chunks[0] = firstChunk.slice(captionMax).trimStart();
+      startChunkIndex = 0;
     }
   }
 
@@ -777,24 +773,20 @@ export async function publishArticleToVk(articleId: string) {
   }
 
   const payload = article as ArticleSocialPayload;
+
+  if (!hasRenderablePublicArticleImage(payload.coverImageUrl)) {
+    throw new Error(`Article ${article.id} has no renderable cover image (${payload.coverImageUrl || "empty"}) — skipping VK post.`);
+  }
+
   const vkMessage = buildVkFullMessage(payload);
-  let attachment: string | undefined;
   const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
   console.log(`[VK] Article ${article.id} | coverImageUrl raw: "${payload.coverImageUrl}" | resolved: "${coverUrl}"`);
 
-  if (coverUrl) {
-    try {
-      attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[VK] Photo upload failed for article ${article.id}: ${errMsg}`);
-      logger.warn("VK wall photo upload skipped", {
-        articleId: article.id,
-        coverUrl,
-        message: errMsg
-      });
-    }
+  if (!coverUrl) {
+    throw new Error(`Article ${article.id} cover image could not be resolved for VK upload.`);
   }
+
+  const attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
 
   await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
 
@@ -878,6 +870,7 @@ export function scheduleArticleSocialPublish(articleId: string) {
 type SocialDripCandidate = {
   id: string;
   title: string;
+  coverImageUrl: string | null;
 };
 
 export async function dripPublishNextArticle(): Promise<{
@@ -892,27 +885,27 @@ export async function dripPublishNextArticle(): Promise<{
       where: {
         status: "published",
         telegramPostedAt: null,
-        coverImageUrl: { not: null },
+        ...buildPublicArticleImageWhere(),
         publishedAt: {
           gte: todayWindow.start,
           lt: todayWindow.end
         }
       },
       orderBy: { publishedAt: "asc" },
-      select: { id: true, title: true }
+      select: { id: true, title: true, coverImageUrl: true }
     }),
     prisma.article.findFirst({
       where: {
         status: "published",
         vkPostedAt: null,
-        coverImageUrl: { not: null },
+        ...buildPublicArticleImageWhere(),
         publishedAt: {
           gte: todayWindow.start,
           lt: todayWindow.end
         }
       },
       orderBy: { publishedAt: "asc" },
-      select: { id: true, title: true }
+      select: { id: true, title: true, coverImageUrl: true }
     })
   ]);
 
