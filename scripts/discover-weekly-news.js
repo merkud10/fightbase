@@ -130,18 +130,6 @@ const ALL_SOURCES = [
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
-  {
-    label: "Championat MMA",
-    listingUrl: "https://www.championat.com/mma/",
-    articlePattern: /^https:\/\/www\.championat\.com\/mma\/article-\d+[\w-]*\.html$/i,
-    streams: ["news", "quotes", "analysis"],
-    targetKeywords: {
-      quotes: ["интервью", "заявил", "рассказал", "ответил", "отреагировал"],
-      analysis: ["превью", "прогноз", "разбор", "анализ"]
-    },
-    sourceType: "press_release",
-    sourceLanguage: "ru"
-  },
 ];
 
 const SOURCES = ALL_SOURCES.filter((source) => !source.promotionSlug || ENABLED_PROMOTIONS.has(source.promotionSlug));
@@ -415,8 +403,8 @@ async function fetchHtml(url) {
         redirect: "follow",
         signal: controller.signal,
         headers: {
-          "User-Agent": "FightBaseDiscoveryBot/0.1",
-          Accept: "text/html,application/xhtml+xml"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
       });
 

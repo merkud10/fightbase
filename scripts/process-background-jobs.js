@@ -95,7 +95,8 @@ async function main() {
       try {
         const result = await execFileAsync(process.execPath, args, {
           cwd: process.cwd(),
-          timeout: job.type === "operational-alerts" ? 120_000 : job.type === "sync-roster" ? 900_000 : job.type === "weekly-news" || job.type === "ai-discovery" || job.type === "sync-odds" ? 600_000 : 180_000
+          timeout: job.type === "operational-alerts" ? 120_000 : job.type === "sync-roster" ? 900_000 : job.type === "weekly-news" || job.type === "ai-discovery" || job.type === "sync-odds" ? 600_000 : 180_000,
+          maxBuffer: 50 * 1024 * 1024
         });
         await completeBackgroundJob(job.id, result.stdout?.trim() || result.stderr?.trim() || "ok");
         await prisma.systemEvent.create({
