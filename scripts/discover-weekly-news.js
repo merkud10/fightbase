@@ -130,6 +130,18 @@ const ALL_SOURCES = [
     sourceType: "press_release",
     sourceLanguage: "ru"
   },
+  {
+    label: "Championat UFC",
+    listingUrl: "https://www.championat.ru/news/boxing/_ufc/1.html",
+    articlePattern: /^https:\/\/www\.championat\.ru\/boxing\/news-\d+-[\w-]+\.html$/i,
+    streams: ["news", "quotes", "analysis"],
+    targetKeywords: {
+      quotes: ["интервью", "заявил", "рассказал", "ответил", "отреагировал"],
+      analysis: ["превью", "прогноз", "разбор", "анализ"]
+    },
+    sourceType: "press_release",
+    sourceLanguage: "ru"
+  },
 ];
 
 const SOURCES = ALL_SOURCES.filter((source) => !source.promotionSlug || ENABLED_PROMOTIONS.has(source.promotionSlug));
