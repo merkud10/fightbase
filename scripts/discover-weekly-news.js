@@ -668,12 +668,21 @@ async function main() {
     return true;
   });
 
-  for (const source of selectedSources) {
-    try {
-      const items = await discoverSourceItems(source, options, taxonomyContext);
+  const SOURCE_CONCURRENCY = 4;
+  for (let batchStart = 0; batchStart < selectedSources.length; batchStart += SOURCE_CONCURRENCY) {
+    const batch = selectedSources.slice(batchStart, batchStart + SOURCE_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async (source) => {
+        try {
+          return await discoverSourceItems(source, options, taxonomyContext);
+        } catch (error) {
+          console.error(`[SOURCE] skipped ${source.label}: ${error.message || error}`);
+          return [];
+        }
+      })
+    );
+    for (const items of results) {
       discovered.push(...items);
-    } catch (error) {
-      console.error(`[SOURCE] skipped ${source.label}: ${error.message || error}`);
     }
   }
 
