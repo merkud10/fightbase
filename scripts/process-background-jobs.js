@@ -95,7 +95,7 @@ async function main() {
       try {
         const result = await execFileAsync(process.execPath, args, {
           cwd: process.cwd(),
-          timeout: job.type === "operational-alerts" ? 120_000 : job.type === "sync-roster" ? 900_000 : job.type === "weekly-news" || job.type === "ai-discovery" || job.type === "sync-odds" ? 600_000 : 180_000,
+          timeout: job.type === "operational-alerts" ? 120_000 : job.type === "sync-roster" ? 900_000 : job.type === "weekly-news" || job.type === "ai-discovery" ? 1_200_000 : job.type === "sync-odds" ? 600_000 : 180_000,
           maxBuffer: 50 * 1024 * 1024
         });
         await completeBackgroundJob(job.id, result.stdout?.trim() || result.stderr?.trim() || "ok");
@@ -112,8 +112,21 @@ async function main() {
           }
         });
       } catch (error) {
+        const errObj = error && typeof error === "object" ? error : null;
+        const baseMessage = errObj && "message" in errObj ? String(errObj.message) : "Background job failed";
+        const signal = errObj && "signal" in errObj ? errObj.signal : null;
+        const code = errObj && "code" in errObj ? errObj.code : null;
+        const killed = errObj && "killed" in errObj ? errObj.killed : null;
+        const killedByTimeout = killed === true || signal === "SIGTERM";
+        const diagnosticPrefix = killedByTimeout
+          ? `[killed by timeout signal=${signal ?? "SIGTERM"}] `
+          : signal || code
+            ? `[signal=${signal ?? "none"} code=${code ?? "none"}] `
+            : "";
+        const enrichedMessage = `${diagnosticPrefix}${baseMessage}`;
+
         await failBackgroundJob(job.id, {
-          errorMessage: error && typeof error === "object" && "message" in error ? error.message : "Background job failed"
+          errorMessage: enrichedMessage
         });
         await prisma.systemEvent.create({
           data: {
@@ -124,7 +137,10 @@ async function main() {
             meta: JSON.stringify({
               jobId: job.id,
               type: job.type,
-              error: error && typeof error === "object" && "message" in error ? error.message : "Background job failed"
+              signal,
+              code,
+              killed,
+              error: enrichedMessage
             })
           }
         });
