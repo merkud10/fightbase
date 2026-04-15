@@ -75,10 +75,43 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isLowInterest = /interestScore \d+ is below threshold/.test(errorMessage);
+
+    if (isLowInterest) {
+      logger.info("Draft ingestion skipped (low interest)", {
+        ...authorization.context,
+        authKind: authorization.kind,
+        reason: errorMessage
+      });
+      void recordSystemEvent({
+        level: "info",
+        category: "ingest.draft",
+        message: "Draft ingestion skipped (low interest)",
+        source: "api/ingest/draft",
+        requestId: authorization.context.requestId,
+        path: authorization.context.path,
+        ipAddress: authorization.context.ip,
+        meta: {
+          authKind: authorization.kind,
+          reason: errorMessage
+        }
+      });
+      return NextResponse.json(
+        { ok: false, skipped: true, reason: errorMessage },
+        {
+          status: 200,
+          headers: {
+            "x-request-id": authorization.context.requestId
+          }
+        }
+      );
+    }
+
     logger.error("Draft ingestion failed", {
       ...authorization.context,
       authKind: authorization.kind,
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage
     });
     void recordSystemEvent({
       level: "error",
@@ -90,11 +123,11 @@ export async function POST(request: Request) {
       ipAddress: authorization.context.ip,
       meta: {
         authKind: authorization.kind,
-        error: error instanceof Error ? error.message : String(error)
+        error: errorMessage
       }
     });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Draft ingestion failed" },
+      { error: errorMessage || "Draft ingestion failed" },
       {
         status: 500,
         headers: {
