@@ -256,6 +256,30 @@ function extractParagraphs(html, limit = 30) {
     .trim();
 }
 
+const GENERIC_FALLBACK_IMAGE_URLS = new Set([
+  "https://st.championat.ru/i/share.jpg",
+  "https://www.sports.ru/stat/mobile/ios-share.jpg"
+]);
+
+const GENERIC_FALLBACK_IMAGE_PATTERNS = [
+  /\/share\.(jpg|jpeg|png|webp)$/i,
+  /\/default(-\w+)?\.(jpg|jpeg|png|webp)$/i,
+  /\/placeholder(-\w+)?\.(jpg|jpeg|png|webp)$/i,
+  /\/og[-_]?image\.(jpg|jpeg|png|webp)$/i,
+  /\/logo\.(jpg|jpeg|png|webp|svg)$/i
+];
+
+function isGenericFallbackImage(url) {
+  if (!url) return false;
+  if (GENERIC_FALLBACK_IMAGE_URLS.has(url)) return true;
+  try {
+    const path = new URL(url).pathname;
+    return GENERIC_FALLBACK_IMAGE_PATTERNS.some((rx) => rx.test(path));
+  } catch {
+    return false;
+  }
+}
+
 function extractMetaImage(html, pageUrl) {
   const candidate = matchMeta(html, "og:image") || matchMeta(html, "twitter:image") || matchMeta(html, "og:image:url");
   if (!candidate) {
@@ -263,7 +287,11 @@ function extractMetaImage(html, pageUrl) {
   }
 
   try {
-    return new URL(candidate, pageUrl).toString();
+    const absolute = new URL(candidate, pageUrl).toString();
+    if (isGenericFallbackImage(absolute)) {
+      return "";
+    }
+    return absolute;
   } catch {
     return "";
   }
