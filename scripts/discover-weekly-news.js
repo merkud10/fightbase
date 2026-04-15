@@ -67,27 +67,6 @@ const ALL_SOURCES = [
     sourceLanguage: "ru"
   },
   {
-    label: "MMA Mania",
-    listingUrl: "https://www.mmamania.com/",
-    articlePattern: /^https:\/\/www\.mmamania\.com\/\d{4}\/\d{1,2}\/\d{1,2}\/[^?#]+$/i,
-    streams: ["news", "quotes"],
-    targetKeywords: {
-      quotes: ["says", "reacts", "interview", "responds", "reveals", "talks", "discusses"]
-    },
-    sourceType: "press_release"
-  },
-  {
-    label: "Bloody Elbow",
-    listingUrl: "https://bloodyelbow.com/",
-    articlePattern: /^https:\/\/bloodyelbow\.com\/\d{4}\/\d{2}\/\d{2}\/[^?#]+$/i,
-    streams: ["news", "quotes", "analysis"],
-    targetKeywords: {
-      quotes: ["says", "reacts", "interview", "responds", "reveals", "talks"],
-      analysis: ["preview", "breakdown", "analysis", "matchup", "editorial"]
-    },
-    sourceType: "press_release"
-  },
-  {
     label: "ESPN MMA",
     listingUrl: "https://www.espn.com/mma/",
     articlePattern: /^https:\/\/www\.espn\.com\/mma\/story\/_\/id\/[^?#]+$/i,
@@ -95,27 +74,6 @@ const ALL_SOURCES = [
     targetKeywords: {
       quotes: ["interview", "says", "reacts", "responds", "reveals"],
       analysis: ["preview", "breakdown", "analysis", "rankings", "picks"]
-    },
-    sourceType: "press_release"
-  },
-  {
-    label: "Combat Press",
-    listingUrl: "https://combatpress.com/category/news/",
-    articlePattern: /^https:\/\/combatpress\.com\/\d{4}\/\d{2}\/[^?#]+$/i,
-    streams: ["news", "predictions", "analysis"],
-    targetKeywords: {
-      predictions: ["preview", "predictions", "picks", "breakdown"],
-      analysis: ["preview", "analysis", "breakdown", "rankings"]
-    },
-    sourceType: "press_release"
-  },
-  {
-    label: "BJPenn.com",
-    listingUrl: "https://www.bjpenn.com/mma-news/",
-    articlePattern: /^https:\/\/www\.bjpenn\.com\/mma-news\/[^?#]+$/i,
-    streams: ["news", "quotes"],
-    targetKeywords: {
-      quotes: ["says", "reacts", "interview", "responds", "reveals", "calls-out"]
     },
     sourceType: "press_release"
   },
@@ -514,7 +472,7 @@ function shouldRejectDiscoveredItem(item, aiTaxonomy) {
   return "";
 }
 
-async function discoverSourceItems(source, options, taxonomyContext) {
+async function discoverSourceItems(source, options, taxonomyContext, stats) {
   const listingHtml = await fetchHtml(source.listingUrl);
   const candidateLinks = prioritizeCandidateLinks(
     source,
@@ -522,6 +480,9 @@ async function discoverSourceItems(source, options, taxonomyContext) {
     options.target,
     options.limitPerSource
   );
+  if (stats) {
+    stats.candidates = candidateLinks.length;
+  }
   const threshold = Date.now() - options.days * 24 * 60 * 60 * 1000;
   const collected = [];
 
@@ -532,8 +493,10 @@ async function discoverSourceItems(source, options, taxonomyContext) {
 
     try {
       const html = await fetchHtml(url);
+      if (stats) stats.fetched += 1;
       const publishedAt = parsePublishedAt(html);
       if (!publishedAt || publishedAt.getTime() < threshold) {
+        if (stats) stats.filteredOut += 1;
         continue;
       }
 
@@ -543,6 +506,7 @@ async function discoverSourceItems(source, options, taxonomyContext) {
       const body = [description, paragraphs].filter(Boolean).join("\n\n").trim() || headline;
 
       if (!hasBroadMmaSignal(headline, body, url)) {
+        if (stats) stats.filteredOut += 1;
         continue;
       }
 
@@ -551,6 +515,7 @@ async function discoverSourceItems(source, options, taxonomyContext) {
       const isUfcArticle = looksLikeUfcArticle(source, headline, body, url);
 
       if (!coverImageUrl) {
+        if (stats) stats.filteredOut += 1;
         continue;
       }
 
@@ -605,21 +570,94 @@ async function discoverSourceItems(source, options, taxonomyContext) {
 
       const rejectionReason = shouldRejectDiscoveredItem(item, aiTaxonomy);
       if (rejectionReason) {
+        if (stats) stats.filteredOut += 1;
         console.log(`[FILTER] skipped ${url}: ${rejectionReason}`);
         continue;
       }
 
       if (!categoryMatchesTarget(item.category, options.target)) {
+        if (stats) stats.filteredOut += 1;
         continue;
       }
 
       collected.push(item);
     } catch (error) {
+      if (stats) stats.fetchFailed += 1;
       console.error(`[DISCOVERY] skipped ${url}: ${error.message || error}`);
     }
   }
 
   return collected.sort((left, right) => new Date(left.publishedAt) - new Date(right.publishedAt));
+}
+
+async function processSource(source, options, taxonomyContext, jobId) {
+  const stats = {
+    sourceLabel: source.label,
+    startedAt: new Date(),
+    candidates: 0,
+    fetched: 0,
+    fetchFailed: 0,
+    filteredOut: 0,
+    collected: 0,
+    created: 0,
+    duplicates: 0,
+    ingestFailed: 0,
+    errorMessage: null
+  };
+
+  let items = [];
+  try {
+    items = await discoverSourceItems(source, options, taxonomyContext, stats);
+  } catch (error) {
+    stats.errorMessage = error?.message || String(error);
+    console.error(`[SOURCE] skipped ${source.label}: ${stats.errorMessage}`);
+  }
+
+  stats.collected = items.length;
+
+  if (!options.dryRun) {
+    for (const item of items) {
+      try {
+        const payload = await postDraft(options.baseUrl, item);
+        if (payload.draft.duplicate) {
+          stats.duplicates += 1;
+        } else {
+          stats.created += 1;
+        }
+        console.log(`[INGEST] ${payload.draft.duplicate ? "duplicate" : "created"} | ${payload.draft.slug} | ${item.sourceLabel} | ${item.category}`);
+      } catch (error) {
+        stats.ingestFailed += 1;
+        console.error(`[INGEST] failed | ${item.sourceUrl}`);
+        console.error(error.message || error);
+      }
+    }
+  }
+
+  const finishedAt = new Date();
+
+  try {
+    await prisma.sourceDiscoveryRun.create({
+      data: {
+        sourceLabel: stats.sourceLabel,
+        jobId: jobId || null,
+        startedAt: stats.startedAt,
+        finishedAt,
+        candidates: stats.candidates,
+        fetched: stats.fetched,
+        fetchFailed: stats.fetchFailed,
+        filteredOut: stats.filteredOut,
+        collected: stats.collected,
+        created: stats.created,
+        duplicates: stats.duplicates,
+        ingestFailed: stats.ingestFailed,
+        errorMessage: stats.errorMessage
+      }
+    });
+  } catch (error) {
+    console.error(`[STATS] failed to record SourceDiscoveryRun for ${source.label}: ${error.message || error}`);
+  }
+
+  return { items, stats };
 }
 
 async function postDraft(baseUrl, item) {
@@ -668,21 +706,18 @@ async function main() {
     return true;
   });
 
+  const jobId = process.env.BACKGROUND_JOB_ID || null;
+  const allStats = [];
+
   const SOURCE_CONCURRENCY = 4;
   for (let batchStart = 0; batchStart < selectedSources.length; batchStart += SOURCE_CONCURRENCY) {
     const batch = selectedSources.slice(batchStart, batchStart + SOURCE_CONCURRENCY);
     const results = await Promise.all(
-      batch.map(async (source) => {
-        try {
-          return await discoverSourceItems(source, options, taxonomyContext);
-        } catch (error) {
-          console.error(`[SOURCE] skipped ${source.label}: ${error.message || error}`);
-          return [];
-        }
-      })
+      batch.map((source) => processSource(source, options, taxonomyContext, jobId))
     );
-    for (const items of results) {
-      discovered.push(...items);
+    for (const result of results) {
+      discovered.push(...result.items);
+      allStats.push(result.stats);
     }
   }
 
@@ -698,31 +733,24 @@ async function main() {
     return;
   }
 
-  let created = 0;
-  let duplicates = 0;
-  let failed = 0;
-
-  for (const item of discovered) {
-    try {
-      const payload = await postDraft(options.baseUrl, item);
-      if (payload.draft.duplicate) {
-        duplicates += 1;
-      } else {
-        created += 1;
-      }
-      console.log(`[INGEST] ${payload.draft.duplicate ? "duplicate" : "created"} | ${payload.draft.slug} | ${item.sourceLabel} | ${item.category}`);
-    } catch (error) {
-      failed += 1;
-      console.error(`[INGEST] failed | ${item.sourceUrl}`);
-      console.error(error.message || error);
-    }
-  }
+  const totals = allStats.reduce(
+    (acc, s) => ({
+      created: acc.created + s.created,
+      duplicates: acc.duplicates + s.duplicates,
+      ingestFailed: acc.ingestFailed + s.ingestFailed,
+      filteredOut: acc.filteredOut + s.filteredOut,
+      fetchFailed: acc.fetchFailed + s.fetchFailed
+    }),
+    { created: 0, duplicates: 0, ingestFailed: 0, filteredOut: 0, fetchFailed: 0 }
+  );
 
   console.log("");
   console.log("Summary");
-  console.log(`Created: ${created}`);
-  console.log(`Duplicates: ${duplicates}`);
-  console.log(`Failed: ${failed}`);
+  console.log(`Created: ${totals.created}`);
+  console.log(`Duplicates: ${totals.duplicates}`);
+  console.log(`Filtered out: ${totals.filteredOut}`);
+  console.log(`Fetch failed: ${totals.fetchFailed}`);
+  console.log(`Ingest failed: ${totals.ingestFailed}`);
   await prisma.$disconnect();
 }
 

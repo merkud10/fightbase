@@ -95,6 +95,7 @@ async function main() {
       try {
         const result = await execFileAsync(process.execPath, args, {
           cwd: process.cwd(),
+          env: { ...process.env, BACKGROUND_JOB_ID: job.id },
           timeout: job.type === "operational-alerts" ? 120_000 : job.type === "sync-roster" ? 900_000 : job.type === "weekly-news" || job.type === "ai-discovery" ? 1_200_000 : job.type === "sync-odds" ? 600_000 : 180_000,
           maxBuffer: 50 * 1024 * 1024
         });
