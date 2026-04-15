@@ -51,16 +51,12 @@ function getTodayPublishWindow(timeZone: string): { start: Date; end: Date } {
   const year = Number(values.year);
   const month = Number(values.month);
   const day = Number(values.day);
-  const hour = Number(values.hour);
 
-  const todayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   const tomorrowStart = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
   const yesterdayStart = new Date(Date.UTC(year, month - 1, day - 1, 0, 0, 0, 0));
 
-  const startGuess = hour < 10 ? yesterdayStart : todayStart;
-
   return {
-    start: new Date(startGuess.getTime() - getTimeZoneOffsetMs(startGuess, timeZone)),
+    start: new Date(yesterdayStart.getTime() - getTimeZoneOffsetMs(yesterdayStart, timeZone)),
     end: new Date(tomorrowStart.getTime() - getTimeZoneOffsetMs(tomorrowStart, timeZone))
   };
 }

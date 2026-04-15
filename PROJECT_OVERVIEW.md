@@ -59,7 +59,7 @@ Optional secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERTS_CHAT_ID`
 | `sync-news.yml` | Every 6h | POST `/api/cron/ingest` -> queues `ai-discovery` job |
 | `sync-odds.yml` | Daily 06:00 UTC | POST `/api/cron/ingest` -> `sync-odds` (events + fights + odds) |
 | `sync-roster.yml` | Mon 04:00 UTC | POST `/api/cron/ingest` -> `sync-roster` |
-| `drip-social.yml` | Every hour | POST `/api/cron/drip-social` -> publishes 1 article to TG+VK |
+| `drip-social.yml` | Every 30 min | POST `/api/cron/drip-social` -> publishes 1 article to TG+VK |
 | `ci.yml` | On every push | Lint + build + smoke tests |
 
 Workflows call the site API via curl. Jobs go into `BackgroundJob` queue. The `fightbase-jobs` service on the server processes them automatically.
