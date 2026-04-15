@@ -437,3 +437,23 @@ model IngestionRun {
   @@index([status])
   @@index([startedAt])
 }
+
+model SourceDiscoveryRun {
+  id            String    @id @default(cuid())
+  sourceLabel   String
+  jobId         String?
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  candidates    Int       @default(0)
+  fetched       Int       @default(0)
+  fetchFailed   Int       @default(0)
+  filteredOut   Int       @default(0)
+  collected     Int       @default(0)
+  created       Int       @default(0)
+  duplicates    Int       @default(0)
+  ingestFailed  Int       @default(0)
+  errorMessage  String?
+
+  @@index([sourceLabel, startedAt])
+  @@index([startedAt])
+}
