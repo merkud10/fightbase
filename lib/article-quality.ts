@@ -171,6 +171,12 @@ const SOURCE_CREDIT_PATTERNS = [
   /mmafighting\.com/i,
   /sherdog\.com/i,
   /mmajunkie/i,
+  /^\s*источник[:\s]/i,
+  /^\s*source[:\s]/i,
+  /^\s*(заглавное\s+)?фото[:\s]/i,
+  /^\s*photo[:\s]/i,
+  /предоставлено\s+getty\s*image/i,
+  /«?чемпионат»?/i,
 ];
 
 const SOURCE_CREDIT_MAX_LENGTH = 160;
