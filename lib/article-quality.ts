@@ -163,16 +163,28 @@ const PROMO_PARAGRAPH_PATTERNS = [
   /не\s+пропустите\s+самые\s+(важные|интересные|свежие)/i,
   /больше\s+новостей\s+(на|в)\s+(нашем|канале|сайте)/i,
   /для\s+получения\s+(свежих|последних|актуальных)\s+новостей/i,
+];
+
+/** Source-credit строки типа «Источник: MMAJunkie» — вырезаем только если абзац короткий. */
+const SOURCE_CREDIT_PATTERNS = [
   /fightnews\.info/i,
   /mmafighting\.com/i,
   /sherdog\.com/i,
   /mmajunkie/i,
 ];
 
+const SOURCE_CREDIT_MAX_LENGTH = 160;
+
 function removePromoParas(text: string): string {
   return text
     .split(/\n\n+/)
-    .filter((para) => !PROMO_PARAGRAPH_PATTERNS.some((rx) => rx.test(para)))
+    .filter((para) => {
+      if (PROMO_PARAGRAPH_PATTERNS.some((rx) => rx.test(para))) return false;
+      if (para.length <= SOURCE_CREDIT_MAX_LENGTH && SOURCE_CREDIT_PATTERNS.some((rx) => rx.test(para))) {
+        return false;
+      }
+      return true;
+    })
     .join("\n\n");
 }
 
