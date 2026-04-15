@@ -793,6 +793,118 @@ export function AdminWorkspace({
               )
             },
             {
+              id: "discovery",
+              label: locale === "ru" ? "Источники" : "Discovery",
+              note: locale === "ru" ? "Сбор новостей" : "News intake",
+              content: (
+                <section className="admin-section admin-tab-section">
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "За 7 дней" : "Last 7 days"}</p>
+                        <h3>{locale === "ru" ? "Итоги по источникам" : "Per-source totals"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Сколько статей собрано с каждого источника, сколько отбраковано как дубли или нерелевантные, где были ошибки."
+                            : "How many articles each source produced, what was rejected as duplicate or off-topic, and where errors occurred."}
+                        </p>
+                      </div>
+                    </div>
+                    {data.sourceDiscoveryAggregates && data.sourceDiscoveryAggregates.length ? (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{locale === "ru" ? "Источник" : "Source"}</th>
+                              <th>{locale === "ru" ? "Запусков" : "Runs"}</th>
+                              <th>{locale === "ru" ? "Кандидаты" : "Candidates"}</th>
+                              <th>{locale === "ru" ? "Загружено" : "Fetched"}</th>
+                              <th>{locale === "ru" ? "Создано" : "Created"}</th>
+                              <th>{locale === "ru" ? "Дубли" : "Duplicates"}</th>
+                              <th>{locale === "ru" ? "Отбрак." : "Filtered"}</th>
+                              <th>{locale === "ru" ? "Fetch err." : "Fetch err."}</th>
+                              <th>{locale === "ru" ? "Ingest err." : "Ingest err."}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.sourceDiscoveryAggregates.map((row: any) => (
+                              <tr key={row.sourceLabel}>
+                                <td><strong>{row.sourceLabel}</strong></td>
+                                <td>{row._count?._all ?? 0}</td>
+                                <td>{row._sum?.candidates ?? 0}</td>
+                                <td>{row._sum?.fetched ?? 0}</td>
+                                <td>{row._sum?.created ?? 0}</td>
+                                <td>{row._sum?.duplicates ?? 0}</td>
+                                <td>{row._sum?.filteredOut ?? 0}</td>
+                                <td>{row._sum?.fetchFailed ?? 0}</td>
+                                <td>{row._sum?.ingestFailed ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru" ? "Запусков пока не было." : "No discovery runs yet."}
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="table-card admin-subscriptions-card">
+                    <div className="admin-table-head">
+                      <div>
+                        <p className="admin-kicker">{locale === "ru" ? "Лента" : "Feed"}</p>
+                        <h3>{locale === "ru" ? "Последние запуски" : "Recent runs"}</h3>
+                        <p className="table-note">
+                          {locale === "ru"
+                            ? "Каждая строка — обработка одного источника в рамках задачи."
+                            : "Each row is one source processed within a job."}
+                        </p>
+                      </div>
+                    </div>
+                    {data.sourceDiscoveryRuns && data.sourceDiscoveryRuns.length ? (
+                      <div className="admin-subscription-list">
+                        {data.sourceDiscoveryRuns.map((run: any) => (
+                          <article key={run.id} className="admin-subscription-item">
+                            <div className="admin-subscription-copy">
+                              <div className="admin-subscription-top">
+                                <span
+                                  className={`status-pill ${
+                                    run.errorMessage
+                                      ? "draft"
+                                      : run.created > 0
+                                        ? "published"
+                                        : "muted"
+                                  }`}
+                                >
+                                  {run.errorMessage ? "error" : run.created > 0 ? "ok" : "empty"}
+                                </span>
+                                <span className="table-note">
+                                  {run.sourceLabel} · {formatMoscowDateTime(run.startedAt, locale)}
+                                </span>
+                              </div>
+                              <strong>
+                                {locale === "ru" ? "Создано" : "Created"} {run.created} · {locale === "ru" ? "дубли" : "dups"} {run.duplicates} · {locale === "ru" ? "отбрак" : "filtered"} {run.filteredOut} · {locale === "ru" ? "ошибки fetch" : "fetch err"} {run.fetchFailed} · {locale === "ru" ? "ошибки ingest" : "ingest err"} {run.ingestFailed}
+                              </strong>
+                              <p className="table-note">
+                                {locale === "ru" ? "Кандидатов" : "Candidates"} {run.candidates} · {locale === "ru" ? "загружено" : "fetched"} {run.fetched} · {locale === "ru" ? "собрано" : "collected"} {run.collected}
+                                {run.jobId ? ` · job ${run.jobId.slice(-8)}` : ""}
+                              </p>
+                              {run.errorMessage ? <p className="table-note">{truncateValue(run.errorMessage, 160)}</p> : null}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="table-note">
+                        {locale === "ru" ? "Запусков пока не было." : "No discovery runs yet."}
+                      </p>
+                    )}
+                  </article>
+                </section>
+              )
+            },
+            {
               id: "reference",
               label: locale === "ru" ? "Справочники" : "Reference",
               note: locale === "ru" ? "Бойцы, теги, турниры" : "Fighters, tags, events",

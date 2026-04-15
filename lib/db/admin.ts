@@ -52,6 +52,8 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     operationalAlerts,
     backgroundJobs,
     ingestionRuns,
+    sourceDiscoveryRuns,
+    sourceDiscoveryAggregates,
     articleCount,
     eventCount,
     fighterCount,
@@ -114,6 +116,26 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
       orderBy: { startedAt: "desc" },
       take: 6
     }),
+    prisma.sourceDiscoveryRun.findMany({
+      orderBy: { startedAt: "desc" },
+      take: 40
+    }),
+    prisma.sourceDiscoveryRun.groupBy({
+      by: ["sourceLabel"],
+      where: { startedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+      _sum: {
+        candidates: true,
+        fetched: true,
+        fetchFailed: true,
+        filteredOut: true,
+        collected: true,
+        created: true,
+        duplicates: true,
+        ingestFailed: true
+      },
+      _count: { _all: true },
+      orderBy: { sourceLabel: "asc" }
+    }),
     prisma.article.count(),
     prisma.event.count(),
     prisma.fighter.count(),
@@ -159,7 +181,9 @@ export async function getAdminDashboardData(filters: AdminDashboardFilters = {})
     systemEvents,
     operationalAlerts,
     backgroundJobs,
-    ingestionRuns
+    ingestionRuns,
+    sourceDiscoveryRuns,
+    sourceDiscoveryAggregates
   };
 }
 
