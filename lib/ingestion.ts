@@ -1259,7 +1259,7 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
       eventSlug: article.event?.slug ?? null,
       promotionSlug: article.promotion?.slug ?? null
     };
-  });
+  }, { timeout: 15_000 });
 
   return result;
 }
