@@ -42,8 +42,10 @@ export async function POST(request: Request) {
   try {
     const draft = await createDraftFromIngestion(parsed.data);
     if (draft.status === "published" && !draft.duplicate) {
-      revalidatePath("/");
-      revalidatePath("/news");
+      revalidatePath("/", "layout");
+      revalidatePath("/news", "layout");
+      revalidatePath("/analysis", "layout");
+      revalidatePath("/quotes", "layout");
     }
     logger.info("Draft ingestion succeeded", {
       ...authorization.context,
