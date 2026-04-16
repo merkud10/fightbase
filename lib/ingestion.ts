@@ -1015,6 +1015,40 @@ function adjustConfidence(
 
 export async function createDraftFromIngestion(input: IngestDraftInput): Promise<IngestDraftResult> {
   const source = await ensureSource(input.sourceLabel.trim(), input.sourceUrl.trim(), input.sourceType ?? "official");
+
+  const sourceUrlTag = `URL: ${input.sourceUrl.trim()}`;
+  const existingByUrl = await prisma.article.findFirst({
+    where: {
+      ingestionSourceSummary: { contains: sourceUrlTag },
+      sourceMap: { some: { sourceId: source.id } }
+    },
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      aiConfidence: true,
+      promotion: { select: { slug: true } },
+      event: { select: { slug: true } },
+      fighterMap: { include: { fighter: { select: { slug: true } } } },
+      tagMap: { include: { tag: { select: { slug: true } } } }
+    }
+  });
+
+  if (existingByUrl) {
+    return {
+      articleId: existingByUrl.id,
+      slug: existingByUrl.slug,
+      status: existingByUrl.status,
+      confidence: existingByUrl.aiConfidence ?? 0.5,
+      duplicate: true,
+      sourceId: source.id,
+      fighterSlugs: existingByUrl.fighterMap.map((item) => item.fighter.slug),
+      tagSlugs: existingByUrl.tagMap.map((item) => item.tag.slug),
+      eventSlug: existingByUrl.event?.slug ?? null,
+      promotionSlug: existingByUrl.promotion?.slug ?? null
+    };
+  }
+
   const fallbackSourceSlug = buildPreferredArticleSlug(input.headline.trim(), input.sourceUrl.trim());
   const hydratedBody = await hydrateBodyFromSource(source.url, input.body);
   const hydratedInput = {
