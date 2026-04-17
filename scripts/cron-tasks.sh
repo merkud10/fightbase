@@ -16,16 +16,57 @@ BASE_URL="http://localhost:3000"
 LOG_DIR="/var/log/fightbase"
 LOCK_DIR="/var/lock/fightbase"
 
-mkdir -p "${LOCK_DIR}"
+mkdir -p "${LOCK_DIR}" "${LOG_DIR}"
+
+MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-1500}"
+
+log_raw() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "${LOG_DIR}/cron.log"
+}
+
+reap_stuck_lock_holder() {
+  local lockfile="$1"
+  local holder state
+  holder="$(fuser "${lockfile}" 2>/dev/null | tr -s ' ' | awk '{for(i=1;i<=NF;i++)if($i~/^[0-9]+$/){print $i; exit}}')"
+  [ -z "${holder}" ] && return 1
+  state="$(ps -o state= -p "${holder}" 2>/dev/null | tr -d ' ' || true)"
+  if [[ "${state}" =~ ^[TZ] ]]; then
+    log_raw "reaping stuck lock holder PID ${holder} (state ${state}) on ${lockfile}"
+    kill -9 "${holder}" 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
 
 TASK_ARG="${1:-}"
 if [ -n "${TASK_ARG}" ]; then
   LOCKFILE="${LOCK_DIR}/${TASK_ARG}.lock"
   exec 9>"${LOCKFILE}"
   if ! flock -n 9; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${TASK_ARG} already running, skipping" >> "${LOG_DIR}/cron.log"
-    exit 0
+    if reap_stuck_lock_holder "${LOCKFILE}"; then
+      sleep 1
+      exec 9>"${LOCKFILE}"
+      if ! flock -n 9; then
+        log_raw "${TASK_ARG} still locked after reap, skipping"
+        exit 0
+      fi
+      log_raw "${TASK_ARG} lock recovered after reaping stuck holder"
+    else
+      log_raw "${TASK_ARG} already running, skipping"
+      exit 0
+    fi
   fi
+
+  SCRIPT_PID=$$
+  setsid -f bash -c "
+    sleep ${MAX_RUNTIME_SECONDS}
+    if kill -0 ${SCRIPT_PID} 2>/dev/null; then
+      echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] ${TASK_ARG} exceeded ${MAX_RUNTIME_SECONDS}s, killing PID ${SCRIPT_PID}\" >> ${LOG_DIR}/cron.log
+      kill -9 ${SCRIPT_PID} 2>/dev/null || true
+    fi
+  " >/dev/null 2>&1 &
+  WATCHDOG_PID=$!
+  trap 'kill ${WATCHDOG_PID} 2>/dev/null || true' EXIT
 fi
 
 # Load secrets from .env (strip surrounding quotes)
