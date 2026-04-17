@@ -15,6 +15,17 @@ type NewsPageFilters = {
 
 const NEWS_PER_PAGE = 12;
 
+function resolveAppRoot() {
+  if (process.env.APP_ROOT) {
+    return process.env.APP_ROOT;
+  }
+  const cwd = process.cwd();
+  if (cwd.endsWith(path.join(".next", "standalone"))) {
+    return path.resolve(cwd, "..", "..");
+  }
+  return cwd;
+}
+
 function resolvePublicImagePath(imageUrl: string) {
   const normalized = String(imageUrl || "").trim();
 
@@ -22,7 +33,7 @@ function resolvePublicImagePath(imageUrl: string) {
     return null;
   }
 
-  return path.join(process.cwd(), "public", normalized.replace(/^\/+/, "").replace(/\//g, path.sep));
+  return path.join(resolveAppRoot(), "public", normalized.replace(/^\/+/, "").replace(/\//g, path.sep));
 }
 
 export function hasRenderablePublicArticleImage(imageUrl: string | null | undefined) {
