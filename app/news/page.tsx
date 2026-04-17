@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 import { ArticleCard } from "@/components/cards";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";

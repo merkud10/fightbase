@@ -3,7 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { cache } from "react";
 
+import { resolveAppRoot } from "@/lib/paths";
 import { prisma } from "@/lib/prisma";
+import { recordSystemEvent } from "@/lib/system-events";
 import { getSiteChromeData } from "./admin";
 
 type NewsPageFilters = {
@@ -14,17 +16,6 @@ type NewsPageFilters = {
 };
 
 const NEWS_PER_PAGE = 12;
-
-function resolveAppRoot() {
-  if (process.env.APP_ROOT) {
-    return process.env.APP_ROOT;
-  }
-  const cwd = process.cwd();
-  if (cwd.endsWith(path.join(".next", "standalone"))) {
-    return path.resolve(cwd, "..", "..");
-  }
-  return cwd;
-}
 
 function resolvePublicImagePath(imageUrl: string) {
   const normalized = String(imageUrl || "").trim();
@@ -51,8 +42,31 @@ export function hasRenderablePublicArticleImage(imageUrl: string | null | undefi
   return Boolean(filePath && fs.existsSync(filePath));
 }
 
-function filterArticlesWithRenderableImages<T extends { coverImageUrl: string | null }>(articles: T[]) {
-  return articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl));
+function filterArticlesWithRenderableImages<
+  T extends { id?: string; slug?: string; coverImageUrl: string | null }
+>(articles: T[]) {
+  const visible: T[] = [];
+  const hidden: Array<{ id?: string; slug?: string; coverImageUrl: string | null }> = [];
+
+  for (const article of articles) {
+    if (hasRenderablePublicArticleImage(article.coverImageUrl)) {
+      visible.push(article);
+    } else {
+      hidden.push({ id: article.id, slug: article.slug, coverImageUrl: article.coverImageUrl });
+    }
+  }
+
+  if (hidden.length > 0) {
+    void recordSystemEvent({
+      level: "warn",
+      category: "article.renderable-filter",
+      message: `Filtered ${hidden.length} published article(s) without on-disk cover image`,
+      source: "lib/db/articles",
+      meta: { hidden: hidden.slice(0, 20) }
+    });
+  }
+
+  return visible;
 }
 
 export function buildPublicArticleImageWhere(): Prisma.ArticleWhereInput {

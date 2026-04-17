@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { resolveAppRoot } from "@/lib/paths";
+
 const SHERDOG_HOSTS = new Set(["www1-cdn.sherdog.com"]);
 const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com", "media.ufc.tv", "dmxg5wxfqgb4u.cloudfront.net"]);
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -210,8 +212,7 @@ export async function persistImageLocally(options: PersistImageOptions) {
 
   const extension = extensionFromContentType(contentType) || extensionFromUrl(source.toString()) || "jpg";
   const fileName = `${sanitizePathSegment(options.key)}-${createHash("sha256").update(source.toString()).digest("hex").slice(0, 12)}.${extension}`;
-  const appRoot = process.env.APP_ROOT || process.cwd();
-  const publicDir = path.join(appRoot, "public", "media", options.bucket);
+  const publicDir = path.join(resolveAppRoot(), "public", "media", options.bucket);
   const filePath = path.join(publicDir, fileName);
   const publicUrl = `/media/${options.bucket}/${fileName}`;
 
