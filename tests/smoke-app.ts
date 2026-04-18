@@ -44,15 +44,20 @@ let smokeTempDbPath: string | null = null;
 /**
  * Копируем SQLite во временный путь только из ASCII (os.tmpdir), иначе Prisma/SQLite на Windows
  * не открывают file: URL с кириллицей в пути (например OneDrive/«Рабочий стол»).
+ * Для postgres возвращаем URL как есть.
  */
 function prepareDatabaseUrlForStandaloneServer(): string {
-  let raw = process.env.DATABASE_URL?.trim() || "";
-  if (!raw.startsWith("file:")) {
+  const raw = process.env.DATABASE_URL?.trim() || "";
+  if (raw.startsWith("postgres://") || raw.startsWith("postgresql://")) {
+    return raw;
+  }
+  let resolved = raw;
+  if (!resolved.startsWith("file:")) {
     const dev = path.join(repoRoot, "prisma", "dev.db");
     const ci = path.join(repoRoot, "prisma", "ci.db");
-    raw = fs.existsSync(dev) ? "file:./prisma/dev.db" : fs.existsSync(ci) ? "file:./prisma/ci.db" : "file:./prisma/dev.db";
+    resolved = fs.existsSync(dev) ? "file:./prisma/dev.db" : fs.existsSync(ci) ? "file:./prisma/ci.db" : "file:./prisma/dev.db";
   }
-  const src = resolveRepoSqliteAbsolutePath(raw);
+  const src = resolveRepoSqliteAbsolutePath(resolved);
   if (!fs.existsSync(src)) {
     throw new Error(
       `Smoke test: database file missing at ${src}. Run \`npm run db:push\` (or create the DB) before test:smoke.`
@@ -216,6 +221,40 @@ async function main() {
 
         if (![401, 403].includes(response.status)) {
           throw new Error(`Expected 401/403, got ${response.status}`);
+        }
+      }),
+      runCheck("News list page renders without server error", async () => {
+        const response = await fetch(`${BASE_URL}/ru/news`, { redirect: "follow" });
+        if (response.status !== 200) {
+          throw new Error(`Expected 200 from /ru/news, got ${response.status}`);
+        }
+        const body = await response.text();
+        if (body.length < 500) {
+          throw new Error(`/ru/news body suspiciously small (${body.length} bytes)`);
+        }
+      }),
+      runCheck("Diagnostics endpoint is protected", async () => {
+        const response = await fetch(`${BASE_URL}/api/ops/diagnostics`);
+        if (![401, 403].includes(response.status)) {
+          throw new Error(`Expected 401/403 without auth, got ${response.status}`);
+        }
+      }),
+      runCheck("Diagnostics endpoint returns expected shape with internal token", async () => {
+        const token = process.env.INTERNAL_API_SECRET || process.env.INGEST_CRON_SECRET;
+        if (!token) {
+          throw new Error("INTERNAL_API_SECRET/INGEST_CRON_SECRET not set for smoke test");
+        }
+        const response = await fetch(`${BASE_URL}/api/ops/diagnostics`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        if (response.status !== 200) {
+          throw new Error(`Expected 200, got ${response.status}`);
+        }
+        const body = (await response.json()) as Record<string, unknown>;
+        for (const key of ["weeklyNews", "content", "queue", "infrastructure", "warnings"]) {
+          if (!(key in body)) {
+            throw new Error(`Diagnostics payload missing "${key}"`);
+          }
         }
       })
     ]);
