@@ -14,7 +14,14 @@ systemctl stop fightbase-jobs 2>/dev/null || true
 
 echo "=== Pulling latest code ==="
 cd ${APP_DIR}
-sudo -u ${APP_USER} git pull
+# В CI (deploy.yml) репо уже на нужном ref через git fetch + reset — HEAD в detached.
+# `git pull` в detached HEAD падает: "You are not currently on a branch".
+# Тянем только если мы на ветке (ручной запуск оператором).
+if sudo -u ${APP_USER} git symbolic-ref -q HEAD >/dev/null 2>&1; then
+  sudo -u ${APP_USER} git pull
+else
+  echo "Detached HEAD, skipping git pull (CI set the ref already)"
+fi
 
 echo "=== Prisma Client (Postgres schema) ==="
 # Обязательно после git pull: иначе типы ArticleCreateInput устаревают и next build падает
