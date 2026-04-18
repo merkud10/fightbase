@@ -50,6 +50,8 @@ function buildAdminLoginRedirect(request: NextRequest, locale?: "ru" | "en") {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  const debugTag = process.env.FIGHTBASE_MIDDLEWARE_DEBUG === "1";
+
   if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
@@ -60,6 +62,12 @@ export async function middleware(request: NextRequest) {
 
   const prefixed = stripLocalePrefix(pathname);
   const secure = isSecureContext(request);
+
+  if (debugTag) {
+    console.error(
+      `[mw] path=${pathname} host=${request.nextUrl.host} reqHost=${request.headers.get("host")} prefixed=${JSON.stringify(prefixed)}`
+    );
+  }
 
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") {
@@ -130,6 +138,10 @@ export async function middleware(request: NextRequest) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = prefixed.pathname;
 
+    if (debugTag) {
+      console.error(`[mw] BRANCH=rewrite-locale rewriteUrl=${rewriteUrl.toString()}`);
+    }
+
     const response = NextResponse.rewrite(rewriteUrl, {
       request: {
         headers
@@ -150,6 +162,10 @@ export async function middleware(request: NextRequest) {
   const locale = isLocale(cookieLocale) ? cookieLocale : detectLocaleFromAcceptLanguage(request);
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = localizePath(pathname, locale);
+
+  if (debugTag) {
+    console.error(`[mw] BRANCH=redirect-to-locale redirectUrl=${redirectUrl.toString()}`);
+  }
 
   return NextResponse.redirect(redirectUrl, 308);
 }

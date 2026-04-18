@@ -126,7 +126,8 @@ async function main() {
       ...process.env,
       PORT: String(PORT),
       HOSTNAME: "127.0.0.1",
-      DATABASE_URL: dbUrl
+      DATABASE_URL: dbUrl,
+      FIGHTBASE_MIDDLEWARE_DEBUG: "1"
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
