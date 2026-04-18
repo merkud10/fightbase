@@ -52,6 +52,17 @@ export async function middleware(request: NextRequest) {
 
   const debugTag = process.env.FIGHTBASE_MIDDLEWARE_DEBUG === "1";
 
+  // Next.js 15 повторно запускает middleware для rewrite-таргета.
+  // В rewrite-ветке ниже мы проставляем x-fightbase-locale в request headers,
+  // поэтому на re-invoke ловим этот маркер и не обрабатываем запрос второй раз —
+  // иначе /ru/news -> rewrite /news -> redirect /ru/news зацикливается.
+  if (request.headers.get("x-fightbase-locale")) {
+    if (debugTag) {
+      console.error(`[mw] SKIP re-invoke path=${pathname}`);
+    }
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
