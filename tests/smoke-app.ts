@@ -224,14 +224,29 @@ async function main() {
         }
       }),
       runCheck("News list page renders without server error", async () => {
-        const response = await fetch(`${BASE_URL}/ru/news`, { redirect: "follow" });
-        if (response.status !== 200) {
-          throw new Error(`Expected 200 from /ru/news, got ${response.status}`);
+        // Dynamic list page: first render warms Prisma pool and can stall under
+        // the parallel burst from Promise.all. Retry once on transient fetch
+        // failures before declaring it broken.
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await sleep(1_000);
+          }
+          try {
+            const response = await fetch(`${BASE_URL}/ru/news`, { redirect: "follow" });
+            if (response.status !== 200) {
+              throw new Error(`Expected 200 from /ru/news, got ${response.status}`);
+            }
+            const body = await response.text();
+            if (body.length < 500) {
+              throw new Error(`/ru/news body suspiciously small (${body.length} bytes)`);
+            }
+            return;
+          } catch (error) {
+            lastError = error;
+          }
         }
-        const body = await response.text();
-        if (body.length < 500) {
-          throw new Error(`/ru/news body suspiciously small (${body.length} bytes)`);
-        }
+        throw lastError instanceof Error ? lastError : new Error("fetch failed");
       }),
       runCheck("Diagnostics endpoint is protected", async () => {
         const response = await fetch(`${BASE_URL}/api/ops/diagnostics`);
