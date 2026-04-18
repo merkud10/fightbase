@@ -50,16 +50,11 @@ function buildAdminLoginRedirect(request: NextRequest, locale?: "ru" | "en") {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const debugTag = process.env.FIGHTBASE_MIDDLEWARE_DEBUG === "1";
-
-  // Next.js 15 повторно запускает middleware для rewrite-таргета.
-  // В rewrite-ветке ниже мы проставляем x-fightbase-locale в request headers,
-  // поэтому на re-invoke ловим этот маркер и не обрабатываем запрос второй раз —
-  // иначе /ru/news -> rewrite /news -> redirect /ru/news зацикливается.
+  // Next.js 15 повторно запускает middleware для rewrite-таргета. В rewrite-ветке
+  // ниже мы проставляем x-fightbase-locale в request headers, поэтому на re-invoke
+  // ловим маркер и выходим — иначе /ru/news -> rewrite /news -> redirect /ru/news
+  // зацикливается.
   if (request.headers.get("x-fightbase-locale")) {
-    if (debugTag) {
-      console.error(`[mw] SKIP re-invoke path=${pathname}`);
-    }
     return NextResponse.next();
   }
 
@@ -73,12 +68,6 @@ export async function middleware(request: NextRequest) {
 
   const prefixed = stripLocalePrefix(pathname);
   const secure = isSecureContext(request);
-
-  if (debugTag) {
-    console.error(
-      `[mw] path=${pathname} host=${request.nextUrl.host} reqHost=${request.headers.get("host")} prefixed=${JSON.stringify(prefixed)}`
-    );
-  }
 
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") {
@@ -149,10 +138,6 @@ export async function middleware(request: NextRequest) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = prefixed.pathname;
 
-    if (debugTag) {
-      console.error(`[mw] BRANCH=rewrite-locale rewriteUrl=${rewriteUrl.toString()}`);
-    }
-
     const response = NextResponse.rewrite(rewriteUrl, {
       request: {
         headers
@@ -173,10 +158,6 @@ export async function middleware(request: NextRequest) {
   const locale = isLocale(cookieLocale) ? cookieLocale : detectLocaleFromAcceptLanguage(request);
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = localizePath(pathname, locale);
-
-  if (debugTag) {
-    console.error(`[mw] BRANCH=redirect-to-locale redirectUrl=${redirectUrl.toString()}`);
-  }
 
   return NextResponse.redirect(redirectUrl, 308);
 }
