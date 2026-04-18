@@ -224,10 +224,10 @@ async function main() {
         }
       }),
       runCheck("News list page renders without server error", async () => {
-        // Dynamic list page: first render warms Prisma pool and can stall under
-        // the parallel burst from Promise.all. Retry once on transient fetch
-        // failures before declaring it broken.
-        let lastError: unknown;
+        // Dynamic list page: streaming SSR + empty DB in CI can cause Node's
+        // undici to surface an opaque "fetch failed". Retry a few times and
+        // unwrap the cause so failures are actionable.
+        const attempts: string[] = [];
         for (let attempt = 0; attempt < 3; attempt++) {
           if (attempt > 0) {
             await sleep(1_000);
@@ -235,18 +235,24 @@ async function main() {
           try {
             const response = await fetch(`${BASE_URL}/ru/news`, { redirect: "follow" });
             if (response.status !== 200) {
-              throw new Error(`Expected 200 from /ru/news, got ${response.status}`);
+              attempts.push(`attempt ${attempt + 1}: status ${response.status}`);
+              continue;
             }
             const body = await response.text();
             if (body.length < 500) {
-              throw new Error(`/ru/news body suspiciously small (${body.length} bytes)`);
+              attempts.push(`attempt ${attempt + 1}: body ${body.length} bytes`);
+              continue;
             }
             return;
           } catch (error) {
-            lastError = error;
+            const cause = (error as { cause?: unknown }).cause;
+            const causeMessage =
+              cause instanceof Error ? `${cause.name}: ${cause.message}` : cause ? String(cause) : "";
+            const message = error instanceof Error ? error.message : String(error);
+            attempts.push(`attempt ${attempt + 1}: ${message}${causeMessage ? ` (${causeMessage})` : ""}`);
           }
         }
-        throw lastError instanceof Error ? lastError : new Error("fetch failed");
+        throw new Error(attempts.join(" | "));
       }),
       runCheck("Diagnostics endpoint is protected", async () => {
         const response = await fetch(`${BASE_URL}/api/ops/diagnostics`);
