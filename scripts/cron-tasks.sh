@@ -202,8 +202,32 @@ case "${TASK}" in
     fi
     ;;
 
+  silence-check)
+    log "Starting silence-check"
+    response=$(curl -sf -w "\n%{http_code}" "${BASE_URL}/api/ops/diagnostics" \
+      -H "Authorization: Bearer ${SECRET}") || {
+      log "silence-check FAILED to reach diagnostics endpoint"
+      send_tg_alert "⚠️ Silence check: не удалось опросить /api/ops/diagnostics"
+      exit 1
+    }
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | head -n -1)
+    if [ "$http_code" != "200" ]; then
+      log "silence-check HTTP ${http_code}"
+      send_tg_alert "⚠️ Silence check: HTTP ${http_code}"
+      exit 0
+    fi
+    warnings=$(echo "$body" | sed -n 's/.*"warnings":\[\([^]]*\)\].*/\1/p')
+    if [ -n "$warnings" ] && [ "$warnings" != "" ]; then
+      log "silence-check warnings: ${warnings}"
+      send_tg_alert "⚠️ FightBase diagnostics: ${warnings}"
+    else
+      log "silence-check ok"
+    fi
+    ;;
+
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|silence-check}"
     exit 1
     ;;
 esac
