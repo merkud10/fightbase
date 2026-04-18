@@ -12,8 +12,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: fightbase_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
-      DATABASE_URL: file:./prisma/ci.db
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fightbase_ci
       DEPLOYMENT_ENV: preview
       AUTH_SESSION_SECRET: ci-auth-secret
       ADMIN_EMAIL: admin@example.com
@@ -39,20 +54,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma client
-        run: npm run prisma:generate
+      - name: Generate Prisma client (postgres)
+        run: npm run prisma:generate:pg
 
-      - name: Push temporary CI schema
-        run: npm run db:push
+      - name: Push postgres schema
+        run: npm run db:push:pg
 
       - name: Run tests
         run: npm run test
 
       - name: Build app
         run: npm run build
-
-      - name: Sync DB schema before smoke (standalone uses a copy under .next/standalone)
-        run: npm run db:push
 
       - name: Run smoke checks
         run: npm run test:smoke

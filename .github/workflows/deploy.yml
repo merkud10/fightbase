@@ -1,0 +1,49 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (branch/tag/commit)"
+        required: false
+        default: "master"
+  push:
+    branches: [master]
+    paths-ignore:
+      - "README.md"
+      - "DEPLOY_CHECKLIST.md"
+      - "PROJECT_OVERVIEW.md"
+      - "docs/**"
+      - ".gitignore"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            REF="${{ github.event.inputs.ref || github.sha }}"
+            echo "==> Deploying ${REF}"
+            sudo -u fightbase bash -c "cd /opt/fightbase && git fetch --all && git checkout ${REF} && git reset --hard ${REF}"
+            sudo bash /opt/fightbase/scripts/deploy.sh
+            sleep 5
+            curl -sfS http://localhost:3000/api/health | head -c 400 || {
+              echo "Health check failed" >&2
+              exit 1
+            }
+            echo "==> Deploy OK"
