@@ -63,8 +63,37 @@ function syncTree(src, dest) {
   }
 }
 
+// На Linux каталог public должен быть симлинком на <repo>/public: ingestion/jobs пишут
+// медиа в <repo>/public/media/<bucket>, а Next image optimizer и nginx отдают
+// статику из .next/standalone/public. Если заменить симлинк копией, свежие картинки
+// дают 404 до следующего рестарта сервиса.
+function linkOrSyncPublic() {
+  if (process.platform === "win32") {
+    syncTree(publicSrc, publicDest);
+    return;
+  }
+
+  if (!fs.existsSync(publicSrc)) {
+    console.error("Нет каталога:", publicSrc);
+    process.exit(1);
+  }
+
+  try {
+    const existing = fs.lstatSync(publicDest);
+    if (existing.isSymbolicLink() && fs.realpathSync(publicDest) === fs.realpathSync(publicSrc)) {
+      return;
+    }
+    fs.rmSync(publicDest, { recursive: true, force: true });
+  } catch {
+    // publicDest отсутствует — создадим ниже
+  }
+
+  fs.mkdirSync(path.dirname(publicDest), { recursive: true });
+  fs.symlinkSync(publicSrc, publicDest, "dir");
+}
+
 syncTree(staticSrc, staticDest);
-syncTree(publicSrc, publicDest);
+linkOrSyncPublic();
 
 if (!process.env.DATABASE_URL?.trim()) {
   console.warn(
