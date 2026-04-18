@@ -224,35 +224,30 @@ async function main() {
         }
       }),
       runCheck("News list page renders without server error", async () => {
-        // Dynamic list page: streaming SSR + empty DB in CI can cause Node's
-        // undici to surface an opaque "fetch failed". Retry a few times and
-        // unwrap the cause so failures are actionable.
-        const attempts: string[] = [];
-        for (let attempt = 0; attempt < 3; attempt++) {
-          if (attempt > 0) {
-            await sleep(1_000);
-          }
-          try {
-            const response = await fetch(`${BASE_URL}/ru/news`, { redirect: "follow" });
-            if (response.status !== 200) {
-              attempts.push(`attempt ${attempt + 1}: status ${response.status}`);
-              continue;
-            }
+        // Следуем по цепочке редиректов вручную и логируем каждый hop,
+        // чтобы увидеть в CI, что именно зацикливается на /ru/news.
+        const MAX_HOPS = 10;
+        let url = `${BASE_URL}/ru/news`;
+        const chain: string[] = [];
+        for (let hop = 0; hop < MAX_HOPS; hop++) {
+          const response = await fetch(url, { redirect: "manual" });
+          const location = response.headers.get("location");
+          chain.push(`${hop}: ${url} -> ${response.status}${location ? ` -> ${location}` : ""}`);
+          if (response.status === 200) {
+            console.log("DEBUG /ru/news chain:\n  " + chain.join("\n  "));
             const body = await response.text();
             if (body.length < 500) {
-              attempts.push(`attempt ${attempt + 1}: body ${body.length} bytes`);
-              continue;
+              throw new Error(`body ${body.length} bytes; chain: ${chain.join(" | ")}`);
             }
             return;
-          } catch (error) {
-            const cause = (error as { cause?: unknown }).cause;
-            const causeMessage =
-              cause instanceof Error ? `${cause.name}: ${cause.message}` : cause ? String(cause) : "";
-            const message = error instanceof Error ? error.message : String(error);
-            attempts.push(`attempt ${attempt + 1}: ${message}${causeMessage ? ` (${causeMessage})` : ""}`);
           }
+          if (![301, 302, 303, 307, 308].includes(response.status) || !location) {
+            throw new Error(`unexpected status at hop ${hop}: ${response.status}; chain: ${chain.join(" | ")}`);
+          }
+          url = new URL(location, url).toString();
         }
-        throw new Error(attempts.join(" | "));
+        console.log("DEBUG /ru/news chain:\n  " + chain.join("\n  "));
+        throw new Error(`redirect loop (${MAX_HOPS} hops); chain: ${chain.join(" | ")}`);
       }),
       runCheck("Diagnostics endpoint is protected", async () => {
         const response = await fetch(`${BASE_URL}/api/ops/diagnostics`);
