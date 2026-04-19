@@ -141,6 +141,59 @@ async function markAlerted(ids) {
   });
 }
 
+function describeError(error) {
+  if (!error) {
+    return "unknown error";
+  }
+
+  const parts = [];
+  const message = error.message || String(error);
+  parts.push(message);
+
+  const cause = error.cause;
+  if (cause) {
+    const causeMessage = cause.message || String(cause);
+    const code = cause.code ? ` code=${cause.code}` : "";
+    const syscall = cause.syscall ? ` syscall=${cause.syscall}` : "";
+    parts.push(`cause: ${causeMessage}${code}${syscall}`);
+  }
+
+  return parts.join(" | ");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+const SEND_RETRY_DELAYS_MS = [500, 2000, 5000];
+
+async function sendTelegramMessageWithRetry(token, chatId, text) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= SEND_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      await sendTelegramMessage(token, chatId, text);
+      return;
+    } catch (error) {
+      lastError = error;
+
+      const status = error && typeof error.status === "number" ? error.status : null;
+      const isRetryable = status === null || status === 429 || (status >= 500 && status < 600);
+      const delay = SEND_RETRY_DELAYS_MS[attempt];
+
+      if (!isRetryable || delay === undefined) {
+        break;
+      }
+
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
 async function recordAlertDeliveryEvent(level, message, meta) {
   await prisma.systemEvent.create({
     data: {
@@ -170,7 +223,9 @@ async function sendTelegramMessage(token, chatId, text) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Telegram API error: ${response.status} ${body}`);
+    const apiError = new Error(`Telegram API error: ${response.status} ${body}`);
+    apiError.status = response.status;
+    throw apiError;
   }
 }
 
@@ -192,38 +247,54 @@ async function main() {
   }
 
   const events = await loadPendingAlerts(options.limit);
-  const alertedIds = [];
+  const sentIds = [];
+  const failures = [];
 
   for (const event of events) {
     const text = buildEventMessage(event);
 
-    if (!options.dryRun) {
-      await sendTelegramMessage(token, chatId, text);
+    if (options.dryRun) {
+      sentIds.push(event.id);
+      console.log(`[alerts] ${event.category} -> telegram (dry-run)`);
+      continue;
     }
 
-    alertedIds.push(event.id);
-    console.log(`[alerts] ${event.category} -> telegram`);
-  }
-
-  if (!options.dryRun) {
-    await markAlerted(alertedIds);
-    if (alertedIds.length > 0) {
-      await recordAlertDeliveryEvent("info", "Operational alerts sent to Telegram", {
-        count: alertedIds.length
-      });
+    try {
+      await sendTelegramMessageWithRetry(token, chatId, text);
+      await markAlerted([event.id]);
+      sentIds.push(event.id);
+      console.log(`[alerts] ${event.category} -> telegram`);
+    } catch (error) {
+      const description = describeError(error);
+      failures.push({ id: event.id, category: event.category, error: description });
+      console.error(`[alerts] ${event.category} -> FAILED: ${description}`);
     }
   }
 
-  console.log(`[alerts] processed: ${alertedIds.length}`);
+  if (!options.dryRun && sentIds.length > 0) {
+    await recordAlertDeliveryEvent("info", "Operational alerts sent to Telegram", {
+      count: sentIds.length
+    });
+  }
+
+  console.log(`[alerts] sent: ${sentIds.length} failed: ${failures.length}`);
+
+  if (failures.length > 0) {
+    await recordAlertDeliveryEvent("error", "Telegram alert delivery failed", {
+      failures,
+      sent: sentIds.length
+    });
+    process.exitCode = 1;
+  }
 }
 
 main()
   .catch(async (error) => {
-    const message = error?.message || String(error);
-    console.error(message);
+    const description = describeError(error);
+    console.error(description);
 
     try {
-      await recordAlertDeliveryEvent("error", "Telegram alert delivery failed", { error: message });
+      await recordAlertDeliveryEvent("error", "Telegram alert delivery failed", { error: description });
     } catch {
       // Ignore nested observability failures.
     }
