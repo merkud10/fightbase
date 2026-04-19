@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authorizeRequest } from "@/lib/api-security";
 import { enqueueBackgroundJob } from "@/lib/background-jobs";
+import { resolveCronIngestJob } from "@/lib/cron-ingest";
 import { logger } from "@/lib/logger";
 import { recordSystemEvent } from "@/lib/system-events";
 import { CronIngestInputSchema } from "@/lib/validation";
@@ -31,16 +32,19 @@ export async function POST(request: Request) {
   }
 
   const body = parsed.data;
-  const job =
-    body.job === "watchlist"
-      ? "watchlist"
-      : body.job === "weekly-news" || body.job === "ai-discovery"
-        ? "weekly-news"
-      : body.job === "sync-odds"
-        ? "sync-odds"
-      : body.job === "sync-roster"
-            ? "sync-roster"
-            : "weekly-news";
+  let job;
+
+  try {
+    job = resolveCronIngestJob(body.job);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "job is required"
+      },
+      { status: 400 }
+    );
+  }
 
   try {
     const enqueuedJob = await enqueueBackgroundJob({

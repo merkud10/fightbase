@@ -124,6 +124,32 @@ process_jobs() {
   done
 }
 
+extract_json_field() {
+  local json="$1"
+  local field="$2"
+  sed -n "s/.*\"${field}\":\"\\([^\"]*\\)\".*/\\1/p" <<< "${json}" | head -n1
+}
+
+ensure_expected_job() {
+  local task_name="$1"
+  local expected_job="$2"
+  local http_code="$3"
+  local body="$4"
+
+  if [ "${http_code}" != "200" ]; then
+    return 0
+  fi
+
+  local actual_job
+  actual_job="$(extract_json_field "${body}" "job")"
+
+  if [ "${actual_job}" != "${expected_job}" ]; then
+    log "${task_name} returned unexpected job: expected ${expected_job}, got ${actual_job:-<empty>} | body=${body}"
+    send_tg_alert "❌ ${task_name}: API вернул задачу ${actual_job:-пусто} вместо ${expected_job}"
+    exit 1
+  fi
+}
+
 case "${TASK}" in
   drip-social)
     log "Starting drip-social"
@@ -159,6 +185,7 @@ case "${TASK}" in
     body=$(echo "$response" | head -n -1)
     log "sync-news HTTP ${http_code}: ${body}"
     if [ "$http_code" = "200" ]; then
+      ensure_expected_job "sync-news" "weekly-news" "$http_code" "$body"
       process_jobs 8 20
       send_tg_alert "✅ Сбор новостей завершён"
     else
@@ -177,6 +204,7 @@ case "${TASK}" in
     body=$(echo "$response" | head -n -1)
     log "sync-odds HTTP ${http_code}: ${body}"
     if [ "$http_code" = "200" ]; then
+      ensure_expected_job "sync-odds" "sync-odds" "$http_code" "$body"
       process_jobs 6 20
       send_tg_alert "✅ Турниры + бои + прогнозы обновлены"
     else
@@ -195,6 +223,7 @@ case "${TASK}" in
     body=$(echo "$response" | head -n -1)
     log "sync-roster HTTP ${http_code}: ${body}"
     if [ "$http_code" = "200" ]; then
+      ensure_expected_job "sync-roster" "sync-roster" "$http_code" "$body"
       process_jobs 10 30
       send_tg_alert "✅ Бойцы обновлены"
     else
