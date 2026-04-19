@@ -181,10 +181,28 @@ const SOURCE_CREDIT_PATTERNS = [
 
 const SOURCE_CREDIT_MAX_LENGTH = 160;
 
+/** Упоминания изданий, которые нужно вычищать на уровне предложений в любой длине абзаца. */
+const INLINE_PUBLICATION_PATTERNS = [
+  /«?чемпионат[а-я]*»?/i,
+  /metaratings|meta-ratings|мета-?рейтинг/i,
+];
+
+function stripInlinePublicationSentences(paragraph: string): string {
+  const sentences = paragraph.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter((sentence) => {
+    const trimmed = sentence.trim();
+    if (!trimmed) return false;
+    return !INLINE_PUBLICATION_PATTERNS.some((rx) => rx.test(trimmed));
+  });
+  return kept.join(" ").trim();
+}
+
 function removePromoParas(text: string): string {
   return text
     .split(/\n\n+/)
+    .map((para) => stripInlinePublicationSentences(para))
     .filter((para) => {
+      if (!para) return false;
       if (PROMO_PARAGRAPH_PATTERNS.some((rx) => rx.test(para))) return false;
       if (para.length <= SOURCE_CREDIT_MAX_LENGTH && SOURCE_CREDIT_PATTERNS.some((rx) => rx.test(para))) {
         return false;

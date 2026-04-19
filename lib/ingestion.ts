@@ -325,20 +325,28 @@ function isLinkOnlyParagraph(rawHtml: string) {
 
 function extractParagraphBody(html: string, limit = 30) {
   const body = isolateArticleBody(html);
-  const paragraphs = Array.from(body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
-    .filter((match) => !isLinkOnlyParagraph(match[1] ?? ""))
-    .map((match) => stripTags(match[1] ?? ""))
-    .filter((paragraph) => paragraph.length >= 10)
+  const blocks = Array.from(body.matchAll(/<(p|li|h2|h3)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi))
+    .filter((match) => !isLinkOnlyParagraph(match[2] ?? ""))
+    .map((match) => stripTags(match[2] ?? ""))
+    .filter((paragraph) => paragraph.length >= 5)
     .filter(
       (paragraph) =>
         !/cookie|newsletter|subscribe|sign up|download the app|follow us|read more|advertisement|подпис|реклам/i.test(
           paragraph
         )
-    )
-    .slice(0, limit);
+    );
 
-  if (paragraphs.length > 0) {
-    return paragraphs.join("\n\n").trim();
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const paragraph of blocks) {
+    if (seen.has(paragraph)) continue;
+    seen.add(paragraph);
+    deduped.push(paragraph);
+    if (deduped.length >= limit) break;
+  }
+
+  if (deduped.length > 0) {
+    return deduped.join("\n\n").trim();
   }
 
   return body
