@@ -58,15 +58,20 @@ if [ -n "${TASK_ARG}" ]; then
   fi
 
   SCRIPT_PID=$$
-  setsid -f bash -c "
-    sleep ${MAX_RUNTIME_SECONDS}
-    if kill -0 ${SCRIPT_PID} 2>/dev/null; then
-      echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] ${TASK_ARG} exceeded ${MAX_RUNTIME_SECONDS}s, killing PID ${SCRIPT_PID}\" >> ${LOG_DIR}/cron.log
-      kill -9 ${SCRIPT_PID} 2>/dev/null || true
+  # FD 9 must be closed in the watchdog (9>&-); otherwise it inherits the
+  # flock on LOCKFILE and blocks every subsequent cron run until the sleep
+  # ends. Using a plain subshell instead of `setsid -f` so $! captures the
+  # real watchdog PID and the EXIT trap can kill it reliably.
+  (
+    sleep "${MAX_RUNTIME_SECONDS}"
+    if kill -0 "${SCRIPT_PID}" 2>/dev/null; then
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${TASK_ARG} exceeded ${MAX_RUNTIME_SECONDS}s, killing PID ${SCRIPT_PID}" >> "${LOG_DIR}/cron.log"
+      kill -9 "${SCRIPT_PID}" 2>/dev/null || true
     fi
-  " >/dev/null 2>&1 &
+  ) 9>&- >/dev/null 2>&1 &
   WATCHDOG_PID=$!
-  trap 'kill ${WATCHDOG_PID} 2>/dev/null || true' EXIT
+  CURL_ERR_FILE="$(mktemp -t cron-tasks.curl.XXXXXX)"
+  trap 'kill ${WATCHDOG_PID} 2>/dev/null || true; rm -f "${CURL_ERR_FILE}"' EXIT
 fi
 
 # Load secrets from .env (strip surrounding quotes)
@@ -105,10 +110,19 @@ send_tg_alert() {
 call_api() {
   local endpoint="$1"
   local data="${2:-{}}"
-  curl -sf -w "\n%{http_code}" -X POST "${BASE_URL}${endpoint}" \
+  : > "${CURL_ERR_FILE}"
+  curl --silent --show-error --fail --max-time 30 -w "\n%{http_code}" \
+    -X POST "${BASE_URL}${endpoint}" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${SECRET}" \
-    -d "${data}"
+    -d "${data}" 2>"${CURL_ERR_FILE}"
+}
+
+describe_curl_failure() {
+  local rc="$1"
+  local err
+  err="$(tr '\n' ' ' < "${CURL_ERR_FILE}" 2>/dev/null | sed 's/  */ /g; s/^ *//; s/ *$//')"
+  echo "curl exit=${rc}${err:+ err=${err}}"
 }
 
 process_jobs() {
@@ -154,8 +168,10 @@ case "${TASK}" in
   drip-social)
     log "Starting drip-social"
     response=$(call_api "/api/cron/drip-social") || {
-      log "drip-social FAILED"
-      send_tg_alert "❌ Drip social: ошибка при запуске"
+      rc=$?
+      diag="$(describe_curl_failure "${rc}")"
+      log "drip-social FAILED (${diag})"
+      send_tg_alert "❌ Drip social: ${diag}"
       exit 1
     }
     http_code=$(echo "$response" | tail -n1)
@@ -177,8 +193,10 @@ case "${TASK}" in
   sync-news)
     log "Starting sync-news"
     response=$(call_api "/api/cron/ingest" '{"job":"ai-discovery","lookbackHours":8,"limit":10,"status":"published"}') || {
-      log "sync-news FAILED"
-      send_tg_alert "❌ Сбор новостей: ошибка при запуске"
+      rc=$?
+      diag="$(describe_curl_failure "${rc}")"
+      log "sync-news FAILED (${diag})"
+      send_tg_alert "❌ Сбор новостей: ${diag}"
       exit 1
     }
     http_code=$(echo "$response" | tail -n1)
@@ -196,8 +214,10 @@ case "${TASK}" in
   sync-odds)
     log "Starting sync-odds"
     response=$(call_api "/api/cron/ingest" '{"job":"sync-odds"}') || {
-      log "sync-odds FAILED"
-      send_tg_alert "��� Синхронизация турниров: ошибка при запуске"
+      rc=$?
+      diag="$(describe_curl_failure "${rc}")"
+      log "sync-odds FAILED (${diag})"
+      send_tg_alert "❌ Синхронизация турниров: ${diag}"
       exit 1
     }
     http_code=$(echo "$response" | tail -n1)
@@ -215,8 +235,10 @@ case "${TASK}" in
   sync-roster)
     log "Starting sync-roster"
     response=$(call_api "/api/cron/ingest" '{"job":"sync-roster"}') || {
-      log "sync-roster FAILED"
-      send_tg_alert "❌ Синхронизация бойцов: ошибка при запуске"
+      rc=$?
+      diag="$(describe_curl_failure "${rc}")"
+      log "sync-roster FAILED (${diag})"
+      send_tg_alert "❌ Синхронизация бойцов: ${diag}"
       exit 1
     }
     http_code=$(echo "$response" | tail -n1)
