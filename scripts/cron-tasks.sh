@@ -109,7 +109,13 @@ send_tg_alert() {
 
 call_api() {
   local endpoint="$1"
-  local data="${2:-{}}"
+  # Bash ${var:-default} does not honor nested braces, so "${2:-{}}" is parsed
+  # as "${2:-{}" followed by a literal "}", appending a stray } to every
+  # non-empty payload and breaking JSON. Default via a plain if-branch instead.
+  local data="${2-}"
+  if [ -z "${data}" ]; then
+    data='{}'
+  fi
   : > "${CURL_ERR_FILE}"
   curl --silent --show-error --fail --max-time 30 -w "\n%{http_code}" \
     -X POST "${BASE_URL}${endpoint}" \
