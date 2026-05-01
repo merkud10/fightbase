@@ -689,61 +689,73 @@ export async function publishArticleToTelegram(articleId: string) {
     throw new Error(`Article ${article.id} has no renderable cover image (${rawCoverUrl || "empty"}) — skipping Telegram post.`);
   }
 
+  // Tentative claim: blocks concurrent publishers, but rolled back below if the send fails
+  // so transient network/API errors don't permanently consume the article.
+  const claimTime = new Date();
   const claim = await prisma.article.updateMany({
     where: { id: article.id, telegramPostedAt: null },
-    data: { telegramPostedAt: new Date() }
+    data: { telegramPostedAt: claimTime }
   });
 
   if (claim.count === 0) {
     throw new Error(`Article ${article.id} was already claimed for Telegram publish.`);
   }
 
-  const digest = String(payload.telegramDigest || "").trim();
-  const chunks = digest
-    ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
-    : buildTelegramHtmlChunks(payload);
-  const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
-  let startChunkIndex = 0;
+  try {
+    const digest = String(payload.telegramDigest || "").trim();
+    const chunks = digest
+      ? [clampPlainTelegramDigest(splitIntoShortParagraphs(digest))]
+      : buildTelegramHtmlChunks(payload);
+    const parseMode: "HTML" | undefined = digest ? undefined : "HTML";
+    let startChunkIndex = 0;
 
-  if (chunks.length > 0) {
-    const firstChunk = chunks[0] ?? "";
-    const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
-    const caption =
-      firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
-    await telegramSendPhoto(token, chatId, rawCoverUrl, caption, parseMode);
-    startChunkIndex = 1;
-    if (firstChunk.length > captionMax) {
-      chunks[0] = firstChunk.slice(captionMax).trimStart();
-      startChunkIndex = 0;
-    }
-  }
-
-  for (let index = startChunkIndex; index < chunks.length; index += 1) {
-    const text = chunks[index] ?? "";
-    if (!text.trim()) {
-      continue;
+    if (chunks.length > 0) {
+      const firstChunk = chunks[0] ?? "";
+      const captionMax = digest ? TELEGRAM_DIGEST_MAX : TELEGRAM_CAPTION_MAX;
+      const caption =
+        firstChunk.length <= captionMax ? firstChunk : firstChunk.slice(0, captionMax).trimEnd();
+      await telegramSendPhoto(token, chatId, rawCoverUrl, caption, parseMode);
+      startChunkIndex = 1;
+      if (firstChunk.length > captionMax) {
+        chunks[0] = firstChunk.slice(captionMax).trimStart();
+        startChunkIndex = 0;
+      }
     }
 
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        ...(parseMode ? { parse_mode: parseMode } : {}),
-        disable_web_page_preview: true
-      })
+    for (let index = startChunkIndex; index < chunks.length; index += 1) {
+      const text = chunks[index] ?? "";
+      if (!text.trim()) {
+        continue;
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          ...(parseMode ? { parse_mode: parseMode } : {}),
+          disable_web_page_preview: true
+        })
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`Telegram API error: ${response.status} ${errBody}`);
+      }
+    }
+
+    return article;
+  } catch (error) {
+    // Match on claimTime so we never overwrite a fresher successful claim from another process.
+    await prisma.article.updateMany({
+      where: { id: article.id, telegramPostedAt: claimTime },
+      data: { telegramPostedAt: null }
     });
-
-    if (!response.ok) {
-      const errBody = await response.text();
-      throw new Error(`Telegram API error: ${response.status} ${errBody}`);
-    }
+    throw error;
   }
-
-  return article;
 }
 
 export async function publishArticleToVk(articleId: string) {
@@ -784,19 +796,31 @@ export async function publishArticleToVk(articleId: string) {
     throw new Error(`Article ${article.id} cover image could not be resolved for VK upload.`);
   }
 
+  // Tentative claim: blocks concurrent publishers, but rolled back below if the send fails
+  // so transient network/API errors don't permanently consume the article.
+  const claimTime = new Date();
   const claim = await prisma.article.updateMany({
     where: { id: article.id, vkPostedAt: null },
-    data: { vkPostedAt: new Date() }
+    data: { vkPostedAt: claimTime }
   });
 
   if (claim.count === 0) {
     throw new Error(`Article ${article.id} was already claimed for VK publish.`);
   }
 
-  const attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
-  await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
+  try {
+    const attachment = await vkUploadWallPhotoFromUrl(userToken!, apiVersion, groupId, coverUrl);
+    await vkWallPost(groupToken, apiVersion, groupId, vkMessage, attachment);
 
-  return article;
+    return article;
+  } catch (error) {
+    // Match on claimTime so we never overwrite a fresher successful claim from another process.
+    await prisma.article.updateMany({
+      where: { id: article.id, vkPostedAt: claimTime },
+      data: { vkPostedAt: null }
+    });
+    throw error;
+  }
 }
 
 function logAutoPublishError(channel: "telegram" | "vk", articleId: string, error: unknown) {
@@ -808,7 +832,7 @@ function logAutoPublishError(channel: "telegram" | "vk", articleId: string, erro
     logger.info(`Auto-publish skipped (${channel} not configured)`, { articleId });
     return;
   }
-  logger.error(`Auto-publish to ${channel} failed`, { articleId, message });
+  logger.error(`Auto-publish to ${channel} failed`, { articleId, error: message });
 }
 
 /**
@@ -860,7 +884,7 @@ export function scheduleArticleSocialPublish(articleId: string) {
     void autoPublishArticleToSocialNetworks(articleId).catch((error) => {
       logger.error("scheduleArticleSocialPublish failed", {
         articleId,
-        message: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error)
       });
     });
   });
