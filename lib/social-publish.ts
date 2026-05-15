@@ -211,6 +211,39 @@ async function telegramSendPhotoUrl(
   }
 }
 
+function getTelegramApiBase(): string {
+  return (process.env.TELEGRAM_API_BASE_URL || "https://api.telegram.org").replace(/\/+$/, "");
+}
+
+/**
+ * Telegram и VK не принимают AVIF/WebP — конвертируем в JPEG через wsrv.nl.
+ * publicImageUrl — публичный URL картинки (нужен wsrv.nl для скачивания).
+ */
+async function convertToJpegIfNeeded(
+  rawBuffer: Buffer,
+  rawContentType: string,
+  publicImageUrl: string
+): Promise<{ buffer: Buffer; contentType: string }> {
+  if (rawContentType !== "image/avif" && rawContentType !== "image/webp") {
+    return { buffer: rawBuffer, contentType: rawContentType };
+  }
+
+  const wsrvUrl = `https://wsrv.nl/?url=${encodeURIComponent(publicImageUrl)}&output=jpg&w=1200`;
+  try {
+    const res = await fetch(wsrvUrl, { redirect: "follow" });
+    if (res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      if (ct.startsWith("image/")) {
+        return { buffer: Buffer.from(await res.arrayBuffer()), contentType: "image/jpeg" };
+      }
+    }
+  } catch {
+    // fallback to original buffer
+  }
+
+  return { buffer: rawBuffer, contentType: rawContentType };
+}
+
 async function telegramSendPhoto(
   token: string,
   chatId: string,
@@ -218,10 +251,33 @@ async function telegramSendPhoto(
   caption?: string,
   parseMode: "HTML" | undefined = "HTML"
 ) {
-  const apiUrl = `https://api.telegram.org/bot${token}/sendPhoto`;
+  const apiUrl = `${getTelegramApiBase()}/bot${token}/sendPhoto`;
   const localPath = resolveLocalMediaPath(coverImageUrl);
 
   if (localPath) {
+    const ext = path.extname(localPath).replace(/^\./, "").toLowerCase();
+    const rawContentType = ext === "avif" ? "image/avif" : ext === "webp" ? "image/webp" : null;
+    if (rawContentType) {
+      const publicUrl = `${getSiteUrl().origin}${coverImageUrl}`;
+      const { buffer, contentType } = await convertToJpegIfNeeded(
+        await readFile(localPath),
+        rawContentType,
+        publicUrl
+      );
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("photo", new Blob([buffer], { type: contentType }), "photo.jpg");
+      if (caption) {
+        form.append("caption", caption);
+        if (parseMode) form.append("parse_mode", parseMode);
+      }
+      const res = await fetch(apiUrl, { method: "POST", body: form });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`Telegram sendPhoto (converted): ${res.status} ${errBody}`);
+      }
+      return;
+    }
     await telegramSendPhotoFile(apiUrl, chatId, localPath, caption, parseMode);
     return;
   }
@@ -423,7 +479,8 @@ async function vkUploadWallPhotoFromUrl(
   imageUrl: string
 ): Promise<string> {
   const gid = String(groupId).replace(/^-+/, "");
-  const { buffer, contentType } = await downloadImageBuffer(imageUrl);
+  const downloaded = await downloadImageBuffer(imageUrl);
+  const { buffer, contentType } = await convertToJpegIfNeeded(downloaded.buffer, downloaded.contentType, imageUrl);
   const ext = contentType.includes("png") ? "png" : "jpeg";
   let lastError: Error | null = null;
 
@@ -728,7 +785,7 @@ export async function publishArticleToTelegram(articleId: string) {
         continue;
       }
 
-      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      const response = await fetch(`${getTelegramApiBase()}/bot${token}/sendMessage`, {
         method: "POST",
         headers: {
           "content-type": "application/json"
