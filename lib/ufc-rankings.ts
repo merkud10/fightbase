@@ -62,19 +62,35 @@ function parseRankingRows(sectionHtml: string): UfcOfficialRankingRow[] {
   return rows;
 }
 
-export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGroup[]> {
-  const response = await fetch("https://www.ufc.com/rankings", {
-    headers: {
-      "user-agent": "Mozilla/5.0 FightBase/1.0"
-    },
-    next: { revalidate: 3600 }
-  });
+// ufc.com/rankings is a slow, Cloudflare-fronted external dependency (observed 6-19s, and it
+// serves datacenter IPs 403/429/503 bot challenges). Cap the wait so a sluggish upstream can't
+// hang the render, and never throw: a transient upstream failure must degrade to empty rankings
+// rather than crash the whole /rankings page into the error boundary.
+const UFC_RANKINGS_FETCH_TIMEOUT_MS = 15_000;
 
-  if (!response.ok) {
-    throw new Error(`Failed to load UFC rankings: ${response.status}`);
+export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGroup[]> {
+  let html: string;
+
+  try {
+    const response = await fetch("https://www.ufc.com/rankings", {
+      headers: {
+        "user-agent": "Mozilla/5.0 FightBase/1.0"
+      },
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(UFC_RANKINGS_FETCH_TIMEOUT_MS)
+    });
+
+    if (!response.ok) {
+      console.error(`[ufc-rankings] upstream responded ${response.status}; serving empty rankings`);
+      return [];
+    }
+
+    html = await response.text();
+  } catch (error) {
+    console.error("[ufc-rankings] failed to fetch UFC rankings; serving empty rankings", error);
+    return [];
   }
 
-  const html = await response.text();
   const groupingMatches = [
     ...html.matchAll(
       /<div class="view-grouping-header">([\s\S]*?)<\/div>\s*<div class="view-grouping-content"><table class="cols-0">([\s\S]*?)<\/table>/gi

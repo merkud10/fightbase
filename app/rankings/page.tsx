@@ -118,6 +118,16 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
             />
           </section>
 
+          {allGroups.length === 0 ? (
+            <section className="filter-empty-state">
+              <p className="copy">
+                {locale === "ru"
+                  ? "Официальные рейтинги UFC временно недоступны. Обновите страницу чуть позже."
+                  : "Official UFC rankings are temporarily unavailable. Please check back soon."}
+              </p>
+            </section>
+          ) : null}
+
           {groups.map((group) => {
             const championLink =
               rankingLinks?.bySlug.get(group.champion.officialSlug.toLowerCase()) ??
