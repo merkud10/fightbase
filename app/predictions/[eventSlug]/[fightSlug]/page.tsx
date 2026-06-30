@@ -151,7 +151,23 @@ export default async function FightPredictionPage({
           "@type": "SportsEvent",
           name: `${fight.event.name}: ${fight.fighterA.name} vs ${fight.fighterB.name}`,
           url: pageUrl,
-          description: prediction.metaDescription
+          description: prediction.metaDescription,
+          startDate: fight.event.date.toISOString(),
+          eventStatus:
+            fight.event.status === "completed"
+              ? "https://schema.org/EventCompleted"
+              : fight.event.status === "live"
+                ? "https://schema.org/EventInProgress"
+                : "https://schema.org/EventScheduled",
+          location: {
+            "@type": "Place",
+            name: fight.event.venue,
+            address: fight.event.city
+          },
+          organizer: {
+            "@type": "SportsOrganization",
+            name: fight.event.promotion.name
+          }
         }}
       />
       <JsonLd
