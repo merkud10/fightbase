@@ -28,6 +28,18 @@ export function toAbsoluteUrl(url: string, origin: string) {
   return `${origin}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
+// Google's structured-data image guidelines favor JPEG/PNG/WebP. Fighter
+// photos are stored as AVIF, which Google may skip, so route AVIF/WebP through
+// the same image service the project already uses for social posting to serve
+// a JPEG. Other formats pass through unchanged. The source must be a public
+// absolute URL (wsrv fetches it server-side).
+export function toSearchImageUrl(url: string) {
+  if (/\.(avif|webp)(\?|$)/i.test(url)) {
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}&output=jpg&w=1200`;
+  }
+  return url;
+}
+
 type Performer = { name: string; url?: string };
 
 type SportsEventInput = {
@@ -48,7 +60,7 @@ type SportsEventInput = {
 
 export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, unknown> {
   const performers = (input.performers ?? []).filter((p) => p.name?.trim());
-  const images = (input.images ?? []).filter(Boolean);
+  const images = (input.images ?? []).filter(Boolean).map(toSearchImageUrl);
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
