@@ -11,6 +11,7 @@ import { getHomePageData } from "@/lib/db";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -34,12 +35,14 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       title,
       description,
-      url: localizePath("/", locale)
+      url: localizePath("/", locale),
+      images: [ogImageUrl()]
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description
+      description,
+      images: [ogImageUrl()]
     }
   };
 }

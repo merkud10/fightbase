@@ -11,6 +11,7 @@ import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
 import { getSnapshotContent } from "@/lib/prediction-snapshot";
+import { clampDescription, ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
@@ -74,12 +75,14 @@ export async function generateMetadata({
     };
   }
 
-  const { snapshot } = data;
+  const { snapshot, fight } = data;
   const snapshotContent = getSnapshotContent(snapshot, locale);
+  const metaDescription = clampDescription(snapshotContent.metaDescription);
+  const ogImage = ogImageUrl(fight.fighterA.photoUrl ?? fight.fighterB.photoUrl);
 
   return {
     title: snapshotContent.titleTag,
-    description: snapshotContent.metaDescription,
+    description: metaDescription,
     alternates: {
       ...buildLocaleAlternates(`/predictions/${eventSlug}/${fightSlug}`),
       canonical: localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale)
@@ -87,13 +90,15 @@ export async function generateMetadata({
     openGraph: {
       type: "article",
       title: snapshotContent.titleTag,
-      description: snapshotContent.metaDescription,
-      url: localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale)
+      description: metaDescription,
+      url: localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale),
+      images: [ogImage]
     },
     twitter: {
       card: "summary_large_image",
       title: snapshotContent.titleTag,
-      description: snapshotContent.metaDescription
+      description: metaDescription,
+      images: [ogImage]
     },
     robots: {
       index: true,

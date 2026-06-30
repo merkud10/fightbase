@@ -11,6 +11,7 @@ import { formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 import { fetchUfcOfficialRankings } from "@/lib/ufc-rankings";
 
@@ -33,7 +34,8 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      url: canonical
+      url: canonical,
+      images: [ogImageUrl()]
     }
   };
 }

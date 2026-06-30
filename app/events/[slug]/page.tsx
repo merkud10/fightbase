@@ -11,6 +11,7 @@ import { getEventPageData } from "@/lib/db";
 import { formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
@@ -36,8 +37,12 @@ export async function generateMetadata({
       ? `${event.name}: турнир UFC, дата, место проведения, кард из ${fightCount} боев, прогнозы и связанные материалы FightBase Media.`
       : `${event.name}: UFC event page with date, venue, ${fightCount}-fight card, predictions, and related coverage from FightBase Media.`;
 
+  const ogTitle = locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`;
+  const leadPhoto = event.fights[0]?.fighterA?.photoUrl ?? event.fights[0]?.fighterB?.photoUrl;
+  const ogImage = ogImageUrl(leadPhoto);
+
   return {
-    title: locale === "ru" ? `${event.name}: кард турнира UFC, дата и прогнозы` : `${event.name}: UFC card, date, and predictions`,
+    title: event.name,
     description,
     alternates: {
       ...buildLocaleAlternates(`/events/${event.slug}`),
@@ -45,14 +50,16 @@ export async function generateMetadata({
     },
     openGraph: {
       type: "website",
-      title: locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`,
+      title: ogTitle,
       description,
-      url: localizePath(`/events/${event.slug}`, locale)
+      url: localizePath(`/events/${event.slug}`, locale),
+      images: [ogImage]
     },
     twitter: {
-      card: "summary",
-      title: locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`,
-      description
+      card: "summary_large_image",
+      title: ogTitle,
+      description,
+      images: [ogImage]
     }
   };
 }

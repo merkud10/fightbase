@@ -12,6 +12,7 @@ import { getFighterPageData } from "@/lib/db";
 import { formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 const countryLocaleMap: Record<string, { ru: string; en: string }> = {
@@ -348,7 +349,7 @@ export async function generateMetadata({
       : `${title}: UFC fighter profile with record ${fighter.record || "not listed"}, weight class, statistics, recent fights, and related coverage.`;
 
   return {
-    title: locale === "ru" ? `${title}: статистика, рекорд и профиль UFC` : `${title}: UFC stats, record, and profile`,
+    title: locale === "ru" ? `${title}: статистика и профиль UFC` : `${title}: UFC stats and profile`,
     description,
     alternates: {
       ...buildLocaleAlternates(`/fighters/${fighter.slug}`),
@@ -359,20 +360,18 @@ export async function generateMetadata({
       title: locale === "ru" ? `${title}: профиль бойца UFC` : `${title}: UFC fighter profile`,
       description,
       url: localizePath(`/fighters/${fighter.slug}`, locale),
-      images: fighter.photoUrl
-        ? [
-            {
-              url: fighter.photoUrl,
-              alt: fighter.nameRu ?? fighter.name
-            }
-          ]
-        : undefined
+      images: [
+        {
+          url: ogImageUrl(fighter.photoUrl),
+          alt: fighter.nameRu ?? fighter.name
+        }
+      ]
     },
     twitter: {
-      card: fighter.photoUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: locale === "ru" ? `${title}: профиль бойца UFC` : `${title}: UFC fighter profile`,
       description,
-      images: fighter.photoUrl ? [fighter.photoUrl] : undefined
+      images: [ogImageUrl(fighter.photoUrl)]
     }
   };
 }

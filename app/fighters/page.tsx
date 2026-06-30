@@ -14,6 +14,7 @@ import { formatFighterStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 type FightersPageProps = {
@@ -42,7 +43,8 @@ export async function generateMetadata({ searchParams }: FightersPageProps): Pro
     openGraph: {
       title,
       description,
-      url: localizedUrl
+      url: localizedUrl,
+      images: [ogImageUrl()]
     },
     robots: hasFilters
       ? {

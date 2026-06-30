@@ -13,6 +13,7 @@ import { formatArticleTagLabel } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 type NewsPageProps = {
@@ -39,7 +40,8 @@ export async function generateMetadata({ searchParams }: NewsPageProps): Promise
     openGraph: {
       title,
       description,
-      url: localizedUrl
+      url: localizedUrl,
+      images: [ogImageUrl()]
     },
     robots: hasFilters
       ? {

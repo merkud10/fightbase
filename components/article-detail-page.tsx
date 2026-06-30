@@ -13,6 +13,7 @@ import { getArticlePageData } from "@/lib/db";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { clampDescription, ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 function splitIntoParagraphs(text: string) {
@@ -84,10 +85,12 @@ export async function generateArticlePageMetadata(
   }
 
   const articlePath = `${getArticleRouteBase(category)}/${article.slug}`;
+  const description = clampDescription(article.excerpt);
+  const ogImage = ogImageUrl(article.coverImageUrl);
 
   return {
     title: article.title,
-    description: article.excerpt,
+    description,
     alternates: {
       ...buildLocaleAlternates(articlePath),
       canonical: localizePath(articlePath, locale)
@@ -95,24 +98,22 @@ export async function generateArticlePageMetadata(
     openGraph: {
       type: "article",
       title: article.title,
-      description: article.excerpt,
+      description,
       url: localizePath(articlePath, locale),
       publishedTime: article.publishedAt.toISOString(),
       modifiedTime: article.updatedAt.toISOString(),
-      images: article.coverImageUrl
-        ? [
-            {
-              url: article.coverImageUrl,
-              alt: article.coverImageAlt || article.title
-            }
-          ]
-        : undefined
+      images: [
+        {
+          url: ogImage,
+          alt: article.coverImageAlt || article.title
+        }
+      ]
     },
     twitter: {
-      card: article.coverImageUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: article.title,
-      description: article.excerpt,
-      images: article.coverImageUrl ? [article.coverImageUrl] : undefined
+      description,
+      images: [ogImage]
     }
   };
 }

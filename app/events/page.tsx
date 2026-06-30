@@ -12,6 +12,7 @@ import { formatEventLocation, formatFightMethod, formatWeightClass, getDisplayNa
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
+import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
 type EventsPageProps = {
@@ -39,7 +40,8 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
     openGraph: {
       title,
       description,
-      url: localizedUrl
+      url: localizedUrl,
+      images: [ogImageUrl()]
     },
     robots: hasFilters
       ? {
