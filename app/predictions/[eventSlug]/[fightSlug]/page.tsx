@@ -6,12 +6,13 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
-import { formatWeightClass } from "@/lib/display";
+import { formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
 import { getSnapshotContent } from "@/lib/prediction-snapshot";
 import { getSiteUrl } from "@/lib/site";
+import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
 export const revalidate = 86400;
 export const dynamicParams = false;
@@ -136,6 +137,27 @@ export default async function FightPredictionPage({
   const pageUrl = new URL(localizePath(`/predictions/${eventSlug}/${fightSlug}`, locale), siteUrl).toString();
   const fighterAName = getDisplayName(fight.fighterA, locale);
   const fighterBName = getDisplayName(fight.fighterB, locale);
+  const siteOrigin = siteUrl.origin;
+  const fightEventImages = [fight.fighterA.photoUrl, fight.fighterB.photoUrl]
+    .filter((url): url is string => isUsablePhoto(url))
+    .map((url) => toAbsoluteUrl(url, siteOrigin));
+  const fightEventJsonLd = buildSportsEventJsonLd({
+    name: `${fight.event.name}: ${fighterAName} vs ${fighterBName}`,
+    description: prediction.metaDescription,
+    url: pageUrl,
+    inLanguage: locale === "ru" ? "ru-RU" : "en-US",
+    date: fight.event.date,
+    venue: fight.event.venue,
+    city: fight.event.city,
+    status: fight.event.status,
+    promotionName: fight.event.promotion.name,
+    siteOrigin,
+    performers: [
+      { name: fighterAName, url: `${siteOrigin}${localizePath(`/fighters/${fight.fighterA.slug}`, locale)}` },
+      { name: fighterBName, url: `${siteOrigin}${localizePath(`/fighters/${fight.fighterB.slug}`, locale)}` }
+    ],
+    images: fightEventImages.length > 0 ? fightEventImages : [`${siteOrigin}/gorilla-crown-logo.png`]
+  });
   const breadcrumbItems = [
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
     { label: locale === "ru" ? "Прогнозы" : "Predictions", href: "/predictions" },
@@ -145,31 +167,7 @@ export default async function FightPredictionPage({
 
   return (
     <main className="container">
-      <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "SportsEvent",
-          name: `${fight.event.name}: ${fight.fighterA.name} vs ${fight.fighterB.name}`,
-          url: pageUrl,
-          description: prediction.metaDescription,
-          startDate: fight.event.date.toISOString(),
-          eventStatus:
-            fight.event.status === "completed"
-              ? "https://schema.org/EventCompleted"
-              : fight.event.status === "live"
-                ? "https://schema.org/EventInProgress"
-                : "https://schema.org/EventScheduled",
-          location: {
-            "@type": "Place",
-            name: fight.event.venue,
-            address: fight.event.city
-          },
-          organizer: {
-            "@type": "SportsOrganization",
-            name: fight.event.promotion.name
-          }
-        }}
-      />
+      <JsonLd data={fightEventJsonLd} />
       <JsonLd
         data={{
           "@context": "https://schema.org",

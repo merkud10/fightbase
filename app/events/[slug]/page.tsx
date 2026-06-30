@@ -8,10 +8,11 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getEventPageData } from "@/lib/db";
-import { formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass } from "@/lib/display";
+import { formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
+import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
 export async function generateMetadata({
   params
@@ -87,30 +88,37 @@ export default async function EventPage({
       item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : eventUrl
     }))
   };
-  const eventJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SportsEvent",
+  const seenFighterIds = new Set<string>();
+  const performers = event.fights
+    .flatMap((fight) => [fight.fighterA, fight.fighterB])
+    .filter((fighter) => {
+      if (!fighter || seenFighterIds.has(fighter.id)) return false;
+      seenFighterIds.add(fighter.id);
+      return true;
+    })
+    .map((fighter) => ({
+      name: getDisplayName(fighter, locale),
+      url: `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`
+    }));
+  const leadFight = event.fights[0];
+  const cardImages = [leadFight?.fighterA?.photoUrl, leadFight?.fighterB?.photoUrl]
+    .filter((url): url is string => isUsablePhoto(url))
+    .map((url) => toAbsoluteUrl(url, siteUrl));
+  const eventImages = cardImages.length > 0 ? cardImages : [`${siteUrl}/gorilla-crown-logo.png`];
+  const eventJsonLd = buildSportsEventJsonLd({
     name: event.name,
     description: event.summary,
-    startDate: event.date.toISOString(),
-    eventStatus:
-      event.status === "completed"
-        ? "https://schema.org/EventCompleted"
-        : event.status === "live"
-          ? "https://schema.org/EventInProgress"
-          : "https://schema.org/EventScheduled",
-    location: {
-      "@type": "Place",
-      name: event.venue,
-      address: event.city
-    },
-    organizer: {
-      "@type": "SportsOrganization",
-      name: event.promotion.name
-    },
     url: eventUrl,
-    inLanguage: locale === "ru" ? "ru-RU" : "en-US"
-  };
+    inLanguage: locale === "ru" ? "ru-RU" : "en-US",
+    date: event.date,
+    venue: event.venue,
+    city: event.city,
+    status: event.status,
+    promotionName: event.promotion.name,
+    siteOrigin: siteUrl,
+    performers,
+    images: eventImages
+  });
 
   return (
     <main className="container">
