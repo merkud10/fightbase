@@ -3,7 +3,7 @@ import { getSiteUrl } from "@/lib/site";
 import { toAbsoluteUrl, toSearchImageUrl } from "@/lib/structured-data";
 
 // Default share image used when a page has no representative photo. Lives in
-// public/.
+// public/ and is served as PNG (already social-friendly).
 export const DEFAULT_OG_IMAGE_PATH = "/gorilla-crown-logo.png";
 
 function siteOrigin() {
