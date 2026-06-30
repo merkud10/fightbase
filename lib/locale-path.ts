@@ -51,8 +51,9 @@ export function buildLocaleAlternates(path: string) {
   return {
     canonical: localizePath(path, "ru"),
     languages: {
+      // Only Russian is actually served; /en is redirected to /ru. Do not
+      // advertise an en-US alternate that would point at duplicate content.
       "ru-RU": localizePath(path, "ru"),
-      "en-US": localizePath(path, "en"),
       "x-default": localizePath(path, "ru")
     }
   };

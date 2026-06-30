@@ -69,6 +69,16 @@ export async function middleware(request: NextRequest) {
   const prefixed = stripLocalePrefix(pathname);
   const secure = isSecureContext(request);
 
+  // English locale is not actually translated (content is served in Russian),
+  // so we don't advertise or index /en. Redirect any /en/* to its /ru/*
+  // equivalent. The target goes through the normal /ru rewrite branch below on
+  // the follow-up request, so there is no redirect loop.
+  if (prefixed.locale === "en") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = localizePath(prefixed.pathname, "ru");
+    return NextResponse.redirect(redirectUrl, 308);
+  }
+
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") {
       return NextResponse.next();
