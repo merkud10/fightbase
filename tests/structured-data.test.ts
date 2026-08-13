@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { buildSportsEventJsonLd } from "../lib/structured-data";
+
+const baseInput = {
+  name: "UFC 330",
+  url: "https://fightbase.ru/ru/events/ufc-330",
+  description: "Турнир UFC.",
+  date: new Date("2026-08-16T00:00:00.000Z"),
+  status: "upcoming",
+  promotionName: "UFC",
+  siteOrigin: "https://fightbase.ru"
+};
+
+test("buildSportsEventJsonLd omits location when venue and city are TBD placeholders", () => {
+  const jsonLd = buildSportsEventJsonLd({ ...baseInput, venue: "TBD", city: "TBD" }) as Record<string, unknown>;
+  assert.equal("location" in jsonLd, false);
+});
+
+test("buildSportsEventJsonLd keeps known location parts and drops TBD ones", () => {
+  const full = buildSportsEventJsonLd({
+    ...baseInput,
+    venue: "Xfinity Mobile Arena",
+    city: "Philadelphia, United States"
+  }) as { location?: { name?: string; address?: string } };
+  assert.equal(full.location?.name, "Xfinity Mobile Arena");
+  assert.equal(full.location?.address, "Philadelphia, United States");
+
+  const partial = buildSportsEventJsonLd({ ...baseInput, venue: "TBD", city: "Philadelphia, United States" }) as {
+    location?: { name?: string; address?: string };
+  };
+  assert.equal(partial.location?.address, "Philadelphia, United States");
+  assert.equal("name" in (partial.location ?? {}), false);
+});

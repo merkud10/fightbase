@@ -8,10 +8,6 @@ set -euo pipefail
 APP_DIR="/opt/fightbase"
 APP_USER="fightbase"
 
-echo "=== Stopping services ==="
-systemctl stop fightbase
-systemctl stop fightbase-jobs 2>/dev/null || true
-
 echo "=== Pulling latest code ==="
 cd ${APP_DIR}
 # В CI (deploy.yml) репо уже на нужном ref через git fetch + reset — HEAD в detached.
@@ -33,7 +29,14 @@ echo "=== Database migrations (Postgres) ==="
 sudo -u ${APP_USER} npm run db:migrate:deploy:pg
 
 echo "=== Building ==="
+# Собираем ДО остановки сервисов: старый билд продолжает обслуживать трафик,
+# и при падении сборки/миграций сайт остаётся жив (раньше падение здесь
+# оставляло прод лежать с 502 до ручного вмешательства).
 sudo -u ${APP_USER} npm run build
+
+echo "=== Stopping services ==="
+systemctl stop fightbase
+systemctl stop fightbase-jobs 2>/dev/null || true
 
 echo "=== Copying static assets ==="
 cp -r ${APP_DIR}/.next/static ${APP_DIR}/.next/standalone/.next/static

@@ -58,9 +58,18 @@ type SportsEventInput = {
   images?: string[];
 };
 
+// Upstream feeds use the literal "TBD" until a venue is announced; that placeholder
+// must not leak into structured data.
+function knownLocationValue(value: string) {
+  const normalized = String(value || "").trim();
+  return normalized && normalized !== "TBD" ? normalized : null;
+}
+
 export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, unknown> {
   const performers = (input.performers ?? []).filter((p) => p.name?.trim());
   const images = (input.images ?? []).filter(Boolean).map(toSearchImageUrl);
+  const venue = knownLocationValue(input.venue);
+  const city = knownLocationValue(input.city);
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -72,11 +81,15 @@ export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, 
     endDate: new Date(input.date.getTime() + EVENT_DURATION_MS).toISOString(),
     eventStatus: eventStatusUrl(input.status),
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    location: {
-      "@type": "Place",
-      name: input.venue,
-      address: input.city
-    },
+    ...(venue || city
+      ? {
+          location: {
+            "@type": "Place",
+            ...(venue ? { name: venue } : {}),
+            ...(city ? { address: city } : {})
+          }
+        }
+      : {}),
     organizer: {
       "@type": "SportsOrganization",
       name: input.promotionName,
