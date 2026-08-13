@@ -39,6 +39,13 @@ def rows(query):
     cur.execute(query)
     return [dict(row) for row in cur.fetchall()]
 
+fight_columns = {row[1] for row in cur.execute('PRAGMA table_info("Fight")').fetchall()}
+fight_optional_columns = "".join([
+    ',\\n      f."boutOrder" AS boutOrder' if "boutOrder" in fight_columns else ',\\n      NULL AS boutOrder',
+    ',\\n      f."isMainEvent" AS isMainEvent' if "isMainEvent" in fight_columns else ',\\n      0 AS isMainEvent',
+    ',\\n      f."resultType" AS resultType' if "resultType" in fight_columns else ',\\n      NULL AS resultType'
+])
+
 payload = {
   "promotions": rows('SELECT slug, name, shortName FROM "Promotion"'),
   "sources": rows('SELECT slug, label, type, url FROM "Source"'),
@@ -61,12 +68,13 @@ payload = {
       f.method,
       f.resultRound,
       f.resultTime
+      {fight_optional_columns}
     FROM "Fight" f
     JOIN "Event" e ON e.id = f.eventId
     JOIN "Fighter" fa ON fa.id = f.fighterAId
     JOIN "Fighter" fb ON fb.id = f.fighterBId
     LEFT JOIN "Fighter" w ON w.id = f.winnerFighterId
-  """),
+  """.format(fight_optional_columns=fight_optional_columns)),
   "articles": rows("""
     SELECT
       a.id,
@@ -141,6 +149,17 @@ conn.close()
 
 function byKey(items, key, value) {
   return items.filter((item) => item[key] === value);
+}
+
+function normalizeFightResultType(fight, winner) {
+  if (fight.status !== "completed") return null;
+  if (["win", "draw", "no_contest"].includes(fight.resultType)) {
+    return fight.resultType;
+  }
+  if (winner) return "win";
+  if (/no[\s-]*contest|\bn\/?c\b/i.test(fight.method || "")) return "no_contest";
+  if (/draw|ничь/i.test(fight.method || "")) return "draw";
+  return null;
 }
 
 async function main() {
@@ -243,15 +262,18 @@ async function main() {
         data: {
           slug: fightSlug,
           stage: fight.stage,
+          boutOrder: Number.isInteger(fight.boutOrder) ? fight.boutOrder : null,
+          isMainEvent: fight.isMainEvent === true || fight.isMainEvent === 1,
           weightClass: fight.weightClass,
           status: fight.status,
-          method: fight.method,
-          resultRound: fight.resultRound,
-          resultTime: fight.resultTime,
+          resultType: normalizeFightResultType(fight, winner),
+          method: fight.status === "completed" ? fight.method : null,
+          resultRound: fight.status === "completed" ? fight.resultRound : null,
+          resultTime: fight.status === "completed" ? fight.resultTime : null,
           eventId: targetEvent.id,
           fighterAId: fighterA.id,
           fighterBId: fighterB.id,
-          winnerFighterId: winner?.id || null
+          winnerFighterId: fight.status === "completed" ? winner?.id || null : null
         }
       });
     }

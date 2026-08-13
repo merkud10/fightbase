@@ -276,7 +276,13 @@ async function main() {
       fighterA: true,
       fighterB: true
     },
-    orderBy: [{ event: { date: "asc" } }, { createdAt: "asc" }],
+    orderBy: [
+      { event: { date: "asc" } },
+      { isMainEvent: "desc" },
+      { boutOrder: { sort: "asc", nulls: "last" } },
+      { createdAt: "asc" },
+      { id: "asc" }
+    ],
     take: options.limit
   });
 

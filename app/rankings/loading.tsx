@@ -1,6 +1,7 @@
 export default function Loading() {
   return (
-    <main className="container">
+    <main className="container" aria-busy="true">
+      <p className="sr-only" role="status">Загрузка рейтингов…</p>
       <div style={{ paddingTop: "3rem" }}>
         <div className="skeleton skeleton-heading" />
         <div className="skeleton skeleton-text long" />

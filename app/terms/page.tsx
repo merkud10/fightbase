@@ -4,14 +4,21 @@ export const revalidate = 86400;
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Условия использования",
-  description:
-    "Условия использования FightBase Media: правила доступа к материалам, допустимое цитирование и ограничения ответственности.",
-  alternates: buildLocaleAlternates("/terms")
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/terms",
+    title: locale === "ru" ? "Условия использования" : "Terms of use",
+    description:
+      locale === "ru"
+        ? "Условия использования FightBase Media: правила доступа к материалам, допустимое цитирование и ограничения ответственности."
+        : "FightBase Media terms covering access to published content, permitted quotations, reuse, and liability limits."
+  });
+}
 
 export default async function TermsPage() {
   const locale = await getLocale();

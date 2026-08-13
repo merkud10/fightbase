@@ -2,14 +2,21 @@ import type { Metadata } from "next";
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Политика конфиденциальности",
-  description:
-    "Политика конфиденциальности FightBase Media: обработка технических данных, аналитики, форм обратной связи и подписок.",
-  alternates: buildLocaleAlternates("/privacy-policy")
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/privacy-policy",
+    title: locale === "ru" ? "Политика конфиденциальности" : "Privacy policy",
+    description:
+      locale === "ru"
+        ? "Политика конфиденциальности FightBase Media: обработка технических данных, аналитики, форм обратной связи и подписок."
+        : "FightBase Media privacy policy for technical data, analytics, contact forms, and subscriptions."
+  });
+}
 
 export default async function PrivacyPolicyPage() {
   const locale = await getLocale();

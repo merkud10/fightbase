@@ -12,6 +12,8 @@ const weightClassMap: Record<string, { ru: string; en: string }> = {
   heavyweight: { ru: "Тяжелый вес", en: "Heavyweight" },
   catchweight: { ru: "Договорной вес", en: "Catchweight" },
   openweight: { ru: "Открытый вес", en: "Openweight" },
+  "men's pound-for-pound": { ru: "Вне весовых категорий (P4P)", en: "Men's Pound-for-Pound" },
+  "women's pound-for-pound": { ru: "Женский, вне весовых категорий (P4P)", en: "Women's Pound-for-Pound" },
   "women's strawweight": { ru: "Женский минимальный вес", en: "Women's Strawweight" },
   "women's flyweight": { ru: "Женский наилегчайший вес", en: "Women's Flyweight" },
   "women's bantamweight": { ru: "Женский легчайший вес", en: "Women's Bantamweight" },
@@ -101,6 +103,10 @@ const weightClassAliases: Record<string, string> = {
   "договорной вес": "Catchweight",
   openweight: "Openweight",
   "открытый вес": "Openweight",
+  "men's pound-for-pound": "Men's Pound-for-Pound",
+  "вне зависимости от категорий": "Men's Pound-for-Pound",
+  "women's pound-for-pound": "Women's Pound-for-Pound",
+  "женский, вне весовых категорий": "Women's Pound-for-Pound",
   "women's strawweight": "Women's Strawweight",
   "женский минимальный вес": "Women's Strawweight",
   "women's flyweight": "Women's Flyweight",
@@ -152,7 +158,8 @@ function splitLocationString(value: string) {
 
 export function formatEventLocation(city: string | null | undefined, venue: string | null | undefined, locale: Locale) {
   const normalizedCity = String(city || "").trim();
-  const venueValue = String(venue || "").trim();
+  const rawVenue = String(venue || "").trim();
+  const venueValue = rawVenue === "TBD" ? "" : rawVenue;
   const fallbackLocation =
     normalizedCity && normalizedCity !== "TBD"
       ? normalizedCity

@@ -12,6 +12,14 @@ function runScript(scriptName, args = []) {
   });
 }
 
+function runOptionalScript(scriptName, args = []) {
+  try {
+    runScript(scriptName, args);
+  } catch (error) {
+    console.warn(`[optional] ${scriptName} failed: ${error.message || error}`);
+  }
+}
+
 function parseArgs(argv) {
   const args = [];
 
@@ -33,6 +41,7 @@ function main() {
   runScript("sync-upcoming-events.js", forwardedArgs);
   runScript("sync-event-fights.js", forwardedArgs);
   runScript("sync-fight-odds.js");
+  runOptionalScript("sync-ufc-rankings.js", forwardedArgs);
 }
 
 main();

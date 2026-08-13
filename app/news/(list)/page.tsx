@@ -8,6 +8,7 @@ import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { Pagination } from "@/components/pagination";
+import { getArticleHref } from "@/lib/article-routes";
 import { getNewsPageData } from "@/lib/db";
 import { formatArticleTagLabel } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
@@ -74,7 +75,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
     "@type": "ListItem",
     position: index + 1,
-    url: new URL(localizePath(`/news/${article.slug}`, locale), siteUrl).toString(),
+    url: new URL(localizePath(getArticleHref(article.category, article.slug), locale), siteUrl).toString(),
     name: article.title
   }));
 

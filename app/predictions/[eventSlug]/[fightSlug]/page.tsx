@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { getArticleHref } from "@/lib/article-routes";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
 import { formatWeightClass, isUsablePhoto } from "@/lib/display";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
@@ -16,7 +19,7 @@ import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
 export const revalidate = 86400;
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 function splitIntoParagraphs(text: string) {
   const normalized = text
@@ -70,15 +73,16 @@ export async function generateMetadata({
   const data = await getFightPredictionPageData(eventSlug, fightSlug);
 
   if (!data) {
-    return {
-      title: locale === "ru" ? "Прогноз ожидается" : "Prediction pending"
-    };
+    // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
+    notFound();
   }
 
   const { snapshot, fight } = data;
   const snapshotContent = getSnapshotContent(snapshot, locale);
   const metaDescription = clampDescription(snapshotContent.metaDescription);
-  const ogImage = ogImageUrl(fight.fighterA.photoUrl ?? fight.fighterB.photoUrl);
+  const ogImage = ogImageUrl(
+    [fight.fighterA.photoUrl, fight.fighterB.photoUrl].find((url) => isUsablePhoto(url))
+  );
 
   return {
     title: snapshotContent.titleTag,
@@ -146,6 +150,12 @@ export default async function FightPredictionPage({
   const fightEventImages = [fight.fighterA.photoUrl, fight.fighterB.photoUrl]
     .filter((url): url is string => isUsablePhoto(url))
     .map((url) => toAbsoluteUrl(url, siteOrigin));
+  const predictionImage = ogImageUrl(fightEventImages[0]);
+  const snapshotDateFormatter = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Europe/Moscow"
+  });
   const fightEventJsonLd = buildSportsEventJsonLd({
     name: `${fight.event.name}: ${fighterAName} vs ${fighterBName}`,
     description: prediction.metaDescription,
@@ -179,9 +189,26 @@ export default async function FightPredictionPage({
           "@type": "Article",
           headline: prediction.headline,
           description: prediction.metaDescription,
+          image: [predictionImage],
           datePublished: snapshot.generatedAt.toISOString(),
           dateModified: snapshot.updatedAt.toISOString(),
           mainEntityOfPage: pageUrl,
+          url: pageUrl,
+          inLanguage: locale === "ru" ? "ru-RU" : "en-US",
+          author: {
+            "@type": "Organization",
+            name: "FightBase Media",
+            url: `${siteOrigin}/ru`
+          },
+          publisher: {
+            "@type": "Organization",
+            name: "FightBase Media",
+            url: `${siteOrigin}/ru`,
+            logo: {
+              "@type": "ImageObject",
+              url: `${siteOrigin}/gorilla-crown-logo.png`
+            }
+          },
           about: [fight.fighterA.name, fight.fighterB.name, fight.event.name]
         }}
       />
@@ -191,10 +218,51 @@ export default async function FightPredictionPage({
         description={`${fight.event.promotion.shortName} · ${fight.event.name} · ${formatWeightClass(fight.weightClass, locale)}`}
       />
 
+      <section className="policy-card" aria-labelledby="prediction-methodology-title">
+        <h2 id="prediction-methodology-title">
+          {locale === "ru" ? "Методика и ограничения" : "Method and limitations"}
+        </h2>
+        <p className="kicker">
+          {locale === "ru" ? "Снимок прогноза" : "Prediction snapshot"}: {" "}
+          <time dateTime={snapshot.generatedAt.toISOString()}>
+            {snapshotDateFormatter.format(snapshot.generatedAt)}
+          </time>
+          {" · "}
+          {locale === "ru" ? "обновлён" : "updated"}: {" "}
+          <time dateTime={snapshot.updatedAt.toISOString()}>
+            {snapshotDateFormatter.format(snapshot.updatedAt)}
+          </time>
+        </p>
+        <p className="copy">
+          {snapshot.source === "odds"
+            ? locale === "ru"
+              ? "Проценты основаны на нормализованной рыночной оценке из доступных коэффициентов на момент снимка. Коэффициенты могут меняться."
+              : "Percentages use normalized market-implied probabilities from the odds available when the snapshot was created. Odds can change."
+            : locale === "ru"
+              ? "Проценты рассчитаны по рекорду, текущей форме и доступной статистике UFC. Это ориентировочная редакционная модель, а не точная вероятность исхода."
+              : "Percentages are estimated from record, recent form, and available UFC statistics. This is an editorial model, not an exact outcome probability."}
+        </p>
+        <p className="copy">
+          {locale === "ru"
+            ? "Модель не может полностью учесть травмы, весогонку, изменения плана на бой и случайность. Материал носит информационный характер."
+            : "The model cannot fully account for injuries, weight cuts, game-plan changes, or randomness. This content is informational."}{" "}
+          <Link href={localizePath("/disclaimer", locale)}>
+            {locale === "ru" ? "Читать дисклеймер" : "Read the disclaimer"}
+          </Link>
+        </p>
+      </section>
+
       <section className="prediction-hero-card">
         <div className="prediction-hero-fighter">
           {hasUsablePhoto(fight.fighterA.photoUrl) ? (
-            <img src={String(fight.fighterA.photoUrl)} alt={fighterAName} className="prediction-hero-photo" />
+            <Image
+              src={getDisplayImageUrl(String(fight.fighterA.photoUrl))}
+              alt={fighterAName}
+              className="prediction-hero-photo"
+              width={140}
+              height={220}
+              sizes="(max-width: 560px) 220px, (max-width: 960px) 120px, 140px"
+            />
           ) : (
             <div className="prediction-hero-photo prediction-hero-photo--placeholder">{fighterAName.charAt(0)}</div>
           )}
@@ -226,7 +294,14 @@ export default async function FightPredictionPage({
 
         <div className="prediction-hero-fighter prediction-hero-fighter--reverse">
           {hasUsablePhoto(fight.fighterB.photoUrl) ? (
-            <img src={String(fight.fighterB.photoUrl)} alt={fighterBName} className="prediction-hero-photo" />
+            <Image
+              src={getDisplayImageUrl(String(fight.fighterB.photoUrl))}
+              alt={fighterBName}
+              className="prediction-hero-photo"
+              width={140}
+              height={220}
+              sizes="(max-width: 560px) 220px, (max-width: 960px) 120px, 140px"
+            />
           ) : (
             <div className="prediction-hero-photo prediction-hero-photo--placeholder">{fighterBName.charAt(0)}</div>
           )}
@@ -245,8 +320,14 @@ export default async function FightPredictionPage({
               <section className="prediction-section-card prediction-section-card--article">
                 <h3>{locale === "ru" ? "Разбор" : "Breakdown"}</h3>
                 <p className="copy">
-                  <Link href={localizePath(`/news/${fightPredictionArticle.slug}`, locale)} className="event-table-link">
-                    {locale === "ru" ? "Открыть материал в разделе новостей" : "Open full article in News"}
+                  <Link
+                    href={localizePath(
+                      getArticleHref(fightPredictionArticle.category, fightPredictionArticle.slug),
+                      locale
+                    )}
+                    className="event-table-link"
+                  >
+                    {locale === "ru" ? "Открыть полный материал" : "Open full article"}
                   </Link>
                 </p>
                 {fightPredictionArticle.sections.map((section) => (
@@ -380,7 +461,9 @@ export default async function FightPredictionPage({
             <ul className="event-side-list">
               {sidebarPredictionLinks.map((article) => (
                 <li key={article.id}>
-                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+                  <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
+                    {article.title}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -390,7 +473,9 @@ export default async function FightPredictionPage({
             <ul className="event-side-list">
               {relatedArticles.map((article) => (
                 <li key={article.id}>
-                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+                  <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
+                    {article.title}
+                  </Link>
                 </li>
               ))}
             </ul>

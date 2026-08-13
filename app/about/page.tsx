@@ -4,13 +4,21 @@ export const revalidate = 86400;
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "О FightBase Media",
-  description: "О FightBase Media: редакционный подход, структура UFC-медиа, принципы работы с новостями, аналитикой, турнирами и профилями бойцов.",
-  alternates: buildLocaleAlternates("/about")
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/about",
+    title: locale === "ru" ? "О FightBase Media" : "About FightBase Media",
+    description:
+      locale === "ru"
+        ? "О FightBase Media: редакционный подход, структура UFC-медиа, принципы работы с новостями, аналитикой, турнирами и профилями бойцов."
+        : "About FightBase Media: our editorial approach to UFC news, analysis, events, and fighter profiles."
+  });
+}
 
 export default async function AboutPage() {
   const locale = await getLocale();

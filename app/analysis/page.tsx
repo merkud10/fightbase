@@ -9,15 +9,22 @@ import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getAnalysisPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { localizePath } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 import { getSiteUrl } from "@/lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "Аналитика UFC",
-    description: "Редакционные разборы FightBase Media: превью боев UFC, стилистические матчапы и аналитические материалы по главным темам недели.",
-    alternates: buildLocaleAlternates("/analysis")
-  };
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/analysis",
+    title: locale === "ru" ? "Аналитика UFC" : "UFC analysis",
+    description:
+      locale === "ru"
+        ? "Редакционные разборы FightBase Media: превью боёв UFC, стилистические матчапы и аналитические материалы по главным темам недели."
+        : "FightBase Media editorial analysis: UFC fight previews, stylistic matchups, and in-depth coverage of the week’s key topics."
+  });
 }
 
 export default async function AnalysisPage() {

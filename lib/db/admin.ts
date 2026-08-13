@@ -1,6 +1,7 @@
 import type { ArticleStatus } from "@prisma/client";
 import { cache } from "react";
 
+import { sortFightsForCard } from "@/lib/fight-card";
 import { getOperationalAlerts } from "@/lib/operational-monitoring";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
@@ -309,9 +310,7 @@ export async function getHomePageData() {
             fighterA: true,
             fighterB: true,
             predictionSnapshot: true
-          },
-          take: 4,
-          orderBy: { createdAt: "asc" }
+          }
         }
       },
       take: 3
@@ -334,8 +333,12 @@ export async function getHomePageData() {
   ]);
   const visibleArticles = articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 3);
   const visibleLeadArticle = leadArticle && hasRenderablePublicArticleImage(leadArticle.coverImageUrl) ? leadArticle : null;
+  const orderedEvents = events.map((event) => ({
+    ...event,
+    fights: sortFightsForCard(event.fights).slice(0, 4)
+  }));
 
-  const leadEvent = events[0];
+  const leadEvent = orderedEvents[0];
   const eventFighterIds = new Set<string>();
 
   if (leadEvent) {
@@ -361,7 +364,7 @@ export async function getHomePageData() {
   return {
     articles: visibleArticles,
     leadArticle: visibleLeadArticle,
-    events,
+    events: orderedEvents,
     fighters: dedupeFightersForPublicList(fighters).slice(0, 4),
     totalArticles,
     totalEvents,

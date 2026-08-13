@@ -64,5 +64,9 @@ print('Fighters:', d['checks']['content']['fighters'])
 print('Events:', d['checks']['content']['events'])
 " 2>/dev/null || echo "Health check failed — app may still be starting"
 
+echo "=== Initial UFC rankings refresh (optional) ==="
+sudo -u ${APP_USER} node scripts/sync-ufc-rankings.js --base-url http://localhost:3000 \
+  || echo "Initial UFC rankings refresh failed — the last saved snapshot remains available"
+
 echo ""
 echo "Deploy complete!"

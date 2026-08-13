@@ -7,8 +7,10 @@ export const revalidate = 3600;
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { getArticleHref } from "@/lib/article-routes";
 import { getEventPageData } from "@/lib/db";
-import { formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
+import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
+import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
@@ -25,20 +27,20 @@ export async function generateMetadata({
   const data = await getEventPageData(slug);
 
   if (!data) {
-    return {
-      title: locale === "ru" ? "Турнир не найден" : "Event not found"
-    };
+    // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
+    notFound();
   }
 
   const { event } = data;
-  const fightCount = event.fights.length;
+  const orderedFights = sortFightsForCard(event.fights);
+  const fightCount = orderedFights.length;
   const description =
     locale === "ru"
       ? `${event.name}: турнир UFC, дата, место проведения, кард из ${fightCount} боев, прогнозы и связанные материалы FightBase Media.`
       : `${event.name}: UFC event page with date, venue, ${fightCount}-fight card, predictions, and related coverage from FightBase Media.`;
 
   const ogTitle = locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`;
-  const leadPhoto = event.fights[0]?.fighterA?.photoUrl ?? event.fights[0]?.fighterB?.photoUrl;
+  const leadPhoto = orderedFights[0]?.fighterA?.photoUrl ?? orderedFights[0]?.fighterB?.photoUrl;
   const ogImage = ogImageUrl(leadPhoto);
 
   return {
@@ -78,6 +80,7 @@ export default async function EventPage({
   }
 
   const { event, relatedArticles } = data;
+  const orderedFights = sortFightsForCard(event.fights);
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const eventUrl = `${siteUrl}${localizePath(`/events/${event.slug}`, locale)}`;
   const breadcrumbItems = [
@@ -96,7 +99,7 @@ export default async function EventPage({
     }))
   };
   const seenFighterIds = new Set<string>();
-  const performers = event.fights
+  const performers = orderedFights
     .flatMap((fight) => [fight.fighterA, fight.fighterB])
     .filter((fighter) => {
       if (!fighter || seenFighterIds.has(fighter.id)) return false;
@@ -107,7 +110,7 @@ export default async function EventPage({
       name: getDisplayName(fighter, locale),
       url: `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`
     }));
-  const leadFight = event.fights[0];
+  const leadFight = orderedFights[0];
   const cardImages = [leadFight?.fighterA?.photoUrl, leadFight?.fighterB?.photoUrl]
     .filter((url): url is string => isUsablePhoto(url))
     .map((url) => toAbsoluteUrl(url, siteUrl));
@@ -135,7 +138,14 @@ export default async function EventPage({
       <PageHero
         eyebrow={event.promotion.shortName}
         title={event.name}
-        description={`${event.promotion.shortName} · ${event.city} · ${event.venue} · ${event.summary}`}
+        description={[
+          event.promotion.shortName,
+          formatEventLocation(event.city, event.venue, locale),
+          (event.summary || "").replace(/\.\.+$/, ".")
+        ]
+          .map((part) => String(part || "").trim())
+          .filter(Boolean)
+          .join(" · ")}
       />
 
       <section className="detail-grid">
@@ -155,19 +165,22 @@ export default async function EventPage({
           </div>
           <div className="table-wrap">
             <table>
+              <caption className="sr-only">
+                {locale === "ru" ? `Кард турнира ${event.name}` : `${event.name} fight card`}
+              </caption>
               <thead>
                 <tr>
-                  <th>{locale === "ru" ? "Стадия" : "Stage"}</th>
-                  <th>{locale === "ru" ? "Бой" : "Fight"}</th>
-                  <th>{locale === "ru" ? "Вес" : "Weight"}</th>
-                  <th>{locale === "ru" ? "Статус" : "Status"}</th>
-                  <th>{event.status === "completed"
+                  <th scope="col">{locale === "ru" ? "Стадия" : "Stage"}</th>
+                  <th scope="col">{locale === "ru" ? "Бой" : "Fight"}</th>
+                  <th scope="col">{locale === "ru" ? "Вес" : "Weight"}</th>
+                  <th scope="col">{locale === "ru" ? "Статус" : "Status"}</th>
+                  <th scope="col">{event.status === "completed"
                     ? (locale === "ru" ? "Результат" : "Result")
                     : (locale === "ru" ? "Прогноз" : "Prediction")}</th>
                 </tr>
               </thead>
               <tbody>
-                {event.fights.map((fight) => (
+                {orderedFights.map((fight) => (
                   <tr key={fight.id}>
                     <td>{formatFightStage(fight.stage, locale)}</td>
                     <td>
@@ -195,7 +208,7 @@ export default async function EventPage({
                         </span>
                       ) : fight.status === "completed" ? (
                         <span className="event-table-result">
-                          {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                          {formatWinnerlessFightResult(fight.resultType, locale)}
                         </span>
                       ) : fight.predictionSnapshot ? (
                         <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
@@ -224,7 +237,7 @@ export default async function EventPage({
           <div className="policy-card">
             <h3>{locale === "ru" ? "Быстрые переходы к прогнозам" : "Quick prediction links"}</h3>
             <ul className="event-side-list">
-              {event.fights
+              {orderedFights
                 .filter((fight) => fight.predictionSnapshot)
                 .slice(0, 6)
                 .map((fight) => (
@@ -242,7 +255,9 @@ export default async function EventPage({
             <ul className="event-side-list">
               {relatedArticles.map((article) => (
                 <li key={article.id}>
-                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+                  <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
+                    {article.title}
+                  </Link>
                 </li>
               ))}
             </ul>

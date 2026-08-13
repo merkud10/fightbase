@@ -104,11 +104,15 @@ export function PushSubscribeButton({ label, locale }: PushButtonProps) {
   }
 
   return (
-    <div className="push-subscribe">
+    <div className="push-subscribe" aria-busy={busy}>
       <button type="button" className="button" onClick={handleClick} disabled={busy}>
         {busy ? (locale === "ru" ? "Подключаем..." : "Connecting...") : label}
       </button>
-      {message ? <p className="push-subscribe-message">{message}</p> : null}
+      {message ? (
+        <p className="push-subscribe-message" role="status" aria-live="polite">
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

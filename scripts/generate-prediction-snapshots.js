@@ -307,6 +307,8 @@ function getFighterNameTokens(fighter) {
 }
 
 function isMainEventFight(fight) {
+  if (fight.isMainEvent === true) return true;
+
   const eventName = String(fight.event?.name || "").toLowerCase();
   const fighterATokens = getFighterNameTokens(fight.fighterA);
   const fighterBTokens = getFighterNameTokens(fight.fighterB);
@@ -417,21 +419,23 @@ function buildSnapshotCopy(locale, fight) {
     compareMetric("Sub avg", "Sub avg", fight.fighterA.submissionAveragePer15, fight.fighterB.submissionAveragePer15, locale)
   ].filter(Boolean);
 
+  // RU-шаблоны держат имена только в именительном падеже: склонятора нет, а
+  // конструкции вида «у {имя} есть…» дают «у Ислам Махачев есть…».
   const overview =
     locale === "ru"
-      ? `${favoriteName} подходит к бою с небольшим преимуществом по общей картине матча. Это не гарантирует исход, и у ${underdogName} остаются рабочие пути к победе.`
+      ? `${favoriteName} подходит к бою с небольшим преимуществом по общей картине матча. Это не гарантирует исход: ${underdogName} сохраняет рабочие пути к победе.`
       : `${favoriteName} appears to hold a slight edge in the overall matchup picture. That is not a guarantee, and ${underdogName} still has viable paths to win.`;
   const keyEdge =
     source === "odds"
       ? locale === "ru"
-        ? `Небольшое преимущество у ${favoriteName} есть уже до старта боя, но ключевым фактором все равно остается сам матчап.`
+        ? `${favoriteName} выходит на бой с небольшим преимуществом по котировкам, но ключевым фактором все равно остается сам матчап.`
         : `${favoriteName} may carry a slight edge before the opening bell, but the matchup itself remains the key factor.`
       : locale === "ru"
         ? `Оцениваем бой по рекорду, текущей форме и UFC-статистике, где она заполнена.`
         : `We evaluate the fight through record, current form, and UFC stats where available.`;
   const fightScript =
     locale === "ru"
-      ? `Ключевой вопрос этого боя — кто навяжет темп и удобную дистанцию. ${favoriteName} выгоднее вести поединок в привычном ритме, тогда как ${underdogName} нужен бой с резкими сменами эпизодов и тяжелыми моментами.`
+      ? `Ключевой вопрос этого боя — кто навяжет темп и удобную дистанцию. ${favoriteName} сильнее в привычном ритме, тогда как ${underdogName} будет искать бой с резкими сменами эпизодов и тяжелыми моментами.`
       : `The key question is who imposes pace and range. ${favoriteName} benefits from a familiar rhythm, while ${underdogName} needs disruption and heavier moments.`;
 
   const eventDate = new Date(fight.event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", {
@@ -440,11 +444,14 @@ function buildSnapshotCopy(locale, fight) {
     year: "numeric"
   });
   const promotionLabel = fight.event.promotion.shortName || fight.event.promotion.name;
+  // "UFC 330: Makhachev vs. Machado Garry" -> "UFC 330": в заголовке прогноза имена уже
+  // есть, полное название турнира дублировало бы их второй раз.
+  const eventShortName = (fight.event.name.split(":")[0] || fight.event.name).trim() || fight.event.name;
   const mainEvent = isMainEventFight(fight);
   const headline = mainEvent
     ? locale === "ru"
-      ? `${fighterAName} — ${fighterBName}: прогноз на главный бой ${fight.event.name}`
-      : `${fighterAName} vs ${fighterBName}: main event prediction for ${fight.event.name}`
+      ? `${fighterAName} — ${fighterBName}: прогноз на главный бой ${eventShortName}`
+      : `${fighterAName} vs ${fighterBName}: main event prediction for ${eventShortName}`
     : locale === "ru"
       ? `${fighterAName} — ${fighterBName}: прогноз и анализ боя ${promotionLabel}`
       : `${fighterAName} vs ${fighterBName}: prediction and fight analysis for ${promotionLabel}`;
@@ -457,8 +464,8 @@ function buildSnapshotCopy(locale, fight) {
       : `${fighterAName} vs ${fighterBName}: ${promotionLabel} fight prediction, analysis, and preview`;
   const metaDescription = mainEvent
     ? locale === "ru"
-      ? `Прогноз на главный бой ${fight.event.name}: ${fighterAName} — ${fighterBName} (${eventDate}). Анализ матча UFC, сильные стороны бойцов, сценарий поединка, статистика и ключевые факторы перед боем.`
-      : `Main event prediction for ${fight.event.name}: ${fighterAName} vs ${fighterBName} on ${eventDate}. UFC fight analysis, matchup edges, likely fight script, stats, and key factors.`
+      ? `Прогноз на главный бой ${eventShortName}: ${fighterAName} — ${fighterBName} (${eventDate}). Анализ матча UFC, сильные стороны бойцов, сценарий поединка, статистика и ключевые факторы перед боем.`
+      : `Main event prediction for ${eventShortName}: ${fighterAName} vs ${fighterBName} on ${eventDate}. UFC fight analysis, matchup edges, likely fight script, stats, and key factors.`
     : locale === "ru"
       ? `Прогноз на бой ${fighterAName} — ${fighterBName} на турнире ${fight.event.name} (${eventDate}). Анализ боя UFC, ключевое преимущество, сценарий поединка, статистика и подробный разбор матча.`
       : `Prediction for ${fighterAName} vs ${fighterBName} at ${fight.event.name} on ${eventDate}. UFC fight analysis, matchup edge, likely fight script, stats, and a detailed preview.`;
@@ -530,7 +537,13 @@ async function main() {
         }
       }
     },
-    orderBy: [{ event: { date: "asc" } }, { createdAt: "asc" }],
+    orderBy: [
+      { event: { date: "asc" } },
+      { isMainEvent: "desc" },
+      { boutOrder: { sort: "asc", nulls: "last" } },
+      { createdAt: "asc" },
+      { id: "asc" }
+    ],
     take: options.limit
   });
 

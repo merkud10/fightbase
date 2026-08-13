@@ -23,6 +23,7 @@ export type UfcOfficialRankingLink = {
   localSlug?: string;
   officialUrl: string;
   photoUrl?: string | null;
+  nameRu?: string | null;
 };
 
 export type PromotionRankingLink = {
@@ -37,11 +38,46 @@ export type PromotionRankingLinkEntry = {
   nameRu?: string | null;
 };
 
+const fighterPublicListSelect = {
+  id: true,
+  slug: true,
+  name: true,
+  nameRu: true,
+  nickname: true,
+  photoUrl: true,
+  record: true,
+  weightClass: true,
+  status: true,
+  age: true,
+  heightCm: true,
+  reachCm: true,
+  strikeAccuracy: true,
+  strikeDefense: true,
+  takedownAccuracy: true,
+  takedownDefense: true,
+  sigStrikesLandedPerMin: true,
+  sigStrikesAbsorbedPerMin: true,
+  takedownAveragePer15: true,
+  submissionAveragePer15: true,
+  averageFightTime: true,
+  promotion: {
+    select: {
+      slug: true,
+      shortName: true
+    }
+  },
+  _count: {
+    select: {
+      recentFights: true
+    }
+  }
+} satisfies Prisma.FighterSelect;
+
 export type FighterListItem = Prisma.FighterGetPayload<{
-  include: {
-    promotion: true;
-  };
+  select: typeof fighterPublicListSelect;
 }>;
+
+type FighterProfileQualityData = Omit<FighterListItem, "_count">;
 
 function normalizeProfileKey(value: string | null | undefined) {
   return String(value || "")
@@ -60,7 +96,7 @@ const BROKEN_UFC_PROFILE_SLUGS = new Set([
   "chandler-cole"
 ]);
 
-function looksLikeBrokenUfcProfile(fighter: FighterListItem) {
+function looksLikeBrokenUfcProfile(fighter: FighterProfileQualityData) {
   if (fighter.promotion?.slug !== "ufc") {
     return false;
   }
@@ -81,7 +117,7 @@ function looksLikeBrokenUfcProfile(fighter: FighterListItem) {
   return articleLikeSlug || (slugTokens.length > 1 && nameTokens.length > 1 && overlap === 0 && lacksCoreData);
 }
 
-function getFighterQualityScore(fighter: FighterListItem) {
+function getFighterQualityScore(fighter: FighterProfileQualityData) {
   let score = 0;
 
   if (isUsablePhoto(fighter.photoUrl)) score += 10;
@@ -320,7 +356,8 @@ export async function getUfcOfficialRankingLinks() {
     const link = {
       localSlug: fighter.slug,
       officialUrl: `https://www.ufc.com/athlete/${fighter.slug}`,
-      photoUrl: fighter.photoUrl
+      photoUrl: fighter.photoUrl,
+      nameRu: fighter.nameRu
     };
     const isUfcFighter = fighter.promotion?.slug === "ufc";
     const existingBySlug = bySlug.get(fighter.slug.toLowerCase());
@@ -429,14 +466,7 @@ export const getFightersPageData = cache(async function getFightersPageData(filt
     prisma.fighter.findMany({
       where: fightersWhere,
       orderBy: [{ status: "asc" }, { photoUrl: "desc" }, { name: "asc" }],
-      include: {
-        promotion: true,
-        _count: {
-          select: {
-            recentFights: true
-          }
-        }
-      }
+      select: fighterPublicListSelect
     }),
     prisma.promotion.findMany({
       where: {

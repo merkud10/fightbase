@@ -4,14 +4,21 @@ export const revalidate = 86400;
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Политика источников",
-  description:
-    "Как FightBase Media работает с официальными источниками, интервью, статистическими провайдерами и проверкой новостей.",
-  alternates: buildLocaleAlternates("/sources-policy")
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/sources-policy",
+    title: locale === "ru" ? "Политика источников" : "Sources policy",
+    description:
+      locale === "ru"
+        ? "Как FightBase Media работает с официальными источниками, интервью, статистическими провайдерами и проверкой новостей."
+        : "How FightBase Media uses official sources, interviews, statistics providers, and verification in UFC coverage."
+  });
+}
 
 export default async function SourcesPolicyPage() {
   const locale = await getLocale();

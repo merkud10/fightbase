@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -8,9 +9,11 @@ export const revalidate = 3600;
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { getArticleHref } from "@/lib/article-routes";
 import { getFighterPageData } from "@/lib/db";
 import { formatFightStatus, formatWeightClass } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
@@ -336,9 +339,8 @@ export async function generateMetadata({
   const data = await getFighterPageData(slug);
 
   if (!data) {
-    return {
-      title: "Fighter not found"
-    };
+    // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
+    notFound();
   }
 
   const { fighter } = data;
@@ -467,7 +469,15 @@ export default async function FighterPage({
         <article className="stack">
           <div className="policy-card">
             {fighter.photoUrl ? (
-              <img src={fighter.photoUrl} alt={displayName} className="fighter-profile-photo" />
+              <Image
+                src={getDisplayImageUrl(fighter.photoUrl)}
+                alt={displayName}
+                className="fighter-profile-photo"
+                width={360}
+                height={450}
+                sizes="(max-width: 768px) calc(100vw - 64px), 360px"
+                priority
+              />
             ) : (
               <div className="fighter-avatar fighter-avatar-large" />
             )}
@@ -525,12 +535,15 @@ export default async function FighterPage({
               ) : (
                 <div className="table-wrap">
                   <table>
+                    <caption className="sr-only">
+                      {locale === "ru" ? `Последние бои: ${displayName}` : `${displayName}: recent fights`}
+                    </caption>
                     <thead>
                       <tr>
-                        <th>{locale === "ru" ? "Турнир" : "Event"}</th>
-                        <th>{locale === "ru" ? "Вес" : "Weight"}</th>
-                        <th>{locale === "ru" ? "Статус" : "Status"}</th>
-                        <th>{locale === "ru" ? "Итог" : "Result"}</th>
+                        <th scope="col">{locale === "ru" ? "Турнир" : "Event"}</th>
+                        <th scope="col">{locale === "ru" ? "Вес" : "Weight"}</th>
+                        <th scope="col">{locale === "ru" ? "Статус" : "Status"}</th>
+                        <th scope="col">{locale === "ru" ? "Итог" : "Result"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -640,7 +653,9 @@ export default async function FighterPage({
             <ul>
               {relatedArticles.map((article) => (
                 <li key={article.id}>
-                  <Link href={localizePath(`/news/${article.slug}`, locale)}>{article.title}</Link>
+                  <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
+                    {article.title}
+                  </Link>
                 </li>
               ))}
             </ul>

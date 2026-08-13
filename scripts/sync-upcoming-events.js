@@ -94,16 +94,19 @@ function buildRussianEventSummary(promotion, name, date, venue, city) {
   const locationBits = [venueLabel, cityLabel].filter(Boolean);
   const locationLabel = [...new Set(locationBits)].join(", ");
 
+  // formatRussianDate ends with "г." — never append another period after it.
+  const endSentence = (text) => (text.endsWith(".") ? text : `${text}.`);
+
   if (dateLabel && locationLabel) {
-    return `${lead} пройдет ${dateLabel} на арене ${locationLabel}.`;
+    return endSentence(`${lead} пройдет ${dateLabel} на арене ${locationLabel}`);
   }
   if (dateLabel) {
-    return `${lead} пройдет ${dateLabel}.`;
+    return endSentence(`${lead} пройдет ${dateLabel}`);
   }
   if (locationLabel) {
-    return `${lead} состоится на арене ${locationLabel}.`;
+    return endSentence(`${lead} состоится на арене ${locationLabel}`);
   }
-  return `${lead}.`;
+  return endSentence(lead);
 }
 
 async function fetchJson(url) {

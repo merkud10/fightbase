@@ -12,6 +12,7 @@ import {
   isUsablePhoto
 } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
+import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
 import { getDictionary } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
 import { localizePath } from "@/lib/locale-path";
@@ -32,8 +33,13 @@ type ArticleCardData = {
 type EventFightCardData = {
   id: string;
   slug?: string | null;
+  stage?: string | null;
+  boutOrder?: number | null;
+  isMainEvent?: boolean | null;
+  createdAt?: Date | string | null;
   weightClass: string;
   status?: string;
+  resultType?: string | null;
   winnerFighterId?: string | null;
   method?: string | null;
   resultRound?: number | null;
@@ -115,7 +121,7 @@ export function ArticleCard({ article, locale }: { article: ArticleCardData; loc
 
 export function EventCard({ event, locale }: { event: EventCardData; locale: Locale }) {
   const t = getDictionary(locale);
-  const fights = event.fights ?? [];
+  const fights = sortFightsForCard(event.fights ?? []);
   const leadFight = fights[0];
   const displayLocation = formatEventLocation(event.city, event.venue, locale);
   const statusLabel =
@@ -183,7 +189,7 @@ export function EventCard({ event, locale }: { event: EventCardData; locale: Loc
                 </span>
               ) : fight.status === "completed" ? (
                 <span className="event-fight-result">
-                  {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                  {formatWinnerlessFightResult(fight.resultType, locale)}
                 </span>
               ) : fight.predictionSnapshot && fight.slug ? (
                 <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-fight-link">

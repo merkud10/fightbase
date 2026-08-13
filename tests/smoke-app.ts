@@ -251,6 +251,38 @@ async function main() {
         }
         throw new Error(attempts.join(" | "));
       }),
+      runCheck("RSS feed responds with XML", async () => {
+        const response = await fetch(`${BASE_URL}/rss.xml`);
+        if (response.status !== 200) {
+          throw new Error(`Expected 200, got ${response.status}`);
+        }
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("application/rss+xml")) {
+          throw new Error(`Expected application/rss+xml, got "${contentType}"`);
+        }
+        const body = await response.text();
+        if (!body.includes("<rss ") || !body.includes("<channel>")) {
+          throw new Error("RSS body is missing <rss>/<channel> markup");
+        }
+      }),
+      runCheck("Unknown article slug returns HTTP 404", async () => {
+        const response = await fetch(`${BASE_URL}/ru/news/smoke-nonexistent-article-slug`, { redirect: "follow" });
+        if (response.status !== 404) {
+          throw new Error(`Expected 404, got ${response.status}`);
+        }
+      }),
+      runCheck("Unknown event slug returns HTTP 404", async () => {
+        const response = await fetch(`${BASE_URL}/ru/events/smoke-nonexistent-event-slug`, { redirect: "follow" });
+        if (response.status !== 404) {
+          throw new Error(`Expected 404, got ${response.status}`);
+        }
+      }),
+      runCheck("Unknown fighter slug returns HTTP 404", async () => {
+        const response = await fetch(`${BASE_URL}/ru/fighters/smoke-nonexistent-fighter-slug`, { redirect: "follow" });
+        if (response.status !== 404) {
+          throw new Error(`Expected 404, got ${response.status}`);
+        }
+      }),
       runCheck("Diagnostics endpoint is protected", async () => {
         const response = await fetch(`${BASE_URL}/api/ops/diagnostics`);
         if (![401, 403].includes(response.status)) {

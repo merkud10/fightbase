@@ -4,17 +4,27 @@ export const revalidate = 3600;
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Видео UFC",
-  description: "Раздел видео FightBase Media готовится к запуску и пока закрыт от индексации.",
-  alternates: buildLocaleAlternates("/videos"),
-  robots: {
-    index: false,
-    follow: false
-  }
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return {
+    ...buildPageMetadata({
+      locale,
+      path: "/videos",
+      title: locale === "ru" ? "Видео UFC" : "UFC videos",
+      description:
+        locale === "ru"
+          ? "Раздел видео FightBase Media готовится к запуску и пока закрыт от индексации."
+          : "The FightBase Media video section is being prepared for launch and is currently excluded from indexing."
+    }),
+    robots: {
+      index: false,
+      follow: false
+    }
+  };
+}
 
 export default async function VideosPage() {
   const locale = await getLocale();

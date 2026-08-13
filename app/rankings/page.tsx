@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const revalidate = 3600;
@@ -6,14 +7,15 @@ export const revalidate = 3600;
 import { FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
-import { getUfcOfficialRankingLinks } from "@/lib/db";
+import { getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
+import { isPoundForPoundRankingGroup } from "@/lib/ufc-rankings";
 import { getLocale } from "@/lib/i18n";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
-import { fetchUfcOfficialRankings } from "@/lib/ufc-rankings";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
@@ -49,7 +51,19 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   const siteUrl = getSiteUrl();
   const params = (await searchParams) ?? {};
   const divisionParam = readParam(params.division);
-  const [allGroups, rankingLinks] = await Promise.all([fetchUfcOfficialRankings(), getUfcOfficialRankingLinks()]);
+  const [rankingSnapshot, rankingLinks] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
+  const allGroups = rankingSnapshot?.groups ?? [];
+  const fetchedAtLabel = rankingSnapshot
+    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Moscow",
+        timeZoneName: "short"
+      }).format(rankingSnapshot.fetchedAt)
+    : null;
 
   const divisionOptions = allGroups.map((g) => g.title);
   const activeDivision = divisionOptions.includes(divisionParam) ? divisionParam : "";
@@ -70,7 +84,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
       "@type": "ListItem",
       position: index + 1,
       name: fighter.name,
-      url: new URL(`/fighters/${fighter.slug}`, siteUrl).toString()
+      url: new URL(localizePath(`/fighters/${fighter.slug}`, locale), siteUrl).toString()
     }));
 
   return (
@@ -80,7 +94,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: "UFC Rankings",
-          url: new URL("/rankings", siteUrl).toString(),
+          url: new URL(localizePath("/rankings", locale), siteUrl).toString(),
           inLanguage: locale === "ru" ? "ru-RU" : "en-US"
         }}
       />
@@ -109,6 +123,23 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
         <div className="rankings-stack">
           <section className="ranking-intro-card">
             <h2>{locale === "ru" ? "Официальные рейтинги UFC по дивизионам" : "Official UFC divisional rankings"}</h2>
+            <p className="table-note">
+              {locale === "ru" ? "Источник: " : "Source: "}
+              <a href="https://www.ufc.com/rankings" target="_blank" rel="noreferrer">
+                UFC.com
+              </a>
+              {fetchedAtLabel ? (
+                <>
+                  {locale === "ru" ? " · Обновлено " : " · Updated "}
+                  <time dateTime={rankingSnapshot?.fetchedAt.toISOString()}>{fetchedAtLabel}</time>
+                  {rankingSnapshot?.isStale
+                    ? locale === "ru"
+                      ? " · показана последняя сохранённая копия"
+                      : " · showing the latest saved copy"
+                    : null}
+                </>
+              ) : null}
+            </p>
             <FilterSection
               title={locale === "ru" ? "Дивизион" : "Division"}
               items={divisionOptions.map((d) => ({ value: d, label: formatWeightClass(d, locale) }))}
@@ -124,17 +155,19 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
             <section className="filter-empty-state">
               <p className="copy">
                 {locale === "ru"
-                  ? "Официальные рейтинги UFC временно недоступны. Обновите страницу чуть позже."
-                  : "Official UFC rankings are temporarily unavailable. Please check back soon."}
+                  ? "Сохранённая копия официальных рейтингов UFC пока недоступна. Данные появятся после ближайшего фонового обновления."
+                  : "A saved copy of the official UFC rankings is not available yet. Data will appear after the next background refresh."}
               </p>
             </section>
           ) : null}
 
           {groups.map((group) => {
+            const isPoundForPound = isPoundForPoundRankingGroup(group.title);
             const championLink =
               rankingLinks?.bySlug.get(group.champion.officialSlug.toLowerCase()) ??
               rankingLinks?.byName.get(group.champion.name.toLowerCase()) ??
               null;
+            const championName = (locale === "ru" ? championLink?.nameRu : null) ?? group.champion.name;
 
             return (
               <section key={group.title} className="table-card ranking-table-card editorial-card">
@@ -148,34 +181,44 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                     </p>
                   </div>
 
-                  <div className="ranking-champion-badge">
-                    {championLink?.photoUrl || group.champion.imageUrl ? (
-                      <img
-                        src={championLink?.photoUrl ?? group.champion.imageUrl ?? ""}
-                        alt={group.champion.name}
-                        className="ranking-champion-photo"
-                        loading="lazy"
-                      />
-                    ) : null}
-                    <span>{locale === "ru" ? "Чемпион дивизиона" : "Division champion"}</span>
-                    <strong>{group.champion.name}</strong>
-                    {championLink?.localSlug ? (
-                      <Link href={localizePath(`/fighters/${championLink.localSlug}`, locale)}>
-                        {locale === "ru" ? "Открыть профиль" : "Open profile"}
-                      </Link>
-                    ) : (
-                      <span className="table-note">{locale === "ru" ? "Профиль ожидается" : "Profile pending"}</span>
-                    )}
-                  </div>
+                  {isPoundForPound ? null : (
+                    <div className="ranking-champion-badge">
+                      {championLink?.photoUrl || group.champion.imageUrl ? (
+                        <Image
+                          src={getDisplayImageUrl(championLink?.photoUrl ?? group.champion.imageUrl)}
+                          alt={championName}
+                          className="ranking-champion-photo"
+                          width={120}
+                          height={120}
+                          sizes="120px"
+                          loading="lazy"
+                        />
+                      ) : null}
+                      <span>{locale === "ru" ? "Чемпион дивизиона" : "Division champion"}</span>
+                      <strong>{championName}</strong>
+                      {championLink?.localSlug ? (
+                        <Link href={localizePath(`/fighters/${championLink.localSlug}`, locale)}>
+                          {locale === "ru" ? "Открыть профиль" : "Open profile"}
+                        </Link>
+                      ) : (
+                        <span className="table-note">{locale === "ru" ? "Профиль ожидается" : "Profile pending"}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="table-wrap">
                   <table className="ranking-table">
+                    <caption className="sr-only">
+                      {locale === "ru"
+                        ? `Рейтинг UFC: ${formatWeightClass(group.title, locale)}`
+                        : `UFC ranking: ${formatWeightClass(group.title, locale)}`}
+                    </caption>
                     <thead>
                       <tr>
-                        <th>#</th>
-                        <th>{locale === "ru" ? "Боец" : "Fighter"}</th>
-                        <th>{locale === "ru" ? "Профиль" : "Profile"}</th>
+                        <th scope="col">#</th>
+                        <th scope="col">{locale === "ru" ? "Боец" : "Fighter"}</th>
+                        <th scope="col">{locale === "ru" ? "Профиль" : "Profile"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -184,26 +227,30 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                           rankingLinks?.bySlug.get(fighter.officialSlug.toLowerCase()) ??
                           rankingLinks?.byName.get(fighter.name.toLowerCase()) ??
                           null;
+                        const fighterName = (locale === "ru" ? link?.nameRu : null) ?? fighter.name;
 
                         return (
                           <tr key={`${group.title}-${fighter.rank}`} className="ranking-row">
-                            <td>{fighter.rank + 1}</td>
+                            <td>{fighter.rank}</td>
                             <td>
                               <div className="ranking-fighter-cell">
                                 {link?.photoUrl ? (
-                                  <img
-                                    src={link.photoUrl}
-                                    alt={fighter.name}
+                                  <Image
+                                    src={getDisplayImageUrl(link.photoUrl)}
+                                    alt={fighterName}
                                     className="ranking-fighter-photo"
+                                    width={52}
+                                    height={52}
+                                    sizes="52px"
                                     loading="lazy"
                                   />
                                 ) : (
                                   <div className="ranking-fighter-photo ranking-fighter-photo--placeholder" aria-hidden="true">
-                                    {fighter.name.charAt(0)}
+                                    {fighterName.charAt(0)}
                                   </div>
                                 )}
                                 <div className="ranking-fighter-copy">
-                                  <strong>{fighter.name}</strong>
+                                  <strong>{fighterName}</strong>
                                   <span>UFC</span>
                                 </div>
                               </div>

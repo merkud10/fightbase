@@ -83,11 +83,11 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
   };
   const activeFiltersCount = [filters.query, filters.status, filters.weightClass].filter(Boolean).length;
   const siteUrl = getSiteUrl();
-  const collectionUrl = new URL("/fighters", siteUrl).toString();
+  const collectionUrl = new URL(localizePath("/fighters", locale), siteUrl).toString();
   const itemListElements = fighters.slice(0, 24).filter(Boolean).map((fighter, index) => ({
     "@type": "ListItem",
     position: index + 1,
-    url: new URL(`/fighters/${fighter.slug}`, siteUrl).toString(),
+    url: new URL(localizePath(`/fighters/${fighter.slug}`, locale), siteUrl).toString(),
     name: locale === "ru" ? fighter.nameRu || fighter.name : fighter.name
   }));
 

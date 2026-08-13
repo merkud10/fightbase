@@ -9,6 +9,7 @@ import { PageHero } from "@/components/page-hero";
 import { Pagination } from "@/components/pagination";
 import { getEventsPageData } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
@@ -156,8 +157,9 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           <div>
             <div className="events-editorial-list">
               {events.map((event) => {
-                const leadFight = event.fights?.[0] ?? null;
-                const previewFights = (event.fights ?? []).slice(0, 3);
+                const orderedFights = sortFightsForCard(event.fights ?? []);
+                const leadFight = orderedFights[0] ?? null;
+                const previewFights = orderedFights.slice(0, 3);
                 const date = new Date(event.date);
                 const monthLabel = date
                   .toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", { month: "short" })
@@ -232,7 +234,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                                 </span>
                               ) : fight.status === "completed" ? (
                                 <span className="event-listing-fight-result">
-                                  {locale === "ru" ? "Ничья / NC" : "Draw / NC"}
+                                  {formatWinnerlessFightResult(fight.resultType, locale)}
                                 </span>
                               ) : fight.predictionSnapshot ? (
                                 <Link

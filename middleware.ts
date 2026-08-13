@@ -4,24 +4,7 @@ import { NextResponse } from "next/server";
 
 import { adminSessionCookieName, verifyAdminSessionToken } from "@/lib/auth/session";
 import { localeCookieName } from "@/lib/locale-config";
-import { isLocale, localizePath, stripLocalePrefix } from "@/lib/locale-path";
-
-function detectLocaleFromAcceptLanguage(request: NextRequest): "ru" | "en" {
-  const header = request.headers.get("accept-language") ?? "";
-  const segments = header.split(",").map((segment) => {
-    const [lang = "", q] = segment.trim().split(";q=");
-    return { lang: lang.trim().toLowerCase(), q: q ? parseFloat(q) : 1 };
-  });
-
-  segments.sort((a, b) => b.q - a.q);
-
-  for (const segment of segments) {
-    if (segment.lang.startsWith("ru")) return "ru";
-    if (segment.lang.startsWith("en")) return "en";
-  }
-
-  return "ru";
-}
+import { localizePath, stripLocalePrefix } from "@/lib/locale-path";
 
 function isSecureContext(request: NextRequest) {
   return request.nextUrl.protocol === "https:";
@@ -164,10 +147,11 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const cookieLocale = request.cookies.get(localeCookieName)?.value;
-  const locale = isLocale(cookieLocale) ? cookieLocale : detectLocaleFromAcceptLanguage(request);
   const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = localizePath(pathname, locale);
+  // The public site currently has only Russian content. Redirecting an English
+  // browser (or a stale `en` cookie) through /en before /ru creates a needless
+  // second 308 and advertises a locale that is not actually available.
+  redirectUrl.pathname = localizePath(pathname, "ru");
 
   return NextResponse.redirect(redirectUrl, 308);
 }

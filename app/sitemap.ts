@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { getArticleRouteBase } from "@/lib/article-routes";
+import { getQuotesPageData } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
 
@@ -13,7 +14,6 @@ const staticRoutes = [
   "/rankings",
   "/predictions",
   "/quotes",
-  "/videos",
   "/about",
   "/disclaimer",
   "/editorial-policy",
@@ -37,7 +37,7 @@ function looksLikeLowQualitySlug(value: string) {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
-  const [articles, events, fighters, predictionSnapshots] = await Promise.all([
+  const [articles, events, fighters, predictionSnapshots, quotes] = await Promise.all([
     prisma.article.findMany({
       where: {
         status: "published"
@@ -104,17 +104,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         updatedAt: "desc"
       },
       take: 1000
-    })
+    }),
+    getQuotesPageData()
   ]);
   const fighterEntries = fighters.filter(
     (fighter) => hasUsablePhotoUrl(fighter.photoUrl) && !looksLikeLowQualitySlug(fighter.slug)
   );
-  const staticEntries: MetadataRoute.Sitemap = staticRoutes.map((path) => ({
-    url: path === "" ? `${siteUrl}/ru` : `${siteUrl}/ru${path}`,
-    lastModified: new Date(),
-    changeFrequency: path === "" ? "daily" : "weekly",
-    priority: path === "" ? 1 : 0.7
-  }));
+  const staticEntries: MetadataRoute.Sitemap = staticRoutes
+    .filter((path) => path !== "/quotes" || quotes.length > 0)
+    .map((path) => ({
+      url: path === "" ? `${siteUrl}/ru` : `${siteUrl}/ru${path}`,
+      changeFrequency: path === "" ? "daily" : "weekly",
+      priority: path === "" ? 1 : 0.7
+    }));
 
   return [
     ...staticEntries,

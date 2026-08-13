@@ -86,7 +86,12 @@ export async function generateMetadata(): Promise<Metadata> {
       address: false,
       email: false
     },
-    alternates: buildLocaleAlternates("/"),
+    alternates: {
+      ...buildLocaleAlternates("/"),
+      types: {
+        "application/rss+xml": [{ url: "/rss.xml", title: "FightBase Media — новости UFC" }]
+      }
+    },
     openGraph: {
       type: "website",
       locale: isRu ? "ru_RU" : "en_US",
@@ -137,16 +142,19 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${bodyFont.variable} ${headingFont.variable} ${navFont.variable}`}>
+        <a className="skip-link" href="#main-content">
+          {locale === "ru" ? "Перейти к содержанию" : "Skip to content"}
+        </a>
         <JsonLd
           data={{
             "@context": "https://schema.org",
             "@type": "NewsMediaOrganization",
             name: "FightBase Media",
-            url: siteUrl,
+            url: `${siteUrl}/ru`,
             areaServed: ["RU", "US", "Worldwide"],
             knowsAbout: ["MMA", "UFC", "mixed martial arts"],
-            publishingPrinciples: `${siteUrl}/editorial-policy`,
-            inLanguage: ["ru-RU", "en-US"]
+            publishingPrinciples: `${siteUrl}/ru/editorial-policy`,
+            inLanguage: "ru-RU"
           }}
         />
         <JsonLd
@@ -154,21 +162,23 @@ export default async function RootLayout({
             "@context": "https://schema.org",
             "@type": "WebSite",
             name: "FightBase Media",
-            url: siteUrl,
+            url: `${siteUrl}/ru`,
             publisher: {
               "@type": "Organization",
               name: "FightBase Media"
             },
-            inLanguage: ["ru-RU", "en-US"]
+            inLanguage: "ru-RU"
           }}
         />
         <div className="page-shell">
           <Header />
-          {children}
+          <div id="main-content" className="main-content" tabIndex={-1}>
+            {children}
+          </div>
           <Footer />
         </div>
         <FloatingSocialLinks />
-        <ScrollToTop />
+        <ScrollToTop label={locale === "ru" ? "Наверх" : "Scroll to top"} />
         <YandexMetrikaHit />
         <noscript>
           <div>

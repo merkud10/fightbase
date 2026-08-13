@@ -32,11 +32,17 @@ test("cron-tasks.sh has no ${var:-{...}} default-value traps", async () => {
   );
 });
 
-test("cron-tasks.sh passes bash -n syntax check", async () => {
-  await assert.doesNotReject(
-    execFileAsync("bash", ["-n", CRON_TASKS_PATH]),
-    "bash -n reported a syntax error in cron-tasks.sh"
-  );
+test("cron-tasks.sh passes bash -n syntax check", async (context) => {
+  try {
+    await execFileAsync("bash", ["-n", CRON_TASKS_PATH]);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      context.skip("bash is not installed in this environment; CI validates the script on Linux");
+      return;
+    }
+
+    assert.fail(`bash -n reported a syntax error in cron-tasks.sh: ${String(error)}`);
+  }
 });
 
 test("cron-tasks.sh failure branches surface curl diagnostics, not 'ошибка при запуске'", async () => {

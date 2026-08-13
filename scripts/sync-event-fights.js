@@ -3,6 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
+const { findExactFighterMatch } = require("./fighter-name-matching");
 
 const prisma = new PrismaClient();
 
@@ -72,8 +73,29 @@ function parseMethod(competition) {
     if (text.includes("Decision")) return "Decision";
     if (text.includes("Submission")) return "Submission";
     if (text.includes("Kotko") || text.includes("KO") || text.includes("TKO")) return "KO/TKO";
+    if (/no[\s-]*contest|\bn\/?c\b/i.test(text)) return "No Contest";
+    if (/draw/i.test(text)) return "Draw";
   }
 
+  return null;
+}
+
+function parseResultType(competition, winnerOrder) {
+  if (competition.status?.type?.completed !== true) return null;
+  if (winnerOrder) return "win";
+
+  const resultText = [
+    competition.status?.type?.name,
+    competition.status?.type?.description,
+    competition.status?.type?.detail,
+    competition.status?.type?.shortDetail,
+    ...(competition.details || []).map((detail) => detail.type?.text)
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (/no[\s-]*contest|\bn\/?c\b/i.test(resultText)) return "no_contest";
+  if (/draw/i.test(resultText)) return "draw";
   return null;
 }
 
@@ -129,11 +151,15 @@ function parseFightsFromEspn(data) {
     }
 
     const method = isCompleted ? parseMethod(comp) : null;
+    const resultType = parseResultType(comp, winnerOrder);
     const resultRound = isCompleted ? (comp.status?.period ?? null) : null;
     const resultTime = isCompleted && method !== "Decision" ? parseResultTime(comp) : null;
+    const boutOrder = fights.length + 1;
 
     fights.push({
       stage: inferStage(i, total),
+      boutOrder,
+      isMainEvent: boutOrder === 1,
       weightClass: weightClass || "Unknown",
       fighterA: {
         name: fighterA.athlete?.displayName || fighterA.athlete?.fullName || "Unknown",
@@ -145,6 +171,7 @@ function parseFightsFromEspn(data) {
       },
       hasResult: isCompleted,
       winnerOrder,
+      resultType,
       method,
       resultRound,
       resultTime
@@ -156,38 +183,19 @@ function parseFightsFromEspn(data) {
 
 async function findFighterByName(name) {
   const slug = slugify(name);
+  const fighterToMatch = { name, slug };
 
   const bySlug = await prisma.fighter.findUnique({
     where: { slug },
     select: { id: true, slug: true, name: true }
   });
-  if (bySlug) return bySlug;
+  if (bySlug) return findExactFighterMatch(fighterToMatch, [bySlug]);
 
-  const byName = await prisma.fighter.findFirst({
-    where: { name: { equals: name, mode: "insensitive" } },
+  const byName = await prisma.fighter.findMany({
+    where: { name: { equals: name.trim(), mode: "insensitive" } },
     select: { id: true, slug: true, name: true }
   });
-  if (byName) return byName;
-
-  const nameParts = name.split(" ");
-  if (nameParts.length >= 2) {
-    const lastName = nameParts[nameParts.length - 1];
-    const candidates = await prisma.fighter.findMany({
-      where: { name: { contains: lastName, mode: "insensitive" } },
-      select: { id: true, slug: true, name: true }
-    });
-
-    if (candidates.length === 1) return candidates[0];
-
-    const firstName = nameParts[0];
-    const exact = candidates.find((c) =>
-      c.name.toLowerCase().includes(firstName.toLowerCase()) &&
-      c.name.toLowerCase().includes(lastName.toLowerCase())
-    );
-    if (exact) return exact;
-  }
-
-  return null;
+  return findExactFighterMatch(fighterToMatch, byName);
 }
 
 async function ensureFighter(name) {
@@ -289,17 +297,18 @@ async function syncEventFightCard(event) {
 
     const data = {
       stage: parsedFight.stage,
+      boutOrder: parsedFight.boutOrder,
+      isMainEvent: parsedFight.isMainEvent,
       weightClass: parsedFight.weightClass,
       status: parsedFight.hasResult ? "completed" : "scheduled",
       fighterAId: fighterA.id,
       fighterBId: fighterB.id,
       eventId: event.id,
-      ...(parsedFight.hasResult ? {
-        winnerFighterId,
-        method: parsedFight.method,
-        resultRound: parsedFight.resultRound,
-        resultTime: parsedFight.resultTime
-      } : {})
+      resultType: parsedFight.hasResult ? parsedFight.resultType : null,
+      winnerFighterId: parsedFight.hasResult ? winnerFighterId : null,
+      method: parsedFight.hasResult ? parsedFight.method : null,
+      resultRound: parsedFight.hasResult ? parsedFight.resultRound : null,
+      resultTime: parsedFight.hasResult ? parsedFight.resultTime : null
     };
 
     const existing = existingByKey.get(key);

@@ -142,6 +142,8 @@ async function main() {
       data: {
         slug: "shavkat-rakhmonov-vs-islam-makhachev",
         stage: "main_card",
+        boutOrder: 1,
+        isMainEvent: true,
         weightClass: "Welterweight",
         status: "scheduled",
         eventId: eventUfc314.id,
@@ -152,7 +154,9 @@ async function main() {
     prisma.fight.create({
       data: {
         slug: "dricus-du-plessis-vs-alex-pereira",
-        stage: "main_event",
+        stage: "main_card",
+        boutOrder: 1,
+        isMainEvent: true,
         weightClass: "Middleweight",
         status: "scheduled",
         eventId: eventFightNight.id,

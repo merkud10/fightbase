@@ -4,13 +4,21 @@ export const revalidate = 86400;
 
 import { PageHero } from "@/components/page-hero";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  title: "Редакционная политика",
-  description: "Редакционная политика FightBase Media: разграничение новостей и аналитики, точность формулировок и стандарты для UFC-покрытия.",
-  alternates: buildLocaleAlternates("/editorial-policy")
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/editorial-policy",
+    title: locale === "ru" ? "Редакционная политика" : "Editorial policy",
+    description:
+      locale === "ru"
+        ? "Редакционная политика FightBase Media: разграничение новостей и аналитики, точность формулировок и стандарты для UFC-покрытия."
+        : "FightBase Media editorial policy on separating news from analysis, accuracy, and standards for UFC coverage."
+  });
+}
 
 export default async function EditorialPolicyPage() {
   const locale = await getLocale();

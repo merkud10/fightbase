@@ -25,6 +25,7 @@ export function SearchableMultiSelect({
   emptyText: string;
 }) {
   const searchId = useId();
+  const summaryId = useId();
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>(defaultValue);
 
@@ -42,18 +43,19 @@ export function SearchableMultiSelect({
 
   return (
     <div className="admin-field searchable-select">
-      <span>{label}</span>
-      <label className="searchable-select-search" htmlFor={searchId}>
+      <label htmlFor={searchId}>{label}</label>
+      <div className="searchable-select-search">
         <input
           id={searchId}
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={searchPlaceholder}
+          aria-describedby={summaryId}
         />
-      </label>
+      </div>
 
-      <div className="searchable-select-summary">
+      <div id={summaryId} className="searchable-select-summary">
         {selectedLabels.length > 0 ? selectedLabels.join(", ") : helperText}
       </div>
 

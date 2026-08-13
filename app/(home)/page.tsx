@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const revalidate = 1800;
@@ -9,6 +10,7 @@ import { getArticleHref } from "@/lib/article-routes";
 import { JsonLd } from "@/components/json-ld";
 import { getHomePageData } from "@/lib/db";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
+import { sortFightsForCard } from "@/lib/fight-card";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
@@ -25,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
     : "FightBase Media covers UFC as a specialist sports publication with news, event pages, fight predictions, fighter profiles, and rankings.";
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: {
       ...buildLocaleAlternates("/"),
@@ -52,15 +54,16 @@ export default async function HomePage() {
   const locale = await getLocale();
   const { articles, leadArticle, events, fighters, totalArticles, totalEvents, totalFighters } = await getHomePageData();
   const leadEvent = events[0];
-  const leadFight = leadEvent?.fights?.[0];
-  const supportFight = leadEvent?.fights?.[1];
+  const leadEventFights = sortFightsForCard(leadEvent?.fights ?? []);
+  const leadFight = leadEventFights[0];
+  const supportFight = leadEventFights[1];
   const siteUrl = getSiteUrl();
   const pageUrl = new URL(localizePath("/", locale), siteUrl).toString();
   const itemListElements = [
     ...articles.slice(0, 4).map((article, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      url: new URL(localizePath(`/news/${article.slug}`, locale), siteUrl).toString(),
+      url: new URL(localizePath(getArticleHref(article.category, article.slug), locale), siteUrl).toString(),
       name: article.title
     })),
     ...events.slice(0, 4).map((event, index) => ({
@@ -117,7 +120,7 @@ export default async function HomePage() {
               </h1>
 
               <div className="hero-poster-subline">
-                {leadFight ? (
+                {leadEvent && leadFight ? (
                   <>
                     <span>{leadEvent?.promotion?.shortName ?? "UFC"}</span>
                     <span>{new Date(leadEvent.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")}</span>
@@ -175,7 +178,14 @@ export default async function HomePage() {
               </div>
 
               <div className="hero-gorilla-sigil" aria-hidden="true">
-                <img src="/gorilla-crown-logo.png" alt="" />
+                <Image
+                  src="/gorilla-crown-logo.png"
+                  alt=""
+                  width={1024}
+                  height={1024}
+                  sizes="(max-width: 720px) 180px, (max-width: 1080px) 280px, 360px"
+                  priority
+                />
               </div>
 
               <div className="hero-poster-mark">

@@ -34,6 +34,7 @@
     "content:sync-ufc-champion-status": "node scripts/sync-ufc-champion-status.js",
     "content:sync-upcoming-events": "node scripts/sync-upcoming-events.js",
     "content:sync-event-fights": "node scripts/sync-event-fights.js",
+    "content:sync-ufc-rankings": "node scripts/sync-ufc-rankings.js",
     "content:sync-upcoming-pipeline": "node scripts/sync-upcoming-pipeline.js",
     "content:sync-ufc-russian-names": "node scripts/sync-ufc-russian-names.js",
     "content:backfill-ufc-data": "node scripts/backfill-ufc-fighter-data.js",

@@ -47,6 +47,7 @@ export function FilterSection({
         <Link
           href={buildFilterHref(basePath, current, { [param]: "" })}
           className={`filter-chip ${activeValue === "" ? "active" : ""}`}
+          aria-current={activeValue === "" ? "true" : undefined}
         >
           {allLabel}
         </Link>
@@ -57,6 +58,7 @@ export function FilterSection({
               [param]: activeValue === item.value ? "" : item.value
             })}
             className={`filter-chip ${activeValue === item.value ? "active" : ""}`}
+            aria-current={activeValue === item.value ? "true" : undefined}
           >
             {item.label}
           </Link>

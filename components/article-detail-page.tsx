@@ -9,7 +9,9 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleRouteBase } from "@/lib/article-routes";
-import { getArticlePageData } from "@/lib/db";
+import { ArticleCard } from "@/components/cards";
+import { getArticlePageData, getRelatedArticles } from "@/lib/db";
+import { formatArticleTagLabel } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -79,9 +81,10 @@ export async function generateArticlePageMetadata(
   const article = await getArticlePageData(slug, category);
 
   if (!article) {
-    return {
-      title: locale === "ru" ? "Материал не найден" : "Story not found"
-    };
+    // notFound() here (not only in the page body) is what makes the response a real
+    // HTTP 404: metadata resolves before streaming starts, while the page body runs
+    // after the 200 shell has already been flushed through the loading boundary.
+    notFound();
   }
 
   const articlePath = `${getArticleRouteBase(category)}/${article.slug}`;
@@ -132,9 +135,24 @@ export async function ArticleDetailPage({
     notFound();
   }
 
+  const relatedArticles = await getRelatedArticles({
+    articleId: article.id,
+    category,
+    eventId: article.eventId,
+    fighterIds: article.fighterMap.map(({ fighter }) => fighter.id)
+  });
+
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const articlePath = `${getArticleRouteBase(category)}/${article.slug}`;
   const articleUrl = `${siteUrl}${localizePath(articlePath, locale)}`;
+  const articleImageUrl = ogImageUrl(article.coverImageUrl);
+  const primarySource = article.sourceMap[0]?.source;
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+  const formatDate = (date: Date) =>
+    new Intl.DateTimeFormat(dateLocale, {
+      dateStyle: "long",
+      timeZone: "Europe/Moscow"
+    }).format(date);
   const labels = getSectionLabels(category, locale);
   const breadcrumbItems = [
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
@@ -156,19 +174,22 @@ export async function ArticleDetailPage({
     "@type": category === "news" ? "NewsArticle" : "Article",
     headline: article.title,
     description: article.excerpt,
-    image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+    image: [articleImageUrl],
     datePublished: article.publishedAt.toISOString(),
     dateModified: article.updatedAt.toISOString(),
     mainEntityOfPage: articleUrl,
     articleSection: labels.listName,
     author: {
       "@type": "Organization",
-      name: "FightBase Media"
+      name: "FightBase Media",
+      url: `${siteUrl}/ru`
     },
     publisher: {
       "@type": "Organization",
-      name: "FightBase Media"
-    }
+      name: "FightBase Media",
+      url: `${siteUrl}/ru`
+    },
+    keywords: article.tagMap.map(({ tag }) => formatArticleTagLabel(tag.slug || tag.label, locale))
   };
 
   return (
@@ -176,7 +197,36 @@ export async function ArticleDetailPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={articleJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero title={article.title} />
+      <PageHero title={article.title} description={article.excerpt} />
+
+      <section className="policy-card" aria-label={locale === "ru" ? "Данные материала" : "Story details"}>
+        <p className="kicker">
+          {locale === "ru" ? "Автор" : "By"}: FightBase Media
+        </p>
+        <p className="copy">
+          {locale === "ru" ? "Опубликовано" : "Published"}: {" "}
+          <time dateTime={article.publishedAt.toISOString()}>{formatDate(article.publishedAt)}</time>
+          {" · "}
+          {locale === "ru" ? "Обновлено" : "Updated"}: {" "}
+          <time dateTime={article.updatedAt.toISOString()}>{formatDate(article.updatedAt)}</time>
+        </p>
+        {primarySource ? (
+          <p className="copy">
+            {locale === "ru" ? "Первоисточник" : "Original source"}: {" "}
+            <a href={primarySource.url} target="_blank" rel="noopener noreferrer">
+              {primarySource.label}
+            </a>
+          </p>
+        ) : null}
+        {article.tagMap.length > 0 ? (
+          <p className="copy">
+            {locale === "ru" ? "Темы" : "Topics"}: {" "}
+            {article.tagMap
+              .map(({ tag }) => formatArticleTagLabel(tag.slug || tag.label, locale))
+              .join(" · ")}
+          </p>
+        ) : null}
+      </section>
 
       <section className="detail-grid">
         <article className="stack">
@@ -254,6 +304,21 @@ export async function ArticleDetailPage({
           ) : null}
         </aside>
       </section>
+
+      {relatedArticles.length > 0 ? (
+        <section className="section stack" aria-label={locale === "ru" ? "Читайте также" : "Read next"}>
+          <div className="section-head">
+            <div className="section-head-copy">
+              <h2>{locale === "ru" ? "Читайте также" : "Read next"}</h2>
+            </div>
+          </div>
+          <div className="story-grid">
+            {relatedArticles.map((related) => (
+              <ArticleCard key={related.id} article={related} locale={locale} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

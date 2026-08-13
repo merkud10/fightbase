@@ -1,6 +1,7 @@
 import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
+import { sortFightsForCard } from "@/lib/fight-card";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -37,9 +38,7 @@ export const getEventsPageData = cache(async function getEventsPageData(filters:
             fighterA: true,
             fighterB: true,
             predictionSnapshot: true
-          },
-          take: 5,
-          orderBy: { createdAt: "asc" }
+          }
         }
       },
       skip: (page - 1) * perPage,
@@ -55,9 +54,13 @@ export const getEventsPageData = cache(async function getEventsPageData(filters:
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const orderedEvents = events.map((event) => ({
+    ...event,
+    fights: sortFightsForCard(event.fights).slice(0, 5)
+  }));
 
   return {
-    events,
+    events: orderedEvents,
     totalCount,
     page: Math.min(page, totalPages),
     totalPages,
@@ -82,8 +85,7 @@ export const getEventPageData = cache(async function getEventPageData(slug: stri
           fighterA: true,
           fighterB: true,
           predictionSnapshot: true
-        },
-        orderBy: { createdAt: "asc" }
+        }
       }
     }
   });
@@ -99,13 +101,16 @@ export const getEventPageData = cache(async function getEventPageData(slug: stri
   });
 
   return {
-    event,
+    event: {
+      ...event,
+      fights: sortFightsForCard(event.fights)
+    },
     relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 30)
   };
 });
 
 export async function getPredictionsPageData() {
-  return prisma.event.findMany({
+  const events = await prisma.event.findMany({
     where: {
       status: {
         in: ["upcoming", "live"]
@@ -115,7 +120,6 @@ export async function getPredictionsPageData() {
     include: {
       promotion: true,
       fights: {
-        orderBy: { createdAt: "asc" },
         include: {
           predictionSnapshot: true,
           fighterA: {
@@ -132,6 +136,11 @@ export async function getPredictionsPageData() {
       }
     }
   });
+
+  return events.map((event) => ({
+    ...event,
+    fights: sortFightsForCard(event.fights)
+  }));
 }
 
 export const getPredictionPageParams = cache(async function getPredictionPageParams() {

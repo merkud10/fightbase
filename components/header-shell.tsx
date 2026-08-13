@@ -19,7 +19,7 @@ export function HeaderShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ScrollToTop() {
+export function ScrollToTop({ label = "Scroll to top" }: { label?: string }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -29,11 +29,18 @@ export function ScrollToTop() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  if (!visible) return null;
+
   return (
     <button
-      className={`scroll-top ${visible ? "scroll-top--visible" : ""}`}
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      aria-label="Scroll to top"
+      className="scroll-top scroll-top--visible"
+      onClick={() =>
+        window.scrollTo({
+          top: 0,
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+        })
+      }
+      aria-label={label}
     >
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M10 16V4M10 4L4 10M10 4l6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" />

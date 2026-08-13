@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -8,16 +9,23 @@ import { getArticleHref } from "@/lib/article-routes";
 import { getQuotesPageData } from "@/lib/db";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { localizePath } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
   const quotes = await getQuotesPageData();
 
   return {
-    title: "Интервью и прямая речь UFC",
-    description:
-      "Интервью, заявления и материалы FightBase Media, построенные вокруг прямой речи бойцов, тренеров и участников UFC-повестки.",
-    alternates: buildLocaleAlternates("/quotes"),
+    ...buildPageMetadata({
+      locale,
+      path: "/quotes",
+      title: locale === "ru" ? "Интервью и прямая речь UFC" : "UFC interviews and quotes",
+      description:
+        locale === "ru"
+          ? "Интервью, заявления и материалы FightBase Media, построенные вокруг прямой речи бойцов, тренеров и участников UFC-повестки."
+          : "FightBase Media interviews and reports centered on direct quotes from UFC fighters, coaches, and other participants."
+    }),
     robots: quotes.length
       ? undefined
       : {
@@ -48,10 +56,13 @@ export default async function QuotesPage() {
             <article key={article.id} className="feature-card editorial-card">
               {article.coverImageUrl ? (
                 <div className="editorial-card-cover">
-                  <img
+                  <Image
                     src={getDisplayImageUrl(article.coverImageUrl)}
                     alt={article.coverImageAlt || article.title}
                     className="editorial-card-cover-image"
+                    width={720}
+                    height={405}
+                    sizes="(max-width: 720px) 100vw, (max-width: 1080px) 50vw, 33vw"
                   />
                 </div>
               ) : null}

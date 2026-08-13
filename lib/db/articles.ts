@@ -198,3 +198,64 @@ export const getArticlePageData = cache(async function getArticlePageData(
 
   return article;
 });
+
+const relatedArticleSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  coverImageUrl: true,
+  coverImageAlt: true,
+  excerpt: true,
+  publishedAt: true,
+  category: true,
+  promotion: { select: { shortName: true } },
+  tagMap: { select: { tag: { select: { id: true, label: true, slug: true } } } }
+} satisfies Prisma.ArticleSelect;
+
+export async function getRelatedArticles(input: {
+  articleId: string;
+  category: "news" | "analysis" | "interview";
+  eventId?: string | null;
+  fighterIds?: string[];
+  take?: number;
+}) {
+  const take = input.take ?? 4;
+  const fighterIds = input.fighterIds ?? [];
+  const baseWhere: Prisma.ArticleWhereInput = {
+    status: "published",
+    id: { not: input.articleId },
+    ...buildPublicArticleImageWhere()
+  };
+
+  const linkedFilters: Prisma.ArticleWhereInput[] = [
+    ...(input.eventId ? [{ eventId: input.eventId }] : []),
+    ...(fighterIds.length > 0 ? [{ fighterMap: { some: { fighterId: { in: fighterIds } } } }] : [])
+  ];
+
+  const linked =
+    linkedFilters.length > 0
+      ? await prisma.article.findMany({
+          where: { ...baseWhere, OR: linkedFilters },
+          orderBy: { publishedAt: "desc" },
+          take,
+          select: relatedArticleSelect
+        })
+      : [];
+
+  if (linked.length >= take) {
+    return filterArticlesWithRenderableImages(linked);
+  }
+
+  const fill = await prisma.article.findMany({
+    where: {
+      ...baseWhere,
+      category: input.category,
+      id: { notIn: [input.articleId, ...linked.map((article) => article.id)] }
+    },
+    orderBy: { publishedAt: "desc" },
+    take: take - linked.length,
+    select: relatedArticleSelect
+  });
+
+  return filterArticlesWithRenderableImages([...linked, ...fill]);
+}

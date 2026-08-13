@@ -47,6 +47,12 @@ enum FightStatus {
   completed
 }
 
+enum FightResultType {
+  win
+  draw
+  no_contest
+}
+
 enum SourceType {
   official
   interview
@@ -193,8 +199,11 @@ model Fight {
   id              String      @id @default(cuid())
   slug            String?     @unique
   stage           FightStage
+  boutOrder       Int?
+  isMainEvent     Boolean     @default(false)
   weightClass     String
   status          FightStatus
+  resultType      FightResultType?
   winnerFighterId String?
   method          String?
   resultRound     Int?
@@ -214,6 +223,7 @@ model Fight {
   updatedAt       DateTime    @updatedAt
 
   @@index([eventId])
+  @@index([eventId, isMainEvent, stage, boutOrder])
   @@index([fighterAId])
   @@index([fighterBId])
   @@index([status])
@@ -456,4 +466,15 @@ model SourceDiscoveryRun {
 
   @@index([sourceLabel, startedAt])
   @@index([startedAt])
+}
+
+model UfcRankingSnapshot {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  payload   String
+  fetchedAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fetchedAt])
 }

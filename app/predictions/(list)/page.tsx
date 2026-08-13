@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionsPageData } from "@/lib/db";
-import { formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
-import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
+import { localizePath } from "@/lib/locale-path";
+import { buildPageMetadata } from "@/lib/page-metadata";
 import { getSiteUrl } from "@/lib/site";
 
 export const revalidate = 86400;
@@ -23,11 +26,17 @@ function hasUsablePhoto(url?: string | null) {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "Прогнозы UFC",
-    description: "Превью ключевых боев UFC: главные матчапы, стилистические детали и отдельные snapshot-страницы по каждому поединку.",
-    alternates: buildLocaleAlternates("/predictions")
-  };
+  const locale = await getLocale();
+
+  return buildPageMetadata({
+    locale,
+    path: "/predictions",
+    title: locale === "ru" ? "Прогнозы UFC" : "UFC predictions",
+    description:
+      locale === "ru"
+        ? "Превью ключевых боёв UFC: главные матчапы, стилистические детали и отдельные snapshot-страницы по каждому поединку."
+        : "UFC fight previews with key matchups, stylistic details, and a dated prediction snapshot for every covered bout."
+  });
 }
 
 export default async function PredictionsPage() {
@@ -42,14 +51,19 @@ export default async function PredictionsPage() {
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
     { label: locale === "ru" ? "Прогнозы" : "Predictions" }
   ];
-  const itemList = eventsWithSnapshots.flatMap((event) =>
-    event.fights.map((fight, index) => ({
+  const itemList = eventsWithSnapshots
+    .flatMap((event) =>
+      event.fights.map((fight) => ({
+        fight,
+        eventSlug: event.slug
+      }))
+    )
+    .map(({ fight, eventSlug }, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      url: new URL(localizePath(`/predictions/${event.slug}/${fight.slug}`, locale), siteUrl).toString(),
+      url: new URL(localizePath(`/predictions/${eventSlug}/${fight.slug}`, locale), siteUrl).toString(),
       name: `${getDisplayName(fight.fighterA, locale)} vs ${getDisplayName(fight.fighterB, locale)}`
-    }))
-  );
+    }));
 
   return (
     <main className="container">
@@ -100,7 +114,14 @@ export default async function PredictionsPage() {
             <div className="prediction-event-head">
               <div>
                 <p className="kicker">
-                  {event.promotion.shortName} · {new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} · {event.city}
+                  {[
+                    event.promotion.shortName,
+                    new Date(event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US"),
+                    formatEventLocation(event.city, null, locale)
+                  ]
+                    .map((part) => String(part || "").trim())
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
                 <h3>{event.name}</h3>
               </div>
@@ -122,12 +143,26 @@ export default async function PredictionsPage() {
                   <>
                     <div className="prediction-match-visual">
                       {hasUsablePhoto(fight.fighterA.photoUrl) ? (
-                        <img src={String(fight.fighterA.photoUrl)} alt={fighterAName} className="prediction-match-photo" />
+                        <Image
+                          src={getDisplayImageUrl(String(fight.fighterA.photoUrl))}
+                          alt={fighterAName}
+                          className="prediction-match-photo"
+                          width={50}
+                          height={72}
+                          sizes="50px"
+                        />
                       ) : (
                         <div className="prediction-match-photo prediction-match-photo--placeholder">{fighterAName.charAt(0)}</div>
                       )}
                       {hasUsablePhoto(fight.fighterB.photoUrl) ? (
-                        <img src={String(fight.fighterB.photoUrl)} alt={fighterBName} className="prediction-match-photo" />
+                        <Image
+                          src={getDisplayImageUrl(String(fight.fighterB.photoUrl))}
+                          alt={fighterBName}
+                          className="prediction-match-photo"
+                          width={50}
+                          height={72}
+                          sizes="50px"
+                        />
                       ) : (
                         <div className="prediction-match-photo prediction-match-photo--placeholder">{fighterBName.charAt(0)}</div>
                       )}

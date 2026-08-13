@@ -31,8 +31,17 @@ function stripHtml(value: string) {
   return decodeHtml(value.replace(/<[^>]+>/g, " "));
 }
 
+// Strip tags before trimming the suffix: in the real markup "Top Rank" sits inside
+// <span>…</span>, so an end-anchored regex never matches the raw HTML string.
 function normalizeDivisionTitle(value: string) {
-  return stripHtml(value.replace(/\s+Top Rank$/i, ""));
+  return stripHtml(value).replace(/\s+Top Rank$/i, "").trim();
+}
+
+// Matches both the official English titles and the legacy Russian ones still stored in
+// old snapshots. Pound-for-pound groups have no division champion: UFC.com puts the #1
+// fighter in the "champion" slot and repeats them as the first ranked row.
+export function isPoundForPoundRankingGroup(title: string) {
+  return /pound-for-pound/i.test(title) || /вне\s+(зависимости\s+от\s+категорий|весовых\s+категорий)/i.test(title);
 }
 
 function parseRankingRows(sectionHtml: string): UfcOfficialRankingRow[] {
@@ -63,9 +72,9 @@ function parseRankingRows(sectionHtml: string): UfcOfficialRankingRow[] {
 }
 
 // ufc.com/rankings is a slow, Cloudflare-fronted external dependency (observed 6-19s, and it
-// serves datacenter IPs 403/429/503 bot challenges). Cap the wait so a sluggish upstream can't
-// hang the render, and never throw: a transient upstream failure must degrade to empty rankings
-// rather than crash the whole /rankings page into the error boundary.
+// serves datacenter IPs 403/429/503 bot challenges). This fetcher is called only by the protected
+// snapshot refresh flow, never while rendering the public rankings page. Cap the wait and never
+// throw so a transient upstream failure preserves the last successful database snapshot.
 const UFC_RANKINGS_FETCH_TIMEOUT_MS = 15_000;
 
 export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGroup[]> {
@@ -76,7 +85,7 @@ export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGrou
       headers: {
         "user-agent": "Mozilla/5.0 FightBase/1.0"
       },
-      next: { revalidate: 3600 },
+      cache: "no-store",
       signal: AbortSignal.timeout(UFC_RANKINGS_FETCH_TIMEOUT_MS)
     });
 
@@ -122,8 +131,7 @@ export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGrou
         rows
       };
     })
-    .filter((group): group is UfcOfficialRankingGroup => group !== null)
-    .filter((group) => !/pound-for-pound/i.test(group.title));
+    .filter((group): group is UfcOfficialRankingGroup => group !== null);
 
   return parsedGroups;
 }
