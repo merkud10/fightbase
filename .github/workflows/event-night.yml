@@ -1,0 +1,98 @@
+name: Event night sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run the sync even outside an event window"
+        required: false
+        default: "false"
+
+concurrency:
+  group: event-night
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Prepare SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Check event window
+        id: gate
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 ${USER}@${HOST}"
+          # Окно активности: от 6 часов до даты турнира до 16 часов после
+          # (покрывает и ночные американские карды, и дневные европейско-азиатские).
+          SLUGS=$($SSH "cd /opt/fightbase && set -a && . ./.env && set +a && psql \"\${DATABASE_URL%%\\?*}\" -t -A -c \"SELECT slug FROM \\\"Event\\\" WHERE status IN ('upcoming','live') AND now() BETWEEN date - interval '6 hours' AND date + interval '16 hours';\"")
+          SLUGS=$(echo "$SLUGS" | tr -d '\r' | grep -v '^$' || true)
+          if [ -n "$SLUGS" ] || [ "$FORCE" = "true" ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+            echo "slugs<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$SLUGS" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "Окно активно. События: ${SLUGS:-'(force)'}"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "Турнирного окна нет — выходим."
+          fi
+
+      - name: Queue results sync
+        id: queue
+        if: steps.gate.outputs.active == 'true'
+        run: |
+          response=$(curl -sf -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/ingest" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
+            -d '{"job":"sync-odds"}')
+          echo "queued_job_id=$(echo "$response" | jq -r '.queuedJobId // empty')" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the sync job
+        if: steps.gate.outputs.active == 'true'
+        run: |
+          JOB_ID="${{ steps.queue.outputs.queued_job_id }}"
+          BASE="${{ secrets.NEXT_PUBLIC_SITE_URL }}"
+          SECRET="${{ secrets.INGEST_CRON_SECRET }}"
+          [ -z "$JOB_ID" ] && exit 0
+          for _ in $(seq 1 40); do
+            curl -sf -X POST "${BASE}/api/cron/jobs" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${SECRET}" \
+              -d '{"limit": 3}' > /dev/null || true
+            data=$(curl -sf "${BASE}/api/cron/background-job/${JOB_ID}" \
+              -H "Authorization: Bearer ${SECRET}") || { sleep 10; continue; }
+            status=$(echo "$data" | jq -r '.job.status // empty')
+            if [ "$status" = "succeeded" ] || [ "$status" = "failed" ]; then
+              echo "job status: $status"
+              break
+            fi
+            sleep 10
+          done
+
+      - name: Revalidate event and prediction pages
+        if: steps.gate.outputs.active == 'true'
+        env:
+          SLUGS: ${{ steps.gate.outputs.slugs }}
+        run: |
+          PATHS='["/events/[slug]","/predictions/[eventSlug]/[fightSlug]","/predictions","/events","/"]'
+          for slug in $SLUGS; do
+            PATHS=$(echo "$PATHS" | jq -c --arg p "/events/$slug" '. + [$p]')
+          done
+          curl -sf -X POST "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/revalidate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.INGEST_CRON_SECRET }}" \
+            -d "{\"paths\": $PATHS}"
