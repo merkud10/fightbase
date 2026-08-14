@@ -1,0 +1,55 @@
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send a test alert to Telegram"
+        required: false
+        default: "false"
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Probe health endpoint
+        id: probe
+        run: |
+          if [ "${{ github.event.inputs.test_alert }}" = "true" ]; then
+            echo "status=test" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if curl -sf --max-time 15 https://fightbase.ru/api/health > /dev/null; then
+              echo "status=up" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "attempt ${attempt} failed"
+            sleep 20
+          done
+          echo "status=down" >> "$GITHUB_OUTPUT"
+
+      - name: Alert to Telegram
+        if: steps.probe.outputs.status != 'up'
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}
+          STATUS: ${{ steps.probe.outputs.status }}
+        run: |
+          if [ "$STATUS" = "test" ]; then
+            TEXT="✅ Тест мониторинга: алерты аптайма fightbase.ru работают."
+          else
+            TEXT="🔴 fightbase.ru не отвечает: /api/health не ответил за 3 попытки. Если лежит — на сервере: systemctl start fightbase fightbase-jobs"
+          fi
+          curl -s --max-time 30 \
+            -d "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${TEXT}" \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" > /dev/null
