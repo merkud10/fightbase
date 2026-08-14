@@ -22,136 +22,18 @@ function readEnv(name, fallback = "") {
   return process.env[name] || readEnvValueFromFile(name) || fallback;
 }
 
-function parseJsonObject(raw) {
-  const text = String(raw || "").trim();
-  if (!text) {
-    return null;
-  }
+const { computeAiContentHash, generateAiPredictionCopy } = require("./prediction-ai-copy");
 
-  try {
-    return JSON.parse(text);
-  } catch {}
-
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  if (fenced) {
-    try {
-      return JSON.parse(fenced.trim());
-    } catch {}
-  }
-
-  const first = text.indexOf("{");
-  const last = text.lastIndexOf("}");
-  if (first !== -1 && last > first) {
-    try {
-      return JSON.parse(text.slice(first, last + 1));
-    } catch {}
-  }
-
-  return null;
-}
-
-function isDeepSeekEnabled() {
-  return readEnv("AI_PROVIDER", "").trim().toLowerCase() === "deepseek" && Boolean(readEnv("DEEPSEEK_API_KEY", "").trim());
-}
-
-async function expandRuSnapshotWithDeepSeek(fight, snapshot) {
-  if (!isDeepSeekEnabled()) {
-    return snapshot;
-  }
-
+function getAiCopyConfig() {
+  if (readEnv("PREDICTION_AI_COPY", "1").trim() === "0") return null;
+  if (readEnv("AI_PROVIDER", "").trim().toLowerCase() !== "deepseek") return null;
   const apiKey = readEnv("DEEPSEEK_API_KEY", "").trim();
-  const baseUrl = readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").replace(/\/$/, "");
-  const model = readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim();
-  const fighterAName = getDisplayName(fight.fighterA, "ru");
-  const fighterBName = getDisplayName(fight.fighterB, "ru");
-  const weightClass = normalizeRussianMmaText(formatWeightLabelForPrompt(fight.weightClass));
-  const eventName = String(fight.event.name || "").trim();
-  const eventDate = new Date(fight.event.date).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
-
-  const prompt = [
-    "Return strict JSON only.",
-    "Write polished Russian editorial copy for a UFC fight prediction snapshot.",
-    "Do not mention bookmakers, odds, market, line, percentages, or betting.",
-    "Do not invent facts. Use only the provided matchup context.",
-    "Be concise but richer than a short stub.",
-    "JSON keys: excerpt, overview, keyEdge, fightScript, formA, formB, pathA, pathB.",
-    "",
-    `Event: ${eventName}`,
-    `Date: ${eventDate}`,
-    `Weight class: ${weightClass}`,
-    `Fighter A: ${fighterAName} (${fight.fighterA.record || "record unavailable"})`,
-    `Fighter B: ${fighterBName} (${fight.fighterB.record || "record unavailable"})`,
-    "",
-    "Base snapshot:",
-    JSON.stringify({
-      excerpt: snapshot.excerpt,
-      overview: snapshot.overview,
-      keyEdge: snapshot.keyEdge,
-      fightScript: snapshot.fightScript,
-      formA: snapshot.formA,
-      formB: snapshot.formB,
-      pathA: snapshot.pathA,
-      pathB: snapshot.pathB
-    })
-  ].join("\n");
-
-  try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      signal: AbortSignal.timeout(25000),
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.3,
-        messages: [
-          {
-            role: "system",
-            content: "You are a senior Russian-language UFC editor. Return valid JSON only."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      return snapshot;
-    }
-
-    const payload = await response.json();
-    const content = payload?.choices?.[0]?.message?.content;
-    const parsed = parseJsonObject(content);
-    if (!parsed || typeof parsed !== "object") {
-      return snapshot;
-    }
-
-    const next = { ...snapshot };
-    for (const key of ["excerpt", "overview", "keyEdge", "fightScript", "formA", "formB", "pathA", "pathB"]) {
-      if (typeof parsed[key] === "string" && parsed[key].trim()) {
-        next[key] = normalizeRussianMmaText(parsed[key].trim());
-      }
-    }
-
-    return next;
-  } catch {
-    return snapshot;
-  }
-}
-
-function formatWeightLabelForPrompt(value) {
-  return String(value || "")
-    .replace(/&#0*39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (!apiKey) return null;
+  return {
+    apiKey,
+    baseUrl: readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    model: readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim()
+  };
 }
 
 function parseArgs(argv) {
@@ -549,6 +431,30 @@ async function main() {
 
   const eligibleFightIds = fights.map((fight) => fight.id);
 
+  const existingSnapshots = new Map(
+    (
+      await prisma.fightPredictionSnapshot.findMany({
+        where: { fightId: { in: eligibleFightIds } },
+        select: {
+          fightId: true,
+          aiContentHash: true,
+          aiGeneratedAt: true,
+          excerptRu: true,
+          overviewRu: true,
+          keyEdgeRu: true,
+          fightScriptRu: true,
+          pathARu: true,
+          pathBRu: true
+        }
+      })
+    ).map((snapshot) => [snapshot.fightId, snapshot])
+  );
+
+  const aiConfig = getAiCopyConfig();
+  let aiGeneratedCount = 0;
+  let aiReusedCount = 0;
+  let aiFallbackCount = 0;
+
   if (!options.dryRun) {
     if (eligibleFightIds.length > 0) {
       await prisma.fightPredictionSnapshot.deleteMany({
@@ -567,8 +473,49 @@ async function main() {
 
   for (const fight of fights) {
     const baseRu = normalizeRuSnapshot(buildSnapshotCopy("ru", fight));
-    const ru = await expandRuSnapshotWithDeepSeek(fight, baseRu);
     const en = buildSnapshotCopy("en", fight);
+    let ru = baseRu;
+    let aiContentHash = null;
+    let aiGeneratedAt = null;
+
+    if (aiConfig) {
+      const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
+      const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
+      const nextHash = computeAiContentHash(fight, percents);
+      const existing = existingSnapshots.get(fight.id);
+
+      if (existing?.aiContentHash === nextHash && existing.aiGeneratedAt) {
+        ru = {
+          ...baseRu,
+          excerpt: existing.excerptRu,
+          overview: existing.overviewRu,
+          keyEdge: existing.keyEdgeRu,
+          fightScript: existing.fightScriptRu,
+          pathA: existing.pathARu,
+          pathB: existing.pathBRu
+        };
+        aiContentHash = existing.aiContentHash;
+        aiGeneratedAt = existing.aiGeneratedAt;
+        aiReusedCount += 1;
+      } else {
+        const generated = await generateAiPredictionCopy({ fight, percents, config: aiConfig });
+        if (generated) {
+          const fighterAName = getDisplayName(fight.fighterA, "ru");
+          const fighterBName = getDisplayName(fight.fighterB, "ru");
+          ru = normalizeRuSnapshot({
+            ...baseRu,
+            ...generated.copy,
+            excerpt: `Подробный прогноз на бой ${fighterAName} — ${fighterBName}: ${generated.copy.overview}`
+          });
+          aiContentHash = nextHash;
+          aiGeneratedAt = new Date();
+          aiGeneratedCount += 1;
+        } else {
+          aiFallbackCount += 1;
+          console.warn(`[ai-copy] fallback to template: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+        }
+      }
+    }
 
     const payload = {
       eventId: fight.eventId,
@@ -604,11 +551,22 @@ async function main() {
       percentB: ru.percentB,
       source: ru.source,
       sourceOddsUpdatedAt: fight.oddsUpdatedAt ?? null,
+      aiContentHash,
+      aiGeneratedAt,
       generatedAt: new Date()
     };
 
     if (options.dryRun) {
-      console.log(`[dry-run] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+      console.log(
+        `[dry-run] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}${aiGeneratedAt ? " | AI" : " | template"}`
+      );
+      if (aiGeneratedAt) {
+        console.log(`  overview: ${ru.overview}`);
+        console.log(`  keyEdge: ${ru.keyEdge}`);
+        console.log(`  fightScript: ${ru.fightScript}`);
+        console.log(`  pathA: ${ru.pathA}`);
+        console.log(`  pathB: ${ru.pathB}`);
+      }
       continue;
     }
 
@@ -628,6 +586,23 @@ async function main() {
   console.log("");
   console.log(`Eligible fights: ${fights.length}`);
   console.log(`Upserted snapshots: ${options.dryRun ? 0 : upserted}`);
+
+  const aiAttempted = aiGeneratedCount + aiFallbackCount;
+  if (aiConfig) {
+    console.log(`AI copy: generated ${aiGeneratedCount}, reused ${aiReusedCount}, fallback ${aiFallbackCount}`);
+  }
+  if (!options.dryRun && aiAttempted > 0 && aiFallbackCount / aiAttempted > 0.2) {
+    await prisma.systemEvent
+      .create({
+        data: {
+          level: "warn",
+          category: "predictions.ai-copy",
+          message: `AI prediction copy fallback rate ${aiFallbackCount}/${aiAttempted}`,
+          source: "scripts/generate-prediction-snapshots"
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 main()
