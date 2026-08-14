@@ -94,22 +94,17 @@ const monthMap = {
   dec: 11
 };
 
-const UFC_HOSTS = new Set(["ufc.com", "www.ufc.com"]);
 
 function buildFetchHeaders(url) {
+  // Нарочно «скромный» UA без версии Chrome и без Referer/Accept: Cloudflare на
+  // ufc.com банит несовпадение TLS-фингерпринта (curl/node) с полноценным
+  // браузерным набором заголовков (проверено 14.08.2026: полный набор — 403,
+  // короткий UA — 200 с того же IP).
   const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
   };
 
-  try {
-    const hostname = new URL(url).hostname;
-    if (UFC_HOSTS.has(hostname)) {
-      headers.Referer = "https://www.ufc.com/";
-      headers.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-    }
-  } catch {}
+  void url;
 
   return headers;
 }
