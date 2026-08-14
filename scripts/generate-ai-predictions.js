@@ -61,33 +61,7 @@ function looksMostlyRussian(value) {
   return stats.cyrillic / stats.total >= 0.55;
 }
 
-const RED_FLAG_RULES = [
-  { label: "leftover_english_term", pattern: /\b(?:eligible|athletic commission)\b/i },
-  {
-    label: "raw_weight_class_english",
-    pattern: /\b(?:featherweight|bantamweight|welterweight|middleweight|lightweight|heavyweight|flyweight)\b/i
-  },
-  { label: "bad_name_variant", pattern: /\b(?:\u0410\u0439\u0441\u0443\u043b\u0442\u0430\u043d|\u0426\u0441\u0430\u0440\u0443\u043a\u044f\u043d)\b/i },
-  { label: "bad_chris_variant", pattern: /\b\u0427\u0440\u0438\u0441(?:\u0430|\u0443|\u043e\u043c|\u0435)?\b/i },
-  {
-    label: "bad_editorial_wording",
-    pattern: /\b(?:\u043c\u0430\u0440\u0448\u0438\u0441\u0442|\u0432\u0435\u043b\u043e\u0432\u0435\u0441|\u0444\u044d\u0437\u0435\u0440\u0432\u0435\u0439\u0442)\b/i
-  },
-  { label: "multi_option_answer", pattern: /(?:^|\n)\s*(?:\*\*)?\u0412\u0430\u0440\u0438\u0430\u043d\u0442\s+\d/i }
-];
-
-function collectRedFlags(value) {
-  return RED_FLAG_RULES.filter((rule) => rule.pattern.test(String(value || ""))).map((rule) => rule.label);
-}
-
-function enforceNameCorrections(value) {
-  return String(value || "")
-    .replace(/\bЧриса\b/gi, "Криса")
-    .replace(/\bЧрису\b/gi, "Крису")
-    .replace(/\bЧрисом\b/gi, "Крисом")
-    .replace(/\bЧрисе\b/gi, "Крисе")
-    .replace(/\bЧрис\b/gi, "Крис");
-}
+const { collectRedFlags, enforceNameCorrections } = require("./ai-text-quality");
 
 function buildFighterStatLine(fighter) {
   const parts = [
