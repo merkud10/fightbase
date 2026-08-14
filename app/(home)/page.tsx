@@ -9,7 +9,8 @@ import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
 import { getArticleHref } from "@/lib/article-routes";
 import { JsonLd } from "@/components/json-ld";
 import { getHomePageData } from "@/lib/db";
-import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatEventLocation, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
+import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -148,11 +149,33 @@ export default async function HomePage() {
               {leadFight ? (
                 <div className="hero-fight-tape">
                   <div className="hero-fight-corner">
+                    {isUsablePhoto(leadFight.fighterA.photoUrl) ? (
+                      <Image
+                        src={getDisplayImageUrl(String(leadFight.fighterA.photoUrl))}
+                        alt={getDisplayName(leadFight.fighterA, locale)}
+                        className="hero-corner-photo"
+                        width={180}
+                        height={220}
+                        sizes="(max-width: 720px) 40vw, 180px"
+                        priority
+                      />
+                    ) : null}
                     <span>{locale === "ru" ? "Красный угол" : "Red corner"}</span>
                     <strong>{getDisplayName(leadFight.fighterA, locale)}</strong>
                   </div>
                   <div className="hero-fight-divider">VS</div>
                   <div className="hero-fight-corner hero-fight-corner--right">
+                    {isUsablePhoto(leadFight.fighterB.photoUrl) ? (
+                      <Image
+                        src={getDisplayImageUrl(String(leadFight.fighterB.photoUrl))}
+                        alt={getDisplayName(leadFight.fighterB, locale)}
+                        className="hero-corner-photo hero-corner-photo--right"
+                        width={180}
+                        height={220}
+                        sizes="(max-width: 720px) 40vw, 180px"
+                        priority
+                      />
+                    ) : null}
                     <span>{locale === "ru" ? "Синий угол" : "Blue corner"}</span>
                     <strong>{getDisplayName(leadFight.fighterB, locale)}</strong>
                   </div>

@@ -11,6 +11,7 @@ import { PageHero } from "@/components/page-hero";
 import { getArticleRouteBase } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
 import { getArticlePageData, getRelatedArticles } from "@/lib/db";
+import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
@@ -246,18 +247,38 @@ export async function ArticleDetailPage({
           <AdSlot placement="articleInline" locale={locale} />
 
           <div className="policy-card">
-            {article.sections.map((section) => (
-              <div key={section.id} style={{ marginBottom: 22 }}>
-                {section.heading && section.heading !== "AI draft" ? <h3>{section.heading}</h3> : null}
-                <div className="article-copy-stack">
-                  {splitIntoParagraphs(section.body).map((paragraph, index) => (
-                    <p key={`${section.id}-${index}`} className="copy">
-                      {paragraph}
-                    </p>
-                  ))}
+            {(() => {
+              const mentionFighters = article.fighterMap.map(({ fighter }) => ({
+                slug: fighter.slug,
+                name: fighter.name,
+                nameRu: fighter.nameRu
+              }));
+              const linkedFighters = new Set<string>();
+
+              return article.sections.map((section) => (
+                <div key={section.id} style={{ marginBottom: 22 }}>
+                  {section.heading && section.heading !== "AI draft" ? <h3>{section.heading}</h3> : null}
+                  <div className="article-copy-stack">
+                    {splitIntoParagraphs(section.body).map((paragraph, index) => (
+                      <p key={`${section.id}-${index}`} className="copy">
+                        {segmentFighterMentions(paragraph, mentionFighters, linkedFighters).map((segment, segmentIndex) =>
+                          segment.type === "fighter" ? (
+                            <Link
+                              key={`${section.id}-${index}-${segmentIndex}`}
+                              href={localizePath(`/fighters/${segment.slug}`, locale)}
+                            >
+                              {segment.value}
+                            </Link>
+                          ) : (
+                            segment.value
+                          )
+                        )}
+                      </p>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </article>
 

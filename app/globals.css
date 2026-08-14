@@ -811,6 +811,20 @@ img {
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
 }
 
+.hero-corner-photo {
+  width: min(180px, 100%);
+  height: auto;
+  justify-self: start;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45));
+  object-fit: cover;
+}
+
+.hero-corner-photo--right {
+  justify-self: end;
+}
+
 .hero-fight-corner span {
   color: var(--muted);
   font-size: 0.74rem;
@@ -851,12 +865,13 @@ img {
   letter-spacing: 0.08em;
 }
 
+/* Горилла остаётся фирменным знаком постера, но главную роль отдаёт фото бойцов. */
 .hero-gorilla-sigil {
   position: absolute;
-  right: 32px;
-  top: 78px;
-  width: min(40%, 360px);
-  opacity: 1;
+  right: 28px;
+  top: 64px;
+  width: min(18%, 170px);
+  opacity: 0.92;
   pointer-events: none;
   filter:
     drop-shadow(0 18px 40px rgba(0, 0, 0, 0.48))
@@ -3369,10 +3384,14 @@ th {
   }
 
   .hero-gorilla-sigil {
-    width: 180px;
-    top: 120px;
-    right: 14px;
-    opacity: 1;
+    width: 110px;
+    top: 96px;
+    right: 12px;
+    opacity: 0.85;
+  }
+
+  .hero-corner-photo {
+    width: min(140px, 100%);
   }
 
   .hero-poster-topline,

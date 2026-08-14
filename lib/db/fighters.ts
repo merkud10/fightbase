@@ -596,8 +596,24 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
     return Boolean(String(opponent || "").trim());
   });
 
+  const nextFight = await prisma.fight.findFirst({
+    where: {
+      status: "scheduled",
+      event: { status: { in: ["upcoming", "live"] } },
+      OR: [{ fighterAId: fighter.id }, { fighterBId: fighter.id }]
+    },
+    orderBy: { event: { date: "asc" } },
+    include: {
+      event: { include: { promotion: true } },
+      fighterA: true,
+      fighterB: true,
+      predictionSnapshot: { select: { id: true } }
+    }
+  });
+
   return {
     fighter,
+    nextFight,
     recentFights: visibleRecentFights,
     profileRecentFights: visibleProfileRecentFights,
     relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 20)

@@ -8,7 +8,8 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
-import { formatWeightClass, isUsablePhoto } from "@/lib/display";
+import { formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
+import { resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -273,6 +274,60 @@ export default async function FightPredictionPage({
           </div>
         </div>
       </section>
+
+      {fight.status === "completed" ? (() => {
+        const verdict = resolvePredictionVerdict({
+          percentA: snapshot.percentA,
+          percentB: snapshot.percentB,
+          fighterAId: fight.fighterAId,
+          fighterBId: fight.fighterBId,
+          status: fight.status,
+          resultType: fight.resultType,
+          winnerFighterId: fight.winnerFighterId
+        });
+        const winnerName =
+          fight.winnerFighterId === fight.fighterAId
+            ? fighterAName
+            : fight.winnerFighterId === fight.fighterBId
+              ? fighterBName
+              : null;
+        const methodLabel = fight.method ? formatFightMethod(fight.method, locale) : null;
+        const roundLabel = fight.resultRound
+          ? `R${fight.resultRound}${fight.resultTime ? ` · ${fight.resultTime}` : ""}`
+          : null;
+        const resultLine =
+          fight.resultType === "win" && winnerName
+            ? [`${winnerName} — ${locale === "ru" ? "победа" : "win"}`, methodLabel, roundLabel]
+                .filter(Boolean)
+                .join(" · ")
+            : fight.resultType === "draw"
+              ? locale === "ru"
+                ? "Ничья"
+                : "Draw"
+              : fight.resultType === "no_contest"
+                ? locale === "ru"
+                  ? "Бой признан несостоявшимся"
+                  : "No contest"
+                : locale === "ru"
+                  ? "Результат уточняется"
+                  : "Result pending verification";
+
+        return (
+          <section className="policy-card" aria-label={locale === "ru" ? "Итог боя" : "Fight result"}>
+            <h2>{locale === "ru" ? "Итог боя" : "Fight result"}</h2>
+            <p className="copy">{resultLine}</p>
+            {verdict === "correct" ? (
+              <p className="kicker">{locale === "ru" ? "Прогноз сбылся ✓" : "Prediction correct ✓"}</p>
+            ) : verdict === "wrong" ? (
+              <p className="kicker">{locale === "ru" ? "Прогноз не сбылся ✗" : "Prediction missed ✗"}</p>
+            ) : (
+              <p className="kicker">
+                {locale === "ru" ? "Прогноз не засчитан: бой без чистого победителя" : "Not scored: no clean winner"}
+              </p>
+            )}
+          </section>
+        );
+      })() : null}
 
       <section className="detail-grid">
         <article className="table-card prediction-detail-card">

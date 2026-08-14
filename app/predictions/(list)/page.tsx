@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
-import { getPredictionsPageData } from "@/lib/db";
+import { getPredictionAccuracy, getPredictionsPageData } from "@/lib/db";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -41,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PredictionsPage() {
   const locale = await getLocale();
-  const events = await getPredictionsPageData();
+  const [events, accuracy] = await Promise.all([getPredictionsPageData(), getPredictionAccuracy()]);
   const siteUrl = getSiteUrl();
   const eventsWithSnapshots = events.map((event) => ({
     ...event,
@@ -96,6 +96,17 @@ export default async function PredictionsPage() {
             : "Previews of the key fights on upcoming UFC cards, with a dedicated page for each matchup."
         }
       />
+
+      {accuracy.percent !== null ? (
+        <section className="policy-card" aria-label={locale === "ru" ? "Точность прогнозов" : "Prediction accuracy"}>
+          <p className="kicker">{locale === "ru" ? "Точность прогнозов" : "Prediction accuracy"}</p>
+          <p className="copy">
+            {locale === "ru"
+              ? `${accuracy.percent}% — ${accuracy.correct} из ${accuracy.judged} завершённых боёв на последних ${accuracy.eventsCount} турнирах. Итог каждого боя виден на его странице прогноза.`
+              : `${accuracy.percent}% — ${accuracy.correct} of ${accuracy.judged} completed fights across the last ${accuracy.eventsCount} events. Each fight page shows its result.`}
+          </p>
+        </section>
+      ) : null}
 
       {eventsWithSnapshots.length === 0 ? (
         <section className="filter-empty-state">

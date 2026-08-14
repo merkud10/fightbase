@@ -2,6 +2,7 @@ import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
 import { sortFightsForCard } from "@/lib/fight-card";
+import { resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -142,6 +143,75 @@ export async function getPredictionsPageData() {
     fights: sortFightsForCard(event.fights)
   }));
 }
+
+// Сводка точности по завершённым боям со снапшотами: пик = боец с большим
+// процентом, судим только чистые победы (win + winnerFighterId).
+export const getPredictionAccuracy = cache(async function getPredictionAccuracy(lastEvents = 5) {
+  const completedEvents = await prisma.event.findMany({
+    where: {
+      status: "completed",
+      fights: {
+        some: {
+          status: "completed",
+          predictionSnapshot: { isNot: null }
+        }
+      }
+    },
+    orderBy: { date: "desc" },
+    take: lastEvents,
+    select: {
+      id: true,
+      fights: {
+        where: {
+          status: "completed",
+          predictionSnapshot: { isNot: null }
+        },
+        select: {
+          fighterAId: true,
+          fighterBId: true,
+          winnerFighterId: true,
+          resultType: true,
+          status: true,
+          predictionSnapshot: { select: { percentA: true, percentB: true } }
+        }
+      }
+    }
+  });
+
+  let correct = 0;
+  let judged = 0;
+
+  for (const event of completedEvents) {
+    for (const fight of event.fights) {
+      const snapshot = fight.predictionSnapshot;
+      if (!snapshot || !fight.fighterAId || !fight.fighterBId) {
+        continue;
+      }
+      const verdict = resolvePredictionVerdict({
+        percentA: snapshot.percentA,
+        percentB: snapshot.percentB,
+        fighterAId: fight.fighterAId,
+        fighterBId: fight.fighterBId,
+        status: fight.status,
+        resultType: fight.resultType,
+        winnerFighterId: fight.winnerFighterId
+      });
+      if (verdict === "correct") {
+        correct += 1;
+        judged += 1;
+      } else if (verdict === "wrong") {
+        judged += 1;
+      }
+    }
+  }
+
+  return {
+    eventsCount: completedEvents.length,
+    correct,
+    judged,
+    percent: judged > 0 ? Math.round((correct / judged) * 100) : null
+  };
+});
 
 export const getPredictionPageParams = cache(async function getPredictionPageParams() {
   return prisma.fightPredictionSnapshot.findMany({

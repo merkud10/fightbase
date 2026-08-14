@@ -429,6 +429,9 @@ async function main() {
     take: options.limit
   });
 
+  // Снапшоты завершённых боёв НЕ удаляем: это архив прогнозов с результатом
+  // и источник статистики точности. Снапшоты отменённых боёв уходят каскадом
+  // вместе с Fight (onDelete: Cascade).
   const eligibleFightIds = fights.map((fight) => fight.id);
 
   const existingSnapshots = new Map(
@@ -454,20 +457,6 @@ async function main() {
   let aiGeneratedCount = 0;
   let aiReusedCount = 0;
   let aiFallbackCount = 0;
-
-  if (!options.dryRun) {
-    if (eligibleFightIds.length > 0) {
-      await prisma.fightPredictionSnapshot.deleteMany({
-        where: {
-          fightId: {
-            notIn: eligibleFightIds
-          }
-        }
-      });
-    } else {
-      await prisma.fightPredictionSnapshot.deleteMany();
-    }
-  }
 
   let upserted = 0;
 

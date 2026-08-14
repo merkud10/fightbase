@@ -11,7 +11,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFighterPageData } from "@/lib/db";
-import { formatFightStatus, formatWeightClass } from "@/lib/display";
+import { formatFightStatus, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -391,8 +391,21 @@ export default async function FighterPage({
     notFound();
   }
 
-  const { fighter, recentFights, profileRecentFights, relatedArticles } = data;
+  const { fighter, nextFight, recentFights, profileRecentFights, relatedArticles } = data;
   const displayName = locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+  const nextFightOpponent = nextFight
+    ? nextFight.fighterAId === fighter.id
+      ? nextFight.fighterB
+      : nextFight.fighterA
+    : null;
+  const nextFightDateLabel = nextFight
+    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC"
+      }).format(nextFight.event.date)
+    : null;
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const fighterUrl = `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`;
   const breadcrumbItems = [
@@ -464,6 +477,30 @@ export default async function FighterPage({
       <JsonLd data={personJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" - ")} />
+
+      {nextFight && nextFightOpponent ? (
+        <section className="policy-card" aria-label={locale === "ru" ? "Следующий бой" : "Next fight"}>
+          <p className="kicker">{locale === "ru" ? "Следующий бой" : "Next fight"}</p>
+          <p className="copy">
+            {locale === "ru" ? "Соперник" : "Opponent"}: {" "}
+            <Link href={localizePath(`/fighters/${nextFightOpponent.slug}`, locale)}>
+              {getDisplayName(nextFightOpponent, locale)}
+            </Link>
+            {" · "}
+            {nextFightDateLabel}
+            {" · "}
+            <Link href={localizePath(`/events/${nextFight.event.slug}`, locale)}>{nextFight.event.name}</Link>
+            {nextFight.predictionSnapshot && nextFight.slug ? (
+              <>
+                {" · "}
+                <Link href={localizePath(`/predictions/${nextFight.event.slug}/${nextFight.slug}`, locale)}>
+                  {locale === "ru" ? "Прогноз на бой" : "Fight prediction"}
+                </Link>
+              </>
+            ) : null}
+          </p>
+        </section>
+      ) : null}
 
       <section className="detail-grid">
         <article className="stack">
