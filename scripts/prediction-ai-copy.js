@@ -189,6 +189,7 @@ async function generateAiPredictionCopy({ fight, percents, config, fetchImpl = f
     const verdict = validateAiCopy(parsed, pack);
     if (!verdict.ok) {
       // Невалидный контент не ретраим: причина детерминированная, лучше шаблон.
+      console.warn(`[ai-copy] rejected (${verdict.reason}): ${pack.fighters[0]?.name} vs ${pack.fighters[1]?.name}`);
       return null;
     }
     return { copy: verdict.copy, pack };
