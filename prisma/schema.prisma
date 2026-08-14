@@ -265,6 +265,8 @@ model FightPredictionSnapshot {
   percentB          Int
   source            String
   sourceOddsUpdatedAt DateTime?
+  aiContentHash     String?
+  aiGeneratedAt     DateTime?
   generatedAt       DateTime @default(now())
   browserPushNotifiedAt DateTime?
   updatedAt         DateTime @updatedAt
