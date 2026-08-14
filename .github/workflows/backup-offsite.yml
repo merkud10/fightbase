@@ -1,0 +1,75 @@
+name: Backup offsite
+
+on:
+  schedule:
+    - cron: "15 1 * * *" # 04:15 МСК, через 45 минут после серверного дампа (00:30 UTC)
+  workflow_dispatch:
+
+concurrency:
+  group: backup-offsite
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Prepare SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Fetch the latest dump
+        id: fetch
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 ${USER}@${HOST}"
+          LATEST=$($SSH "ls -t /opt/fightbase/backups/fightbase-*.sql.gz 2>/dev/null | head -1")
+          if [ -z "$LATEST" ]; then
+            echo "status=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Свежесть: файл должен быть моложе 26 часов, иначе ночной крон не отработал.
+          AGE_SECONDS=$($SSH "echo \$(( \$(date +%s) - \$(stat -c %Y '$LATEST') ))")
+          if [ "$AGE_SECONDS" -gt 93600 ]; then
+            echo "status=stale" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new "${USER}@${HOST}:${LATEST}" ./dump.sql.gz
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$LATEST")" >> "$GITHUB_OUTPUT"
+
+      - name: Send dump to Telegram
+        if: steps.fetch.outputs.status == 'ok'
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}
+          DUMP_NAME: ${{ steps.fetch.outputs.name }}
+        run: |
+          SIZE_MB=$(awk "BEGIN {printf \"%.1f\", $(stat -c%s dump.sql.gz)/1024/1024}")
+          RESPONSE=$(curl -s --max-time 120 \
+            -F "chat_id=${TG_CHAT}" \
+            -F "document=@dump.sql.gz;filename=${DUMP_NAME}" \
+            -F "caption=🗄 Бэкап базы FightBase: ${DUMP_NAME} (${SIZE_MB} MB)" \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument")
+          echo "$RESPONSE" | grep -q '"ok":true' || { echo "telegram send failed: $RESPONSE"; exit 1; }
+
+      - name: Alert on missing or stale backup
+        if: steps.fetch.outputs.status != 'ok'
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ALERTS_CHAT_ID }}
+          STATUS: ${{ steps.fetch.outputs.status }}
+        run: |
+          TEXT="❌ Бэкап базы FightBase: свежий дамп не найден на сервере (status: ${STATUS}). Проверь крон и /tmp/backup-db.log."
+          curl -s --max-time 30 \
+            -d "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${TEXT}" \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" > /dev/null
+          exit 1
