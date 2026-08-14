@@ -35,6 +35,14 @@ function buildFighterFacts(fighter) {
   };
 }
 
+function describeCardSlot(fight) {
+  if (fight.isMainEvent) return "главный бой турнира";
+  const stage = String(fight.stage || "").trim().toLowerCase();
+  if (stage === "main") return "бой основного карда";
+  if (stage) return "бой предварительного карда";
+  return null;
+}
+
 function buildFightFactPack(fight, percents) {
   return {
     eventName: String(fight.event?.name || "").trim(),
@@ -43,7 +51,7 @@ function buildFightFactPack(fight, percents) {
       : null,
     weightClass: String(fight.weightClass || "").trim(),
     isHeadliner: Boolean(fight.isMainEvent),
-    cardStage: String(fight.stage || "").trim() || null,
+    cardSlot: describeCardSlot(fight),
     fighters: [buildFighterFacts(fight.fighterA), buildFighterFacts(fight.fighterB)],
     percentA: percents?.percentA ?? null,
     percentB: percents?.percentB ?? null,
@@ -61,7 +69,8 @@ function buildPrompt(pack) {
   const system = [
     "Ты — редактор русскоязычного MMA-медиа. Пишешь сухие, точные редакционные разборы боев UFC.",
     "Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: overview, keyEdge, fightScript, pathA, pathB. Все значения — строки на русском языке.",
-    "Имена бойцов используй только в именительном падеже: перестраивай фразу, а не склоняй имя.",
+    "Имена бойцов используй только в именительном падеже: перестраивай фразу, а не склоняй имя. Избегай конструкций, где имя требует другого падежа («у {имя}», «за {имя}», «против {имя}») — делай имя подлежащим.",
+    "Статус боя в карде бери из поля cardSlot дословно, не переименовывай его (не называй бой «со-главным», если это не указано).",
     "Запрещено упоминать букмекеров, ставки, коэффициенты и давать советы по ставкам.",
     "Запрещено использовать любые факты и числа, которых нет во входных данных: не выдумывай травмы, цитаты, титулы и историю встреч.",
     "Если данных мало — пиши короче, без воды."
