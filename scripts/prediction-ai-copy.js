@@ -7,7 +7,9 @@ const crypto = require("node:crypto");
 const { collectRedFlags, enforceNameCorrections, latinShare } = require("./ai-text-quality");
 
 const COPY_FIELDS = ["overview", "keyEdge", "fightScript", "pathA", "pathB"];
-const BANNED_LEXICON = /букмекер|котировк|коэффициент|ставк|зайд[её]т|экспресс|беттинг/i;
+// Только однозначно букмекерская лексика: «ставка на борьбу» — обычная
+// редакционная фраза, по ней не бракуем.
+const BANNED_LEXICON = /букмекер|котировк|коэффициент|беттинг|сделать ставку|ставки принимаются|ставка зайд[её]т/i;
 const MAX_ATTEMPTS = 3;
 
 function pickName(fighter) {
