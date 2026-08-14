@@ -133,29 +133,47 @@ export const getNewsPageData = cache(async function getNewsPageData(filters: New
   };
 });
 
-export const getAnalysisPageData = cache(async function getAnalysisPageData() {
-  const articles = await prisma.article.findMany({
-    where: { category: "analysis", status: "published", ...buildPublicArticleImageWhere() },
-    orderBy: { publishedAt: "desc" },
-    take: 50
-  });
+const ARCHIVE_PER_PAGE = 12;
 
-  return filterArticlesWithRenderableImages(articles);
+async function getPagedArticles(where: Prisma.ArticleWhereInput, page: number, perPage = ARCHIVE_PER_PAGE) {
+  const requestedPage = Math.max(1, page);
+  const [totalCount, articles] = await Promise.all([
+    prisma.article.count({ where }),
+    prisma.article.findMany({
+      where,
+      orderBy: { publishedAt: "desc" },
+      include: {
+        promotion: true,
+        tagMap: { include: { tag: true } }
+      },
+      skip: (requestedPage - 1) * perPage,
+      take: perPage
+    })
+  ]);
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+
+  return {
+    articles: filterArticlesWithRenderableImages(articles),
+    totalCount,
+    page: Math.min(requestedPage, totalPages),
+    totalPages
+  };
+}
+
+export const getAnalysisPageData = cache(async function getAnalysisPageData(page = 1) {
+  return getPagedArticles({ category: "analysis", status: "published", ...buildPublicArticleImageWhere() }, page);
 });
 
-export const getQuotesPageData = cache(async function getQuotesPageData() {
-  const articles = await prisma.article.findMany({
-    where: {
+export const getQuotesPageData = cache(async function getQuotesPageData(page = 1) {
+  return getPagedArticles(
+    {
       category: "interview",
       status: "published",
       promotion: { slug: "ufc" },
       ...buildPublicArticleImageWhere()
     },
-    orderBy: { publishedAt: "desc" },
-    take: 50
-  });
-
-  return filterArticlesWithRenderableImages(articles);
+    page
+  );
 });
 
 export async function getPredictionEditorialPageData() {

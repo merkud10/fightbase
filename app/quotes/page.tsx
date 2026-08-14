@@ -5,16 +5,18 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 import { PageHero } from "@/components/page-hero";
+import { Pagination } from "@/components/pagination";
 import { getArticleHref } from "@/lib/article-routes";
 import { getQuotesPageData } from "@/lib/db";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
+import { readParam } from "@/lib/search-params";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
-  const quotes = await getQuotesPageData();
+  const { totalCount } = await getQuotesPageData();
 
   return {
     ...buildPageMetadata({
@@ -26,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
           ? "Интервью, заявления и материалы FightBase Media, построенные вокруг прямой речи бойцов, тренеров и участников UFC-повестки."
           : "FightBase Media interviews and reports centered on direct quotes from UFC fighters, coaches, and other participants."
     }),
-    robots: quotes.length
+    robots: totalCount
       ? undefined
       : {
           index: false,
@@ -35,9 +37,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function QuotesPage() {
+export default async function QuotesPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const locale = await getLocale();
-  const quotes = await getQuotesPageData();
+  const params = (await searchParams) ?? {};
+  const page = Math.max(1, parseInt(readParam(params.page), 10) || 1);
+  const { articles: quotes, page: currentPage, totalPages } = await getQuotesPageData(page);
 
   return (
     <main className="container">
@@ -51,6 +59,7 @@ export default async function QuotesPage() {
       />
 
       {quotes.length > 0 ? (
+        <>
         <section className="feature-grid">
           {quotes.map((article) => (
             <article key={article.id} className="feature-card editorial-card">
@@ -75,6 +84,13 @@ export default async function QuotesPage() {
             </article>
           ))}
         </section>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          basePath={localizePath("/quotes", locale)}
+          locale={locale}
+        />
+        </>
       ) : (
         <section className="filter-empty-state">
           <h3>{locale === "ru" ? "Раздел интервью пока пуст" : "The interview desk is currently empty"}</h3>

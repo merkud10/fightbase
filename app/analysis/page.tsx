@@ -6,11 +6,13 @@ export const dynamic = "force-dynamic";
 import { ArticleCard } from "@/components/cards";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { Pagination } from "@/components/pagination";
 import { getArticleHref } from "@/lib/article-routes";
 import { getAnalysisPageData } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
+import { readParam } from "@/lib/search-params";
 import { getSiteUrl } from "@/lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,9 +29,15 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default async function AnalysisPage() {
+export default async function AnalysisPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const locale = await getLocale();
-  const articles = await getAnalysisPageData();
+  const params = (await searchParams) ?? {};
+  const page = Math.max(1, parseInt(readParam(params.page), 10) || 1);
+  const { articles, page: currentPage, totalPages } = await getAnalysisPageData(page);
   const siteUrl = getSiteUrl();
   const pageUrl = new URL(localizePath("/analysis", locale), siteUrl).toString();
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
@@ -105,6 +113,12 @@ export default async function AnalysisPage() {
               <ArticleCard key={article.id} article={article} locale={locale} />
             ))}
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            basePath={localizePath("/analysis", locale)}
+            locale={locale}
+          />
         </section>
       ) : (
         <section className="filter-empty-state">

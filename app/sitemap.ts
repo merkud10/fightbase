@@ -111,7 +111,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     (fighter) => hasUsablePhotoUrl(fighter.photoUrl) && !looksLikeLowQualitySlug(fighter.slug)
   );
   const staticEntries: MetadataRoute.Sitemap = staticRoutes
-    .filter((path) => path !== "/quotes" || quotes.length > 0)
+    .filter((path) => path !== "/quotes" || quotes.totalCount > 0)
     .map((path) => ({
       url: path === "" ? `${siteUrl}/ru` : `${siteUrl}/ru${path}`,
       changeFrequency: path === "" ? "daily" : "weekly",
