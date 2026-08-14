@@ -8,7 +8,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
-import { formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
+import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
@@ -495,6 +495,40 @@ export default async function FightPredictionPage({
               </div>
             ))}
           </div>
+          ) : [fight.fighterA, fight.fighterB].some(
+              (fighter) => fighter.record || fighter.age || fighter.heightCm || fighter.reachCm
+            ) ? (
+          // Запасное сравнение для боёв без UFC-статистики (дебютанты, новички карда):
+          // базовые данные вместо пустого места. Нули в базе означают «нет данных».
+          <div className="prediction-stats-grid">
+            {[fight.fighterA, fight.fighterB].map((fighter) => (
+              <div key={fighter.id} className="stat-card prediction-fighter-stat">
+                <p className="kicker">{getDisplayName(fighter, locale)}</p>
+                <ul className="prediction-stat-list">
+                  <li>
+                    <span>{locale === "ru" ? "Рекорд" : "Record"}</span>
+                    <strong>{fighter.record || "-"}</strong>
+                  </li>
+                  <li>
+                    <span>{locale === "ru" ? "Возраст" : "Age"}</span>
+                    <strong>{fighter.age ? fighter.age : "-"}</strong>
+                  </li>
+                  <li>
+                    <span>{locale === "ru" ? "Рост" : "Height"}</span>
+                    <strong>{fighter.heightCm ? `${fighter.heightCm} см` : "-"}</strong>
+                  </li>
+                  <li>
+                    <span>{locale === "ru" ? "Размах рук" : "Reach"}</span>
+                    <strong>{fighter.reachCm ? `${fighter.reachCm} см` : "-"}</strong>
+                  </li>
+                  <li>
+                    <span>{locale === "ru" ? "База" : "Background"}</span>
+                    <strong>{fighter.style || "-"}</strong>
+                  </li>
+                </ul>
+              </div>
+            ))}
+          </div>
           ) : null}
         </article>
 
@@ -502,7 +536,14 @@ export default async function FightPredictionPage({
           <div className="policy-card">
             <h3>{locale === "ru" ? "Событие" : "Event"}</h3>
             <p className="copy">
-              {fight.event.name} · {new Date(fight.event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US")} · {fight.event.city}
+              {[
+                fight.event.name,
+                new Date(fight.event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US"),
+                formatEventLocation(fight.event.city, fight.event.venue, locale)
+              ]
+                .map((part) => String(part || "").trim())
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             <Link href={localizePath(`/events/${fight.event.slug}`, locale)} className="event-table-link">
               {locale === "ru" ? "Открыть карточку турнира" : "Open event card"}
