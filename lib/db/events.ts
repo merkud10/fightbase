@@ -1,6 +1,7 @@
 import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
+import { eventNightWindowBounds } from "@/lib/event-night";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { prisma } from "@/lib/prisma";
@@ -229,6 +230,26 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
     favorite: withPercent(favorite),
     model: withPercent(model)
   };
+});
+
+// Событие «турнирной ночи» для live-баннера на главной: окно то же, что у
+// event-night workflow, поэтому баннер живёт ровно пока идут синк и ревалидация.
+export const getEventNightEvent = cache(async function getEventNightEvent() {
+  const { minDate, maxDate } = eventNightWindowBounds(new Date());
+
+  return prisma.event.findFirst({
+    where: {
+      status: { in: ["upcoming", "live"] },
+      date: { gte: minDate, lte: maxDate }
+    },
+    orderBy: { date: "asc" },
+    select: {
+      slug: true,
+      name: true,
+      date: true,
+      mainCardAt: true
+    }
+  });
 });
 
 export const getPredictionAccuracyHistory = cache(async function getPredictionAccuracyHistory() {

@@ -178,6 +178,11 @@ model Event {
   slug        String      @unique
   name        String
   date        DateTime
+  // Точные UTC-времена сегментов карда из ESPN; date остаётся «датой турнира»
+  // (полночь UTC) — на ней завязаны сортировки, матчинг и окно event-night.
+  earlyPrelimsAt DateTime?
+  prelimsAt      DateTime?
+  mainCardAt     DateTime?
   city        String
   venue       String
   status      EventStatus

@@ -8,7 +8,8 @@ export const revalidate = 1800;
 import { ArticleCard, EventCard, FighterCard } from "@/components/cards";
 import { getArticleHref } from "@/lib/article-routes";
 import { JsonLd } from "@/components/json-ld";
-import { getHomePageData } from "@/lib/db";
+import { getEventNightEvent, getHomePageData } from "@/lib/db";
+import { formatCardTime } from "@/lib/event-time";
 import { formatEventLocation, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { sortFightsForCard } from "@/lib/fight-card";
@@ -53,7 +54,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const locale = await getLocale();
-  const { articles, leadArticle, events, fighters, totalArticles, totalEvents, totalFighters } = await getHomePageData();
+  const [{ articles, leadArticle, events, fighters, totalArticles, totalEvents, totalFighters }, eventNight] =
+    await Promise.all([getHomePageData(), getEventNightEvent()]);
   const leadEvent = events[0];
   const leadEventFights = sortFightsForCard(leadEvent?.fights ?? []);
   const leadFight = leadEventFights[0];
@@ -99,6 +101,26 @@ export default async function HomePage() {
             itemListElement: itemListElements
           }}
         />
+      ) : null}
+
+      {eventNight ? (
+        <Link
+          href={localizePath(`/events/${eventNight.slug}`, locale)}
+          className="event-night-banner"
+          aria-label={locale === "ru" ? "Турнирная ночь" : "Fight night"}
+        >
+          <span className="event-night-banner-dot" aria-hidden="true" />
+          <span>
+            {locale === "ru"
+              ? `Турнирная ночь: ${eventNight.name} — кард, прогнозы и результаты по ходу турнира`
+              : `Fight night: ${eventNight.name} — card, picks, and live results`}
+            {eventNight.mainCardAt
+              ? locale === "ru"
+                ? ` · главный кард в ${formatCardTime(eventNight.mainCardAt, "ru")} мск`
+                : ` · main card at ${formatCardTime(eventNight.mainCardAt, "en")} UTC`
+              : ""}
+          </span>
+        </Link>
       ) : null}
 
       <section className="hero-section">

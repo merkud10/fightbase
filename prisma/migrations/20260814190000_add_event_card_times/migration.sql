@@ -1,0 +1,4 @@
+ALTER TABLE "Event"
+ADD COLUMN "earlyPrelimsAt" TIMESTAMP(3),
+ADD COLUMN "prelimsAt" TIMESTAMP(3),
+ADD COLUMN "mainCardAt" TIMESTAMP(3);

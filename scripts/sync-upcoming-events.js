@@ -3,6 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
+const { deriveCardTimes, matchEspnEvent, normalizeEventDate } = require("./espn-event-utils");
 
 const prisma = new PrismaClient();
 
@@ -150,25 +151,41 @@ async function fetchUpcomingEntries() {
 
     entries.push({
       label: item.label,
-      date: startDate,
-      dateStr: item.startDate.slice(0, 10).replace(/-/g, "")
+      date: startDate
     });
   }
 
   return entries;
 }
 
-async function fetchEventVenue(dateStr) {
+function toEspnDateStr(date) {
+  return date.toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+// Запрашиваем диапазон соседних дней и матчим по названию: событие у ESPN может
+// быть датировано соседним днём относительно календарной записи (реальное время
+// старта против полуночи UTC), и точечный ?dates=YYYYMMDD его не находит.
+async function fetchEventDetails(entry) {
+  const fallback = { venue: "TBD", city: "TBD", cardTimes: deriveCardTimes([]) };
+
   try {
-    const data = await fetchJson(`${ESPN_SCOREBOARD_URL}?dates=${dateStr}`);
-    const event = data.events?.[0];
+    const from = new Date(entry.date.getTime() - 24 * 60 * 60 * 1000);
+    const to = new Date(entry.date.getTime() + 24 * 60 * 60 * 1000);
+    const data = await fetchJson(`${ESPN_SCOREBOARD_URL}?dates=${toEspnDateStr(from)}-${toEspnDateStr(to)}`);
+    const event = matchEspnEvent(data.events, entry);
+
     if (event) {
-      return extractVenueFromEvent(event);
+      const competitionDates = (event.competitions || []).map((competition) => competition?.date);
+      return {
+        ...extractVenueFromEvent(event),
+        cardTimes: deriveCardTimes(competitionDates)
+      };
     }
   } catch (error) {
-    console.warn(`Could not fetch venue for date ${dateStr}: ${error.message}`);
+    console.warn(`Could not fetch event details for ${entry.label}: ${error.message}`);
   }
-  return { venue: "TBD", city: "TBD" };
+
+  return fallback;
 }
 
 async function main() {
@@ -197,7 +214,8 @@ async function main() {
   for (const entry of filtered) {
     try {
       const slug = slugFromLabel(entry.label);
-      const { venue, city } = await fetchEventVenue(entry.dateStr);
+      const { venue, city, cardTimes } = await fetchEventDetails(entry);
+      const eventDate = normalizeEventDate(entry.date, cardTimes.mainCardAt);
 
       const existing = await prisma.event.findUnique({ where: { slug } });
 
@@ -228,12 +246,16 @@ async function main() {
       const data = {
         slug,
         name: entry.label,
-        date: entry.date,
+        date: eventDate,
         city,
         venue,
         status: "upcoming",
-        summary: buildRussianEventSummary(promotion, entry.label, entry.date, venue, city),
-        promotionId: promotion.id
+        summary: buildRussianEventSummary(promotion, entry.label, eventDate, venue, city),
+        promotionId: promotion.id,
+        // Не затираем сохранённые времена, если ESPN перестал их отдавать.
+        ...(cardTimes.earlyPrelimsAt ? { earlyPrelimsAt: cardTimes.earlyPrelimsAt } : {}),
+        ...(cardTimes.prelimsAt ? { prelimsAt: cardTimes.prelimsAt } : {}),
+        ...(cardTimes.mainCardAt ? { mainCardAt: cardTimes.mainCardAt } : {})
       };
 
       if (matchedEvent) {
