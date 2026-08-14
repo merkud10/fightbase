@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolvePredictionVerdict } from "../lib/prediction-verdict";
+import { resolveAiPickVerdict, resolvePredictionVerdict } from "../lib/prediction-verdict";
 
 const base = {
   percentA: 71,
@@ -36,6 +36,39 @@ test("resolvePredictionVerdict marks correct and wrong picks by the higher perce
       winnerFighterId: "fighter-b"
     }),
     "correct"
+  );
+});
+
+test("resolveAiPickVerdict judges the stored model pick against the result", () => {
+  assert.equal(
+    resolveAiPickVerdict({ aiPickFighterId: "fighter-a", status: "scheduled", resultType: null, winnerFighterId: null }),
+    "pending"
+  );
+  assert.equal(
+    resolveAiPickVerdict({ aiPickFighterId: null, status: "completed", resultType: "win", winnerFighterId: "fighter-a" }),
+    "no_result"
+  );
+  assert.equal(
+    resolveAiPickVerdict({
+      aiPickFighterId: "fighter-a",
+      status: "completed",
+      resultType: "win",
+      winnerFighterId: "fighter-a"
+    }),
+    "correct"
+  );
+  assert.equal(
+    resolveAiPickVerdict({
+      aiPickFighterId: "fighter-a",
+      status: "completed",
+      resultType: "win",
+      winnerFighterId: "fighter-b"
+    }),
+    "wrong"
+  );
+  assert.equal(
+    resolveAiPickVerdict({ aiPickFighterId: "fighter-a", status: "completed", resultType: "draw", winnerFighterId: null }),
+    "no_result"
   );
 });
 

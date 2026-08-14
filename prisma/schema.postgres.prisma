@@ -266,6 +266,9 @@ model FightPredictionSnapshot {
   sourceOddsUpdatedAt DateTime?
   aiContentHash     String?
   aiGeneratedAt     DateTime?
+  aiPickFighterId   String?
+  aiPickReasonRu    String?
+  aiPickGeneratedAt DateTime?
   generatedAt       DateTime @default(now())
   browserPushNotifiedAt DateTime?
   updatedAt         DateTime @updatedAt

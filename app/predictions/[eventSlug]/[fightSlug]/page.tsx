@@ -9,7 +9,7 @@ import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
 import { formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
-import { resolvePredictionVerdict } from "@/lib/prediction-verdict";
+import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -236,8 +236,28 @@ export default async function FightPredictionPage({
         </div>
 
         <div className="prediction-hero-center">
-          <span className="prediction-label">{locale === "ru" ? "Выбор" : "Pick"}</span>
+          <span className="prediction-label">{locale === "ru" ? "Фаворит" : "Favorite"}</span>
           <strong>{prediction.pick}</strong>
+          {(() => {
+            if (!snapshot.aiPickFighterId) return null;
+            const aiPickName =
+              snapshot.aiPickFighterId === fight.fighterAId
+                ? fighterAName
+                : snapshot.aiPickFighterId === fight.fighterBId
+                  ? fighterBName
+                  : null;
+            if (!aiPickName) return null;
+            const favoriteFighterId =
+              snapshot.percentA >= snapshot.percentB ? fight.fighterAId : fight.fighterBId;
+            const againstOdds = snapshot.aiPickFighterId !== favoriteFighterId;
+            return (
+              <p className="copy prediction-meter-caption">
+                <strong>{locale === "ru" ? "Прогноз FightBase" : "FightBase pick"}: {aiPickName}</strong>
+                {againstOdds ? (locale === "ru" ? " · против котировок" : " · against the odds") : null}
+                {snapshot.aiPickReasonRu && locale === "ru" ? <> — {snapshot.aiPickReasonRu}</> : null}
+              </p>
+            );
+          })()}
           <div className="prediction-meter">
             <div className="prediction-meter-fill" style={{ width: `${fighterAPercent}%` }} />
           </div>
@@ -317,14 +337,44 @@ export default async function FightPredictionPage({
             <h2>{locale === "ru" ? "Итог боя" : "Fight result"}</h2>
             <p className="copy">{resultLine}</p>
             {verdict === "correct" ? (
-              <p className="kicker">{locale === "ru" ? "Прогноз сбылся ✓" : "Prediction correct ✓"}</p>
+              <p className="kicker">{locale === "ru" ? "Фаворит подтвердил статус ✓" : "The favorite delivered ✓"}</p>
             ) : verdict === "wrong" ? (
-              <p className="kicker">{locale === "ru" ? "Прогноз не сбылся ✗" : "Prediction missed ✗"}</p>
+              <p className="kicker">{locale === "ru" ? "Апсет: фаворит проиграл" : "Upset: the favorite lost"}</p>
             ) : (
               <p className="kicker">
-                {locale === "ru" ? "Прогноз не засчитан: бой без чистого победителя" : "Not scored: no clean winner"}
+                {locale === "ru" ? "Без чистого победителя — оценка не засчитана" : "No clean winner — not scored"}
               </p>
             )}
+            {(() => {
+              const aiVerdict = resolveAiPickVerdict({
+                aiPickFighterId: snapshot.aiPickFighterId,
+                status: fight.status,
+                resultType: fight.resultType,
+                winnerFighterId: fight.winnerFighterId
+              });
+              if (aiVerdict === "correct") {
+                const wasUpset = verdict === "wrong";
+                return (
+                  <p className="kicker">
+                    {locale === "ru"
+                      ? wasUpset
+                        ? "Прогноз FightBase угадал апсет ✓✓"
+                        : "Прогноз FightBase угадал победителя ✓"
+                      : wasUpset
+                        ? "FightBase pick called the upset ✓✓"
+                        : "FightBase pick was correct ✓"}
+                  </p>
+                );
+              }
+              if (aiVerdict === "wrong") {
+                return (
+                  <p className="kicker">
+                    {locale === "ru" ? "Прогноз FightBase не угадал ✗" : "FightBase pick missed ✗"}
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </section>
         );
       })() : null}

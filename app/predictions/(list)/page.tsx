@@ -97,14 +97,23 @@ export default async function PredictionsPage() {
         }
       />
 
-      {accuracy.percent !== null ? (
-        <section className="policy-card" aria-label={locale === "ru" ? "Точность прогнозов" : "Prediction accuracy"}>
-          <p className="kicker">{locale === "ru" ? "Точность прогнозов" : "Prediction accuracy"}</p>
-          <p className="copy">
-            {locale === "ru"
-              ? `${accuracy.percent}% — ${accuracy.correct} из ${accuracy.judged} завершённых боёв на последних ${accuracy.eventsCount} турнирах. Итог каждого боя виден на его странице прогноза.`
-              : `${accuracy.percent}% — ${accuracy.correct} of ${accuracy.judged} completed fights across the last ${accuracy.eventsCount} events. Each fight page shows its result.`}
-          </p>
+      {accuracy.favorite.percent !== null || accuracy.model.percent !== null ? (
+        <section className="policy-card" aria-label={locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}>
+          <p className="kicker">{locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}</p>
+          {accuracy.model.percent !== null ? (
+            <p className="copy">
+              {locale === "ru"
+                ? `Прогноз FightBase угадал победителя в ${accuracy.model.correct} из ${accuracy.model.judged} боёв (${accuracy.model.percent}%) на последних ${accuracy.eventsCount} турнирах.`
+                : `The FightBase pick called ${accuracy.model.correct} of ${accuracy.model.judged} bouts (${accuracy.model.percent}%) across the last ${accuracy.eventsCount} events.`}
+            </p>
+          ) : null}
+          {accuracy.favorite.percent !== null ? (
+            <p className="copy">
+              {locale === "ru"
+                ? `Для сравнения: фаворит по предматчевой оценке побеждал в ${accuracy.favorite.correct} из ${accuracy.favorite.judged} боёв (${accuracy.favorite.percent}%). Итог каждого боя — на его странице прогноза.`
+                : `For reference, the pre-fight favorite won ${accuracy.favorite.correct} of ${accuracy.favorite.judged} bouts (${accuracy.favorite.percent}%). Each fight page shows its result.`}
+            </p>
+          ) : null}
         </section>
       ) : null}
 

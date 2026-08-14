@@ -2,7 +2,7 @@ import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
 import { sortFightsForCard } from "@/lib/fight-card";
-import { resolvePredictionVerdict } from "@/lib/prediction-verdict";
+import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -172,14 +172,14 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
           winnerFighterId: true,
           resultType: true,
           status: true,
-          predictionSnapshot: { select: { percentA: true, percentB: true } }
+          predictionSnapshot: { select: { percentA: true, percentB: true, aiPickFighterId: true } }
         }
       }
     }
   });
 
-  let correct = 0;
-  let judged = 0;
+  const favorite = { correct: 0, judged: 0 };
+  const model = { correct: 0, judged: 0 };
 
   for (const event of completedEvents) {
     for (const fight of event.fights) {
@@ -187,7 +187,8 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
       if (!snapshot || !fight.fighterAId || !fight.fighterBId) {
         continue;
       }
-      const verdict = resolvePredictionVerdict({
+
+      const favoriteVerdict = resolvePredictionVerdict({
         percentA: snapshot.percentA,
         percentB: snapshot.percentB,
         fighterAId: fight.fighterAId,
@@ -196,20 +197,37 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
         resultType: fight.resultType,
         winnerFighterId: fight.winnerFighterId
       });
-      if (verdict === "correct") {
-        correct += 1;
-        judged += 1;
-      } else if (verdict === "wrong") {
-        judged += 1;
+      if (favoriteVerdict === "correct") {
+        favorite.correct += 1;
+        favorite.judged += 1;
+      } else if (favoriteVerdict === "wrong") {
+        favorite.judged += 1;
+      }
+
+      const modelVerdict = resolveAiPickVerdict({
+        aiPickFighterId: snapshot.aiPickFighterId,
+        status: fight.status,
+        resultType: fight.resultType,
+        winnerFighterId: fight.winnerFighterId
+      });
+      if (modelVerdict === "correct") {
+        model.correct += 1;
+        model.judged += 1;
+      } else if (modelVerdict === "wrong") {
+        model.judged += 1;
       }
     }
   }
 
+  const withPercent = (bucket: { correct: number; judged: number }) => ({
+    ...bucket,
+    percent: bucket.judged > 0 ? Math.round((bucket.correct / bucket.judged) * 100) : null
+  });
+
   return {
     eventsCount: completedEvents.length,
-    correct,
-    judged,
-    percent: judged > 0 ? Math.round((correct / judged) * 100) : null
+    favorite: withPercent(favorite),
+    model: withPercent(model)
   };
 });
 

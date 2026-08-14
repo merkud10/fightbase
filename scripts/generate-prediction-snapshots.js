@@ -442,6 +442,9 @@ async function main() {
           fightId: true,
           aiContentHash: true,
           aiGeneratedAt: true,
+          aiPickFighterId: true,
+          aiPickReasonRu: true,
+          aiPickGeneratedAt: true,
           excerptRu: true,
           overviewRu: true,
           keyEdgeRu: true,
@@ -467,11 +470,21 @@ async function main() {
     let aiContentHash = null;
     let aiGeneratedAt = null;
 
+    // Пик модели фиксируется при первой генерации и сохраняется при любой
+    // регенерации текстов, пока не сменился состав боя, — иначе статистика
+    // меткости превратилась бы в подгонку задним числом.
+    const existing = existingSnapshots.get(fight.id);
+    const existingPickIsValid =
+      existing?.aiPickFighterId &&
+      (existing.aiPickFighterId === fight.fighterAId || existing.aiPickFighterId === fight.fighterBId);
+    let aiPickFighterId = existingPickIsValid ? existing.aiPickFighterId : null;
+    let aiPickReasonRu = existingPickIsValid ? existing.aiPickReasonRu : null;
+    let aiPickGeneratedAt = existingPickIsValid ? existing.aiPickGeneratedAt : null;
+
     if (aiConfig && !isPlaceholderFight(fight)) {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);
-      const existing = existingSnapshots.get(fight.id);
 
       if (existing?.aiContentHash === nextHash && existing.aiGeneratedAt) {
         ru = {
@@ -487,7 +500,7 @@ async function main() {
         aiGeneratedAt = existing.aiGeneratedAt;
         aiReusedCount += 1;
       } else {
-        const generated = await generateAiPredictionCopy({ fight, percents, config: aiConfig });
+        const generated = await generateAiPredictionCopy({ fight, config: aiConfig });
         if (generated) {
           const fighterAName = getDisplayName(fight.fighterA, "ru");
           const fighterBName = getDisplayName(fight.fighterB, "ru");
@@ -499,6 +512,12 @@ async function main() {
           aiContentHash = nextHash;
           aiGeneratedAt = new Date();
           aiGeneratedCount += 1;
+
+          if (!aiPickFighterId) {
+            aiPickFighterId = generated.pick === "A" ? fight.fighterAId : fight.fighterBId;
+            aiPickReasonRu = normalizeRussianMmaText(generated.pickReason);
+            aiPickGeneratedAt = new Date();
+          }
         } else {
           aiFallbackCount += 1;
           console.warn(`[ai-copy] fallback to template: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
@@ -542,6 +561,9 @@ async function main() {
       sourceOddsUpdatedAt: fight.oddsUpdatedAt ?? null,
       aiContentHash,
       aiGeneratedAt,
+      aiPickFighterId,
+      aiPickReasonRu,
+      aiPickGeneratedAt,
       generatedAt: new Date()
     };
 
@@ -550,6 +572,11 @@ async function main() {
         `[dry-run] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}${aiGeneratedAt ? " | AI" : " | template"}`
       );
       if (aiGeneratedAt) {
+        if (aiPickFighterId) {
+          const pickName =
+            aiPickFighterId === fight.fighterAId ? fight.fighterA.name : fight.fighterB.name;
+          console.log(`  pick: ${pickName} — ${aiPickReasonRu}`);
+        }
         console.log(`  overview: ${ru.overview}`);
         console.log(`  keyEdge: ${ru.keyEdge}`);
         console.log(`  fightScript: ${ru.fightScript}`);

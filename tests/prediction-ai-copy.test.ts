@@ -56,15 +56,18 @@ function makeFight(overrides = {}) {
   };
 }
 
-test("buildFightFactPack keeps only filled stats and marks the card slot", () => {
-  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+test("buildFightFactPack keeps only filled stats, hides market odds and marks the card slot", () => {
+  const pack = buildFightFactPack(makeFight());
   assert.equal(pack.isHeadliner, true);
   assert.equal(pack.fighters[0].name, "Ислам Махачев");
   assert.equal(pack.fighters[0].record, "28-1-0");
   assert.equal(pack.fighters[0].stats.takedownDefense, 91);
   assert.equal(pack.fighters[0].recentFights[0].opponent, "Джек Делла Маддалена");
   assert.equal(pack.fighters[1].recentFights.length, 0);
-  assert.equal(pack.percentA, 71);
+  // Модель принимает решение вслепую от рынка: котировок в факт-пакете нет.
+  assert.equal("percentA" in pack, false);
+  assert.equal("percentB" in pack, false);
+  assert.equal("percentSource" in pack, false);
 
   const sparse = buildFightFactPack(
     makeFight({
@@ -76,14 +79,15 @@ test("buildFightFactPack keeps only filled stats and marks the card slot", () =>
         takedownDefense: null,
         submissionAveragePer15: null
       })
-    }),
-    { percentA: 50, percentB: 50, source: "base" }
+    })
   );
   assert.deepEqual(sparse.fighters[0].stats, {});
 });
 
 function validCopy() {
   return {
+    pick: "A",
+    pickReason: "Борьба и контроль темпа дают Исламу Махачеву решающее преимущество в этом матчапе.",
     overview:
       "Ислам Махачев подходит к бою фаворитом за счет давления, темпа и борьбы, которая остается его главным оружием на любом отрезке поединка. Иан Мачадо Гарри строит бой от джеба и дистанции, любит контролировать центр клетки и наказывать соперника на выходах. Его шансы напрямую связаны с тем, удастся ли удерживать поединок в стойке достаточно долго и не отдавать спину у сетки.",
     keyEdge:
@@ -95,22 +99,34 @@ function validCopy() {
   };
 }
 
-test("buildPrompt asks for strict JSON and embeds only pack facts", () => {
-  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+test("buildPrompt asks for strict JSON with a pick and embeds only pack facts", () => {
+  const pack = buildFightFactPack(makeFight());
   const prompt = buildPrompt(pack);
   assert.ok(prompt.system.includes("JSON"));
+  assert.ok(prompt.system.includes("pick"));
   assert.ok(prompt.user.includes("Ислам Махачев"));
   assert.ok(prompt.user.includes("28-1-0"));
 });
 
-test("validateAiCopy accepts a clean copy", () => {
-  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+test("validateAiCopy accepts a clean copy with a pick", () => {
+  const pack = buildFightFactPack(makeFight());
   const result = validateAiCopy(validCopy(), pack);
   assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.pick, "A");
+    assert.ok(result.pickReason.includes("Махачеву"));
+  }
+});
+
+test("validateAiCopy rejects a missing or malformed pick", () => {
+  const pack = buildFightFactPack(makeFight());
+  assert.equal(validateAiCopy({ ...validCopy(), pick: "C" }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), pick: undefined }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), pickReason: "" }, pack).ok, false);
 });
 
 test("validateAiCopy rejects missing fields, latin text, banned lexicon and foreign numbers", () => {
-  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  const pack = buildFightFactPack(makeFight());
   assert.equal(validateAiCopy({ ...validCopy(), pathB: "" }, pack).ok, false);
   assert.equal(
     validateAiCopy(
@@ -129,10 +145,10 @@ test("validateAiCopy rejects missing fields, latin text, banned lexicon and fore
 });
 
 test("validateAiCopy allows round numbers 1-5 and numbers present in the pack", () => {
-  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  const pack = buildFightFactPack(makeFight());
   const copy = {
     ...validCopy(),
-    fightScript: "Со 2 раунда Ислам Махачев начнет проводить по 3.1 перевода, реализуя 71 процент своих шансов."
+    fightScript: "Со 2 раунда Ислам Махачев начнет проводить по 3.1 перевода за счет защиты в 91 процент."
   };
   assert.equal(validateAiCopy(copy, pack).ok, true);
 });
@@ -144,11 +160,10 @@ function okResponse(body: unknown) {
   };
 }
 
-test("generateAiPredictionCopy returns validated copy on success", async () => {
+test("generateAiPredictionCopy returns validated copy with the model pick on success", async () => {
   const calls: unknown[] = [];
   const result = await generateAiPredictionCopy({
     fight: makeFight(),
-    percents: { percentA: 71, percentB: 29, source: "odds" },
     config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
     fetchImpl: async (...args: unknown[]) => {
       calls.push(args);
@@ -156,6 +171,8 @@ test("generateAiPredictionCopy returns validated copy on success", async () => {
     }
   });
   assert.equal(result?.copy.overview.startsWith("Ислам Махачев"), true);
+  assert.equal(result?.pick, "A");
+  assert.ok(result?.pickReason);
   assert.equal(calls.length, 1);
 });
 
@@ -163,7 +180,6 @@ test("generateAiPredictionCopy retries HTTP errors and gives up with null", asyn
   let attempts = 0;
   const result = await generateAiPredictionCopy({
     fight: makeFight(),
-    percents: { percentA: 71, percentB: 29, source: "odds" },
     config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
     fetchImpl: async () => {
       attempts += 1;
@@ -178,7 +194,6 @@ test("generateAiPredictionCopy returns null on invalid model JSON without retryi
   let attempts = 0;
   const result = await generateAiPredictionCopy({
     fight: makeFight(),
-    percents: { percentA: 71, percentB: 29, source: "odds" },
     config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
     fetchImpl: async () => {
       attempts += 1;

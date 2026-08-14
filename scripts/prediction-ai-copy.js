@@ -52,7 +52,9 @@ function describeCardSlot(fight) {
   return null;
 }
 
-function buildFightFactPack(fight, percents) {
+// Котировок в факт-пакете сознательно НЕТ: пик модели должен быть независим
+// от рыночной оценки, иначе она будет просто повторять фаворита.
+function buildFightFactPack(fight) {
   return {
     eventName: String(fight.event?.name || "").trim(),
     eventDate: fight.event?.date
@@ -61,10 +63,7 @@ function buildFightFactPack(fight, percents) {
     weightClass: String(fight.weightClass || "").trim(),
     isHeadliner: Boolean(fight.isMainEvent),
     cardSlot: describeCardSlot(fight),
-    fighters: [buildFighterFacts(fight.fighterA), buildFighterFacts(fight.fighterB)],
-    percentA: percents?.percentA ?? null,
-    percentB: percents?.percentB ?? null,
-    percentSource: percents?.source ?? null
+    fighters: [buildFighterFacts(fight.fighterA), buildFighterFacts(fight.fighterB)]
   };
 }
 
@@ -76,8 +75,11 @@ function computeAiContentHash(fight, percents) {
 
 function buildPrompt(pack) {
   const system = [
-    "Ты — редактор русскоязычного MMA-медиа. Пишешь сухие, точные редакционные разборы боев UFC.",
-    "Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: overview, keyEdge, fightScript, pathA, pathB. Все значения — строки на русском языке.",
+    "Ты — редактор русскоязычного MMA-медиа. Пишешь сухие, точные редакционные разборы боев UFC и делаешь собственный прогноз победителя.",
+    "Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: pick, pickReason, overview, keyEdge, fightScript, pathA, pathB.",
+    'pick — строго "A" (первый боец в списке) или "B" (второй): кто, по твоему анализу, победит. Решай по статистике, форме, стилям и последним боям. Не бойся выбирать андердога, если матчап на это указывает.',
+    "pickReason — 1-2 предложения (15-30 слов) на русском: главная причина выбора.",
+    "Остальные значения — строки на русском языке.",
     "Имена бойцов используй только в именительном падеже: перестраивай фразу, а не склоняй имя. Избегай конструкций, где имя требует другого падежа («у {имя}», «за {имя}», «против {имя}») — делай имя подлежащим.",
     "Статус боя в карде бери из поля cardSlot дословно, не переименовывай его (не называй бой «со-главным», если это не указано).",
     "Запрещено упоминать букмекеров, ставки, коэффициенты и давать советы по ставкам.",
@@ -87,7 +89,7 @@ function buildPrompt(pack) {
 
   const targetWords = pack.isHeadliner ? "120-160" : "60-90";
   const user = [
-    `Целевая длина каждого поля: ${targetWords} слов.`,
+    `Целевая длина каждого текстового поля: ${targetWords} слов.`,
     "Поля: overview — общая картина матчапа; keyEdge — главное преимущество и за кем оно; fightScript — вероятное развитие боя; pathA — путь к победе первого бойца; pathB — путь к победе второго.",
     "",
     "Факты (используй только их):",
@@ -104,6 +106,12 @@ function extractNumbers(text) {
 function validateAiCopy(parsed, pack) {
   if (!parsed || typeof parsed !== "object") return { ok: false, reason: "not_an_object" };
 
+  const pick = parsed.pick === "A" || parsed.pick === "B" ? parsed.pick : null;
+  if (!pick) return { ok: false, reason: "invalid_pick" };
+  const pickReason =
+    typeof parsed.pickReason === "string" ? enforceNameCorrections(parsed.pickReason.trim()) : "";
+  if (!pickReason) return { ok: false, reason: "empty_pick_reason" };
+
   const copy = {};
   for (const field of COPY_FIELDS) {
     const value = typeof parsed[field] === "string" ? enforceNameCorrections(parsed[field].trim()) : "";
@@ -111,8 +119,9 @@ function validateAiCopy(parsed, pack) {
     copy[field] = value;
   }
 
-  const combined = COPY_FIELDS.map((field) => copy[field]).join("\n");
-  if (latinShare(combined) > 0.1) return { ok: false, reason: "latin_share" };
+  const combined = [...COPY_FIELDS.map((field) => copy[field]), pickReason].join("\n");
+  const worstLatinShare = Math.max(...COPY_FIELDS.map((field) => latinShare(copy[field])), latinShare(pickReason));
+  if (worstLatinShare > 0.2) return { ok: false, reason: "latin_share" };
   if (collectRedFlags(combined).length > 0) return { ok: false, reason: "red_flags" };
   if (BANNED_LEXICON.test(combined)) return { ok: false, reason: "banned_lexicon" };
 
@@ -127,11 +136,14 @@ function validateAiCopy(parsed, pack) {
   if (foreign.length > 0) return { ok: false, reason: "foreign_numbers" };
 
   const [minWords, maxWords] = pack.isHeadliner ? [70, 280] : [38, 150];
-  const totalWords = combined.split(/\s+/).filter(Boolean).length;
+  const totalWords = COPY_FIELDS.map((field) => copy[field])
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
   const perFieldAverage = totalWords / COPY_FIELDS.length;
   if (perFieldAverage < minWords * 0.3 || perFieldAverage > maxWords) return { ok: false, reason: "length" };
 
-  return { ok: true, copy };
+  return { ok: true, copy, pick, pickReason };
 }
 
 function sleep(ms) {
@@ -158,12 +170,12 @@ function parseModelJson(content) {
   }
 }
 
-async function generateAiPredictionCopy({ fight, percents, config, fetchImpl = fetch }) {
+async function generateAiPredictionCopy({ fight, config, fetchImpl = fetch }) {
   if (isPlaceholderFight(fight)) {
     return null;
   }
 
-  const pack = buildFightFactPack(fight, percents);
+  const pack = buildFightFactPack(fight);
   const prompt = buildPrompt(pack);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -205,7 +217,7 @@ async function generateAiPredictionCopy({ fight, percents, config, fetchImpl = f
       console.warn(`[ai-copy] rejected (${verdict.reason}): ${pack.fighters[0]?.name} vs ${pack.fighters[1]?.name}`);
       return null;
     }
-    return { copy: verdict.copy, pack };
+    return { copy: verdict.copy, pick: verdict.pick, pickReason: verdict.pickReason, pack };
   }
 
   return null;
