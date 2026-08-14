@@ -22,7 +22,7 @@ function readEnv(name, fallback = "") {
   return process.env[name] || readEnvValueFromFile(name) || fallback;
 }
 
-const { computeAiContentHash, generateAiPredictionCopy } = require("./prediction-ai-copy");
+const { computeAiContentHash, generateAiPredictionCopy, isPlaceholderFight } = require("./prediction-ai-copy");
 
 function getAiCopyConfig() {
   if (readEnv("PREDICTION_AI_COPY", "1").trim() === "0") return null;
@@ -478,7 +478,7 @@ async function main() {
     let aiContentHash = null;
     let aiGeneratedAt = null;
 
-    if (aiConfig) {
+    if (aiConfig && !isPlaceholderFight(fight)) {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);

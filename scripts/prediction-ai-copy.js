@@ -16,6 +16,13 @@ function pickName(fighter) {
   return String(fighter?.nameRu || fighter?.name || "").trim();
 }
 
+// Бои-заглушки («Opponent TBA vs TBA») оставляем на шаблонах: разбор без бойцов бессмыслен.
+function isPlaceholderFight(fight) {
+  return [fight?.fighterA, fight?.fighterB].some((fighter) =>
+    /(?:^|[^\p{L}])(?:TBA|TBD)(?:[^\p{L}]|$)/iu.test(String(fighter?.name || ""))
+  );
+}
+
 function buildFighterFacts(fighter) {
   const stats = {};
   if (fighter.sigStrikesLandedPerMin != null) stats.sigStrikesLandedPerMin = Number(fighter.sigStrikesLandedPerMin.toFixed(2));
@@ -152,6 +159,10 @@ function parseModelJson(content) {
 }
 
 async function generateAiPredictionCopy({ fight, percents, config, fetchImpl = fetch }) {
+  if (isPlaceholderFight(fight)) {
+    return null;
+  }
+
   const pack = buildFightFactPack(fight, percents);
   const prompt = buildPrompt(pack);
 
@@ -204,6 +215,7 @@ module.exports = {
   buildFightFactPack,
   computeAiContentHash,
   buildPrompt,
+  isPlaceholderFight,
   validateAiCopy,
   generateAiPredictionCopy
 };

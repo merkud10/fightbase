@@ -3,7 +3,14 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
-const { buildFightFactPack, buildPrompt, computeAiContentHash, generateAiPredictionCopy, validateAiCopy } = require("../scripts/prediction-ai-copy.js");
+const {
+  buildFightFactPack,
+  buildPrompt,
+  computeAiContentHash,
+  generateAiPredictionCopy,
+  isPlaceholderFight,
+  validateAiCopy
+} = require("../scripts/prediction-ai-copy.js");
 
 function makeFighter(overrides = {}) {
   return {
@@ -180,6 +187,25 @@ test("generateAiPredictionCopy returns null on invalid model JSON without retryi
   });
   assert.equal(result, null);
   assert.equal(attempts, 1);
+});
+
+test("isPlaceholderFight detects TBA/TBD stubs and generation skips them", async () => {
+  assert.equal(isPlaceholderFight(makeFight()), false);
+  assert.equal(isPlaceholderFight(makeFight({ fighterB: makeFighter({ name: "Opponent TBA", nameRu: null }) })), true);
+  assert.equal(isPlaceholderFight(makeFight({ fighterA: makeFighter({ name: "TBD" }) })), true);
+
+  let called = false;
+  const result = await generateAiPredictionCopy({
+    fight: makeFight({ fighterB: makeFighter({ name: "TBA", nameRu: null }) }),
+    percents: { percentA: 50, percentB: 50, source: "base" },
+    config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
+    fetchImpl: async () => {
+      called = true;
+      return okResponse(validCopy());
+    }
+  });
+  assert.equal(result, null);
+  assert.equal(called, false);
 });
 
 test("computeAiContentHash is stable within a percent band and reacts to changes", () => {
