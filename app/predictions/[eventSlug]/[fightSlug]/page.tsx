@@ -16,6 +16,7 @@ import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
 import { getSnapshotContent } from "@/lib/prediction-snapshot";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
+import { ShareButtons } from "@/components/share-buttons";
 import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
@@ -530,6 +531,8 @@ export default async function FightPredictionPage({
             ))}
           </div>
           ) : null}
+
+          <ShareButtons url={pageUrl} title={prediction.headline} locale={locale} />
         </article>
 
         <aside className="stack">

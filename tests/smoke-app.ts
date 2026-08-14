@@ -251,6 +251,16 @@ async function main() {
         }
         throw new Error(attempts.join(" | "));
       }),
+      runCheck("Prediction accuracy page renders", async () => {
+        const response = await fetch(`${BASE_URL}/ru/predictions/accuracy`, { redirect: "follow" });
+        if (response.status !== 200) {
+          throw new Error(`Expected 200, got ${response.status}`);
+        }
+        const body = await response.text();
+        if (!body.includes("FightBase")) {
+          throw new Error("Accuracy page body is missing expected content");
+        }
+      }),
       runCheck("RSS feed responds with XML", async () => {
         const response = await fetch(`${BASE_URL}/rss.xml`);
         if (response.status !== 200) {

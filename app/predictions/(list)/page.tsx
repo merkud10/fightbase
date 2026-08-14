@@ -114,6 +114,11 @@ export default async function PredictionsPage() {
                 : `For reference, the pre-fight favorite won ${accuracy.favorite.correct} of ${accuracy.favorite.judged} bouts (${accuracy.favorite.percent}%). Each fight page shows its result.`}
             </p>
           ) : null}
+          <p className="copy">
+            <Link href={localizePath("/predictions/accuracy", locale)}>
+              {locale === "ru" ? "Полная история точности по турнирам →" : "Full accuracy history by event →"}
+            </Link>
+          </p>
         </section>
       ) : null}
 

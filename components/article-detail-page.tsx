@@ -15,6 +15,7 @@ import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
+import { ShareButtons } from "@/components/share-buttons";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
@@ -280,6 +281,8 @@ export async function ArticleDetailPage({
               ));
             })()}
           </div>
+
+          <ShareButtons url={articleUrl} title={article.title} locale={locale} />
         </article>
 
         <aside className="stack">

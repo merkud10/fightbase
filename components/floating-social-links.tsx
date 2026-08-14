@@ -1,3 +1,5 @@
+import { MetrikaGoalLink } from "@/components/metrika-goal-link";
+
 function TelegramIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -26,28 +28,26 @@ export async function FloatingSocialLinks() {
   return (
     <aside className="floating-social-rail" aria-label="Social links">
       {hasTelegram ? (
-        <a
+        <MetrikaGoalLink
           href={telegramUrl}
+          goal="social_telegram_click"
           className="floating-social-link"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="FightBase Telegram"
+          ariaLabel="FightBase Telegram"
           title="Telegram"
         >
           <TelegramIcon />
-        </a>
+        </MetrikaGoalLink>
       ) : null}
       {hasVk ? (
-        <a
+        <MetrikaGoalLink
           href={vkUrl}
+          goal="social_vk_click"
           className="floating-social-link floating-social-link--vk"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="FightBase VK"
+          ariaLabel="FightBase VK"
           title="VK"
         >
           <VkWordmark />
-        </a>
+        </MetrikaGoalLink>
       ) : null}
     </aside>
   );

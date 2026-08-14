@@ -28,11 +28,12 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   const hasFilters = Boolean(status || metaPage);
   const localizedUrl = localizePath("/events", locale);
 
-  const title = locale === "ru" ? "Турниры UFC" : "UFC events";
+  const year = new Date().getFullYear();
+  const title = locale === "ru" ? `Расписание турниров UFC ${year} — даты, карды и результаты` : `UFC ${year} event schedule`;
   const description =
     locale === "ru"
-      ? "Календарь турниров UFC с основными данными по событиям, составом боев и отдельными страницами турниров."
-      : "A UFC event calendar with core event details, fight lineups, and dedicated event pages.";
+      ? `Полное расписание турниров UFC ${year}: даты, время, составы кардов, результаты боёв и отдельные страницы каждого события.`
+      : `The full UFC ${year} schedule with dates, fight cards, results, and dedicated event pages.`;
 
   return {
     title,
@@ -103,11 +104,11 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
 
       <PageHero
         eyebrow="/events"
-        title={locale === "ru" ? "Турниры" : "Events"}
+        title={locale === "ru" ? "Расписание турниров UFC" : "UFC event schedule"}
         description={
           locale === "ru"
-            ? "Предстоящие и прошедшие турниры с основными данными, составом боев и ссылками на связанные материалы."
-            : "Upcoming and completed events with key details, fight lineups, and links to related coverage."
+            ? "Даты и время предстоящих турниров UFC, полные карды, результаты прошедших событий и ссылки на связанные материалы."
+            : "Dates and times for upcoming UFC events, full fight cards, results, and links to related coverage."
         }
       />
 

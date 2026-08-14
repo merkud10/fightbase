@@ -231,6 +231,140 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
   };
 });
 
+export const getPredictionAccuracyHistory = cache(async function getPredictionAccuracyHistory() {
+  const completedEvents = await prisma.event.findMany({
+    where: {
+      status: "completed",
+      fights: {
+        some: {
+          status: "completed",
+          predictionSnapshot: { isNot: null }
+        }
+      }
+    },
+    orderBy: { date: "desc" },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      date: true,
+      fights: {
+        where: {
+          status: "completed",
+          predictionSnapshot: { isNot: null }
+        },
+        select: {
+          id: true,
+          slug: true,
+          stage: true,
+          boutOrder: true,
+          isMainEvent: true,
+          createdAt: true,
+          fighterAId: true,
+          fighterBId: true,
+          winnerFighterId: true,
+          resultType: true,
+          status: true,
+          fighterA: { select: { id: true, name: true, nameRu: true } },
+          fighterB: { select: { id: true, name: true, nameRu: true } },
+          predictionSnapshot: { select: { percentA: true, percentB: true, aiPickFighterId: true } }
+        }
+      }
+    }
+  });
+
+  return completedEvents
+    .map((event) => {
+      const favorite = { correct: 0, judged: 0 };
+      const model = { correct: 0, judged: 0 };
+
+      const fights = sortFightsForCard(event.fights)
+        .map((fight) => {
+          const snapshot = fight.predictionSnapshot;
+          if (!snapshot || !fight.fighterAId || !fight.fighterBId) {
+            return null;
+          }
+
+          const favoriteVerdict = resolvePredictionVerdict({
+            percentA: snapshot.percentA,
+            percentB: snapshot.percentB,
+            fighterAId: fight.fighterAId,
+            fighterBId: fight.fighterBId,
+            status: fight.status,
+            resultType: fight.resultType,
+            winnerFighterId: fight.winnerFighterId
+          });
+          if (favoriteVerdict === "correct") {
+            favorite.correct += 1;
+            favorite.judged += 1;
+          } else if (favoriteVerdict === "wrong") {
+            favorite.judged += 1;
+          }
+
+          const modelVerdict = resolveAiPickVerdict({
+            aiPickFighterId: snapshot.aiPickFighterId,
+            status: fight.status,
+            resultType: fight.resultType,
+            winnerFighterId: fight.winnerFighterId
+          });
+          if (modelVerdict === "correct") {
+            model.correct += 1;
+            model.judged += 1;
+          } else if (modelVerdict === "wrong") {
+            model.judged += 1;
+          }
+
+          const favoriteFighterId =
+            snapshot.percentA === snapshot.percentB
+              ? null
+              : snapshot.percentA > snapshot.percentB
+                ? fight.fighterAId
+                : fight.fighterBId;
+          const pickFighter =
+            snapshot.aiPickFighterId === fight.fighterAId
+              ? fight.fighterA
+              : snapshot.aiPickFighterId === fight.fighterBId
+                ? fight.fighterB
+                : null;
+          const winnerFighter =
+            fight.winnerFighterId === fight.fighterAId
+              ? fight.fighterA
+              : fight.winnerFighterId === fight.fighterBId
+                ? fight.fighterB
+                : null;
+
+          return {
+            id: fight.id,
+            slug: fight.slug,
+            fighterA: fight.fighterA,
+            fighterB: fight.fighterB,
+            percentA: snapshot.percentA,
+            percentB: snapshot.percentB,
+            pickFighter,
+            pickAgainstOdds: Boolean(
+              snapshot.aiPickFighterId && favoriteFighterId && snapshot.aiPickFighterId !== favoriteFighterId
+            ),
+            winnerFighter,
+            resultType: fight.resultType,
+            favoriteVerdict,
+            modelVerdict
+          };
+        })
+        .filter((fight): fight is NonNullable<typeof fight> => fight !== null);
+
+      return {
+        id: event.id,
+        slug: event.slug,
+        name: event.name,
+        date: event.date,
+        fights,
+        favorite,
+        model
+      };
+    })
+    .filter((event) => event.fights.length > 0);
+});
+
 export const getPredictionPageParams = cache(async function getPredictionPageParams() {
   return prisma.fightPredictionSnapshot.findMany({
     select: {
