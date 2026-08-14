@@ -1,0 +1,199 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import test from "node:test";
+
+const require = createRequire(import.meta.url);
+const { buildFightFactPack, buildPrompt, computeAiContentHash, generateAiPredictionCopy, validateAiCopy } = require("../scripts/prediction-ai-copy.js");
+
+function makeFighter(overrides = {}) {
+  return {
+    id: "f-a",
+    name: "Islam Makhachev",
+    nameRu: "Ислам Махачев",
+    record: "28-1-0",
+    sigStrikesLandedPerMin: 2.45,
+    strikeAccuracy: 58,
+    strikeDefense: 62,
+    takedownAveragePer15: 3.1,
+    takedownDefense: 91,
+    submissionAveragePer15: 0.98,
+    recentFights: [
+      {
+        opponentName: "Jack Della Maddalena",
+        opponentNameRu: "Джек Делла Маддалена",
+        result: "win",
+        method: "unanimous decision"
+      }
+    ],
+    ...overrides
+  };
+}
+
+function makeFight(overrides = {}) {
+  return {
+    id: "fight-1",
+    eventId: "event-1",
+    weightClass: "Welterweight",
+    isMainEvent: true,
+    stage: "main",
+    fighterA: makeFighter(),
+    fighterB: makeFighter({
+      id: "f-b",
+      name: "Ian Machado Garry",
+      nameRu: "Иан Мачадо Гарри",
+      record: "17-1-0",
+      recentFights: []
+    }),
+    event: { name: "UFC 330: Makhachev vs. Machado Garry", date: new Date("2026-08-16T00:00:00Z"), slug: "ufc-330" },
+    ...overrides
+  };
+}
+
+test("buildFightFactPack keeps only filled stats and marks the card slot", () => {
+  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  assert.equal(pack.isHeadliner, true);
+  assert.equal(pack.fighters[0].name, "Ислам Махачев");
+  assert.equal(pack.fighters[0].record, "28-1-0");
+  assert.equal(pack.fighters[0].stats.takedownDefense, 91);
+  assert.equal(pack.fighters[0].recentFights[0].opponent, "Джек Делла Маддалена");
+  assert.equal(pack.fighters[1].recentFights.length, 0);
+  assert.equal(pack.percentA, 71);
+
+  const sparse = buildFightFactPack(
+    makeFight({
+      fighterA: makeFighter({
+        sigStrikesLandedPerMin: null,
+        strikeAccuracy: null,
+        strikeDefense: null,
+        takedownAveragePer15: null,
+        takedownDefense: null,
+        submissionAveragePer15: null
+      })
+    }),
+    { percentA: 50, percentB: 50, source: "base" }
+  );
+  assert.deepEqual(sparse.fighters[0].stats, {});
+});
+
+function validCopy() {
+  return {
+    overview:
+      "Ислам Махачев подходит к бою фаворитом за счет давления, темпа и борьбы, которая остается его главным оружием на любом отрезке поединка. Иан Мачадо Гарри строит бой от джеба и дистанции, любит контролировать центр клетки и наказывать соперника на выходах. Его шансы напрямую связаны с тем, удастся ли удерживать поединок в стойке достаточно долго и не отдавать спину у сетки.",
+    keyEdge:
+      "Ключевая разница — борьба и работа у сетки. Преимущество в переводах и контроле позиций остается решающим фактором этого матчапа, потому что в затяжных эпизодах в партере накапливается урон и уходит запас скорости, на котором строится вся игра соперника в стойке.",
+    fightScript:
+      "Первый раунд скорее всего пройдет в разведке: джеб против попыток сократить дистанцию. Дальше ожидается давление у сетки, размены на входах и регулярные попытки перевода, где и решится судьба поединка. Чем дольше бой идет в чужом ритме, тем тяжелее возвращать инициативу.",
+    pathA: "Ранний перевод, контроль в партере, методичное давление до финиша или уверенного решения судей.",
+    pathB: "Держать дистанцию, встречать на входах, набирать очки джебом и защищаться от тейкдаунов до поздних раундов."
+  };
+}
+
+test("buildPrompt asks for strict JSON and embeds only pack facts", () => {
+  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  const prompt = buildPrompt(pack);
+  assert.ok(prompt.system.includes("JSON"));
+  assert.ok(prompt.user.includes("Ислам Махачев"));
+  assert.ok(prompt.user.includes("28-1-0"));
+});
+
+test("validateAiCopy accepts a clean copy", () => {
+  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  const result = validateAiCopy(validCopy(), pack);
+  assert.equal(result.ok, true);
+});
+
+test("validateAiCopy rejects missing fields, latin text, banned lexicon and foreign numbers", () => {
+  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  assert.equal(validateAiCopy({ ...validCopy(), pathB: "" }, pack).ok, false);
+  assert.equal(
+    validateAiCopy(
+      { ...validCopy(), overview: "Islam Makhachev is the pressure fighter here and controls every grappling exchange." },
+      pack
+    ).ok,
+    false
+  );
+  assert.equal(
+    validateAiCopy({ ...validCopy(), keyEdge: "Букмекеры дают низкий коэффициент, ставка зайдет." }, pack).ok,
+    false
+  );
+  const foreign = validateAiCopy({ ...validCopy(), keyEdge: "Он выиграл 47 боев подряд и нанес 9999 ударов." }, pack);
+  assert.equal(foreign.ok, false);
+  assert.equal(foreign.reason, "foreign_numbers");
+});
+
+test("validateAiCopy allows round numbers 1-5 and numbers present in the pack", () => {
+  const pack = buildFightFactPack(makeFight(), { percentA: 71, percentB: 29, source: "odds" });
+  const copy = {
+    ...validCopy(),
+    fightScript: "Со 2 раунда Ислам Махачев начнет проводить по 3.1 перевода, реализуя 71 процент своих шансов."
+  };
+  assert.equal(validateAiCopy(copy, pack).ok, true);
+});
+
+function okResponse(body: unknown) {
+  return {
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: JSON.stringify(body) } }] })
+  };
+}
+
+test("generateAiPredictionCopy returns validated copy on success", async () => {
+  const calls: unknown[] = [];
+  const result = await generateAiPredictionCopy({
+    fight: makeFight(),
+    percents: { percentA: 71, percentB: 29, source: "odds" },
+    config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
+    fetchImpl: async (...args: unknown[]) => {
+      calls.push(args);
+      return okResponse(validCopy());
+    }
+  });
+  assert.equal(result?.copy.overview.startsWith("Ислам Махачев"), true);
+  assert.equal(calls.length, 1);
+});
+
+test("generateAiPredictionCopy retries HTTP errors and gives up with null", async () => {
+  let attempts = 0;
+  const result = await generateAiPredictionCopy({
+    fight: makeFight(),
+    percents: { percentA: 71, percentB: 29, source: "odds" },
+    config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
+    fetchImpl: async () => {
+      attempts += 1;
+      return { ok: false, status: 500 };
+    }
+  });
+  assert.equal(result, null);
+  assert.equal(attempts, 3);
+});
+
+test("generateAiPredictionCopy returns null on invalid model JSON without retrying validation", async () => {
+  let attempts = 0;
+  const result = await generateAiPredictionCopy({
+    fight: makeFight(),
+    percents: { percentA: 71, percentB: 29, source: "odds" },
+    config: { apiKey: "k", baseUrl: "https://api.example", model: "m", retryDelayMs: 1 },
+    fetchImpl: async () => {
+      attempts += 1;
+      return okResponse({ overview: "" });
+    }
+  });
+  assert.equal(result, null);
+  assert.equal(attempts, 1);
+});
+
+test("computeAiContentHash is stable within a percent band and reacts to changes", () => {
+  const fight = makeFight();
+  const h1 = computeAiContentHash(fight, { percentA: 71 });
+  const h2 = computeAiContentHash(fight, { percentA: 74 });
+  assert.equal(h1, h2);
+
+  const h4 = computeAiContentHash(fight, { percentA: 55 });
+  assert.notEqual(h1, h4);
+
+  const h5 = computeAiContentHash(makeFight({ fighterB: makeFighter({ id: "f-c" }) }), { percentA: 71 });
+  assert.notEqual(h1, h5);
+
+  const h6 = computeAiContentHash(makeFight({ eventId: "event-2" }), { percentA: 71 });
+  assert.notEqual(h1, h6);
+});
