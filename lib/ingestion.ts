@@ -7,6 +7,7 @@ import { generateTelegramDigestForArticle, localizeIngestionInput } from "@/lib/
 import { slugify } from "@/lib/admin";
 import { buildRussianMeaningBlock, cleanNewsText, cleanNewsTitle } from "@/lib/article-quality";
 import { persistImageLocally } from "@/lib/local-image-storage";
+import { logger } from "@/lib/logger";
 import {
   buildMeaningBlock,
   buildTokenSet,
@@ -490,6 +491,34 @@ function buildAliases(values: Array<string | null | undefined>) {
   );
 }
 
+// Мягкое подтверждение бойца текстом статьи: хотя бы один значимый токен имени
+// (с усечением под склонения и нормализацией ё/е) должен встречаться в тексте.
+// Используется для слагов, пришедших от AI-дискавери: модель иногда галлюцинирует
+// бойцов, которых в материале нет вовсе, — такие слаги отбрасываются.
+export function hasFighterTextEvidence(
+  fighter: { slug: string; name: string; nameRu?: string | null; nickname?: string | null },
+  normalizedText: string
+) {
+  const haystack = normalizedText.replace(/ё/g, "е");
+  const tokens = [fighter.slug, fighter.name, fighter.nameRu, fighter.nickname]
+    .filter(Boolean)
+    .flatMap((value) => normalizeComparableText(String(value)).split(/[\s-]+/));
+
+  return tokens.some((token) => {
+    const normalizedToken = token.replace(/ё/g, "е");
+    if (normalizedToken.length < 4) {
+      return false;
+    }
+    const stem =
+      normalizedToken.length >= 7
+        ? normalizedToken.slice(0, -2)
+        : normalizedToken.length >= 5
+          ? normalizedToken.slice(0, -1)
+          : normalizedToken;
+    return haystack.includes(stem);
+  });
+}
+
 function findBestMatch<T>(items: T[], getAliases: (item: T) => string[], text: string, minScore: number) {
   let best: { item: T; score: number } | null = null;
 
@@ -594,12 +623,25 @@ async function inferRelations(input: IngestDraftInput) {
     return false;
   };
 
-  const inferredFighters =
-    normalizedProvidedFighterSlugs.length > 0
-      ? fighters.filter(
-          (fighter) => normalizedProvidedFighterSlugs.includes(fighter.slug) || matchFighterInText(fighter)
-        )
-      : fighters.filter(matchFighterInText);
+  const confirmedProvidedSlugs = new Set(
+    fighters
+      .filter(
+        (fighter) => normalizedProvidedFighterSlugs.includes(fighter.slug) && hasFighterTextEvidence(fighter, text)
+      )
+      .map((fighter) => fighter.slug)
+  );
+  const droppedProvidedSlugs = normalizedProvidedFighterSlugs.filter((slug) => !confirmedProvidedSlugs.has(slug));
+
+  if (droppedProvidedSlugs.length > 0) {
+    logger.warn("Ingest dropped provided fighter slugs without text evidence", {
+      slugs: droppedProvidedSlugs,
+      headline: input.headline.slice(0, 120)
+    });
+  }
+
+  const inferredFighters = fighters.filter(
+    (fighter) => confirmedProvidedSlugs.has(fighter.slug) || matchFighterInText(fighter)
+  );
 
   const inferredTags =
     normalizedProvidedTagSlugs.length > 0

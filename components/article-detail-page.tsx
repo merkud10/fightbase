@@ -264,16 +264,20 @@ export async function ArticleDetailPage({
         <aside className="stack">
           <AdSlot placement="articleSidebar" locale={locale} />
 
-          <div className="policy-card">
-            <h3>{locale === "ru" ? "Бойцы в материале" : "Fighters in this story"}</h3>
-            <ul>
-              {article.fighterMap.map(({ fighter }) => (
-                <li key={fighter.id}>
-                  <Link href={localizePath(`/fighters/${fighter.slug}`, locale)}>{fighter.name}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {article.fighterMap.length > 0 ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Бойцы в материале" : "Fighters in this story"}</h3>
+              <ul>
+                {article.fighterMap.map(({ fighter }) => (
+                  <li key={fighter.id}>
+                    <Link href={localizePath(`/fighters/${fighter.slug}`, locale)}>
+                      {(locale === "ru" ? fighter.nameRu : null) ?? fighter.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="policy-card">
             <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
