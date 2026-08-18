@@ -1,0 +1,3 @@
+ALTER TABLE "FightPredictionSnapshot"
+ADD COLUMN "oddsAAtPick" DOUBLE PRECISION,
+ADD COLUMN "oddsBAtPick" DOUBLE PRECISION;

@@ -278,6 +278,10 @@ model FightPredictionSnapshot {
   aiPickFighterId   String?
   aiPickReasonRu    String?
   aiPickGeneratedAt DateTime?
+  // Кэфы боя (decimal, усреднённые по конторам) на момент фиксации пика —
+  // база расчёта ROI. Записываются один раз и не обновляются вместе с линией.
+  oddsAAtPick       Float?
+  oddsBAtPick       Float?
   generatedAt       DateTime @default(now())
   browserPushNotifiedAt DateTime?
   updatedAt         DateTime @updatedAt

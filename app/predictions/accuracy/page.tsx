@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionAccuracyHistory } from "@/lib/db";
+import { emptyRoiBucket, formatUnits, roiPercent, type RoiBucket } from "@/lib/prediction-roi";
 import { getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
@@ -47,6 +48,8 @@ export default async function PredictionAccuracyPage() {
 
   const totalModel: Bucket = { correct: 0, judged: 0 };
   const totalFavorite: Bucket = { correct: 0, judged: 0 };
+  const totalModelRoi: RoiBucket = emptyRoiBucket();
+  const totalFavoriteRoi: RoiBucket = emptyRoiBucket();
   let totalUpsetsCalled = 0;
 
   for (const event of history) {
@@ -54,10 +57,24 @@ export default async function PredictionAccuracyPage() {
     totalModel.judged += event.model.judged;
     totalFavorite.correct += event.favorite.correct;
     totalFavorite.judged += event.favorite.judged;
+    totalModelRoi.staked += event.modelRoi.staked;
+    totalModelRoi.units += event.modelRoi.units;
+    totalFavoriteRoi.staked += event.favoriteRoi.staked;
+    totalFavoriteRoi.units += event.favoriteRoi.units;
     totalUpsetsCalled += event.fights.filter(
       (fight) => fight.modelVerdict === "correct" && fight.favoriteVerdict === "wrong"
     ).length;
   }
+
+  const formatRoiLine = (roi: RoiBucket) => {
+    const percent = roiPercent(roi);
+    if (percent === null) {
+      return locale === "ru" ? "нет данных" : "no data";
+    }
+    return locale === "ru"
+      ? `${formatUnits(roi.units, "ru")} на ${roi.staked} прогнозах (ROI ${percent > 0 ? "+" : ""}${percent}%)`
+      : `${formatUnits(roi.units, "en")} across ${roi.staked} picks (ROI ${percent > 0 ? "+" : ""}${percent}%)`;
+  };
 
   const displayName = (fighter: { name: string; nameRu: string | null }) =>
     (locale === "ru" ? fighter.nameRu : null) ?? fighter.name;
@@ -106,8 +123,13 @@ export default async function PredictionAccuracyPage() {
             </p>
             <p className="copy">
               {locale === "ru"
-                ? "Ничьи, No Contest и отменённые бои в статистику не входят."
-                : "Draws, No Contests, and cancelled bouts are excluded from the numbers."}
+                ? `Виртуальный банкролл (1 у.е. на каждый прогноз): ${formatRoiLine(totalModelRoi)} · Стратегия «всегда фаворит»: ${formatRoiLine(totalFavoriteRoi)}`
+                : `Virtual bankroll (1 unit per pick): ${formatRoiLine(totalModelRoi)} · "Always the favorite" strategy: ${formatRoiLine(totalFavoriteRoi)}`}
+            </p>
+            <p className="copy">
+              {locale === "ru"
+                ? "Ничьи, No Contest и отменённые бои в статистику не входят. Расчёт по кэфам на момент фиксации прогноза, в условных единицах; это открытая проверка модели, а не рекомендация."
+                : "Draws, No Contests, and cancelled bouts are excluded. Units are virtual, priced at pick-time odds; this is an open model audit, not advice."}
             </p>
           </section>
 
@@ -129,6 +151,13 @@ export default async function PredictionAccuracyPage() {
                         ? `Прогноз FightBase: ${formatScore(event.model, locale)} · Фаворит: ${formatScore(event.favorite, locale)}`
                         : `FightBase pick: ${formatScore(event.model, locale)} · Favorite: ${formatScore(event.favorite, locale)}`}
                     </p>
+                    {event.modelRoi.staked > 0 ? (
+                      <p className="copy">
+                        {locale === "ru"
+                          ? `Банкролл: ${formatRoiLine(event.modelRoi)} · «Всегда фаворит»: ${formatRoiLine(event.favoriteRoi)}`
+                          : `Bankroll: ${formatRoiLine(event.modelRoi)} · "Always the favorite": ${formatRoiLine(event.favoriteRoi)}`}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="table-wrap">
@@ -198,6 +227,9 @@ export default async function PredictionAccuracyPage() {
                                   : locale === "ru"
                                     ? "не засчитано"
                                     : "not scored"}
+                            {fight.pickUnits !== null
+                              ? ` · ${formatUnits(fight.pickUnits, locale === "ru" ? "ru" : "en")}`
+                              : ""}
                           </td>
                         </tr>
                       ))}

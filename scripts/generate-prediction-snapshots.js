@@ -445,6 +445,8 @@ async function main() {
           aiPickFighterId: true,
           aiPickReasonRu: true,
           aiPickGeneratedAt: true,
+          oddsAAtPick: true,
+          oddsBAtPick: true,
           excerptRu: true,
           overviewRu: true,
           keyEdgeRu: true,
@@ -480,6 +482,8 @@ async function main() {
     let aiPickFighterId = existingPickIsValid ? existing.aiPickFighterId : null;
     let aiPickReasonRu = existingPickIsValid ? existing.aiPickReasonRu : null;
     let aiPickGeneratedAt = existingPickIsValid ? existing.aiPickGeneratedAt : null;
+    let oddsAAtPick = existingPickIsValid ? existing.oddsAAtPick : null;
+    let oddsBAtPick = existingPickIsValid ? existing.oddsBAtPick : null;
 
     if (aiConfig && !isPlaceholderFight(fight)) {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
@@ -525,6 +529,14 @@ async function main() {
       }
     }
 
+    // Цена пика для ROI: первые доступные кэфы после появления пика. Дальше
+    // линия может плавать — зафиксированное значение не трогаем, это цена,
+    // которую видел читатель при публикации прогноза.
+    if (aiPickFighterId && oddsAAtPick == null && fight.oddsA > 1 && fight.oddsB > 1) {
+      oddsAAtPick = fight.oddsA;
+      oddsBAtPick = fight.oddsB;
+    }
+
     const payload = {
       eventId: fight.eventId,
       headlineRu: ru.headline,
@@ -564,6 +576,8 @@ async function main() {
       aiPickFighterId,
       aiPickReasonRu,
       aiPickGeneratedAt,
+      oddsAAtPick,
+      oddsBAtPick,
       generatedAt: new Date()
     };
 

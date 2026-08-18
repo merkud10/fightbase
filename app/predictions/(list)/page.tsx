@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionAccuracy, getPredictionsPageData } from "@/lib/db";
+import { formatUnits } from "@/lib/prediction-roi";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -112,6 +113,13 @@ export default async function PredictionsPage() {
               {locale === "ru"
                 ? `Для сравнения: фаворит по предматчевой оценке побеждал в ${accuracy.favorite.correct} из ${accuracy.favorite.judged} боёв (${accuracy.favorite.percent}%). Итог каждого боя — на его странице прогноза.`
                 : `For reference, the pre-fight favorite won ${accuracy.favorite.correct} of ${accuracy.favorite.judged} bouts (${accuracy.favorite.percent}%). Each fight page shows its result.`}
+            </p>
+          ) : null}
+          {accuracy.modelRoi.percent !== null ? (
+            <p className="copy">
+              {locale === "ru"
+                ? `Виртуальный банкролл (1 у.е. на прогноз, по кэфам на момент публикации): ${formatUnits(accuracy.modelRoi.units, "ru")} на ${accuracy.modelRoi.staked} прогнозах, ROI ${accuracy.modelRoi.percent > 0 ? "+" : ""}${accuracy.modelRoi.percent}% · стратегия «всегда фаворит»: ${accuracy.favoriteRoi.percent === null ? "—" : `${accuracy.favoriteRoi.percent > 0 ? "+" : ""}${accuracy.favoriteRoi.percent}%`}.`
+                : `Virtual bankroll (1 unit per pick at publication-time odds): ${formatUnits(accuracy.modelRoi.units, "en")} across ${accuracy.modelRoi.staked} picks, ROI ${accuracy.modelRoi.percent > 0 ? "+" : ""}${accuracy.modelRoi.percent}% · "always the favorite": ${accuracy.favoriteRoi.percent === null ? "—" : `${accuracy.favoriteRoi.percent > 0 ? "+" : ""}${accuracy.favoriteRoi.percent}%`}.`}
             </p>
           ) : null}
           <p className="copy">
