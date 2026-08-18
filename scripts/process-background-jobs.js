@@ -14,7 +14,8 @@ const JOB_SCRIPT_MAP = {
   "weekly-news": "discover-weekly-news.js",
   "ai-discovery": "discover-weekly-news.js",
   "sync-odds": "sync-upcoming-pipeline.js",
-  "sync-roster": "sync-ufc-roster.js",
+  // ESPN вместо ufc.com: Cloudflare банит серверные IP на ufc.com (см. sync-espn-roster.js).
+  "sync-roster": "sync-espn-roster.js",
   "operational-alerts": "send-telegram-operational-alerts.js"
 };
 

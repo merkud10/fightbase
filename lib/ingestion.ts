@@ -519,6 +519,32 @@ export function hasFighterTextEvidence(
   });
 }
 
+// Точный матч турнира по номерному коду («UFC 330»): русские материалы обычно
+// упоминают только номер, а полное латинское название с именами бойцов не
+// набирает порог findBestMatch. Границы по цифрам, чтобы «UFC 33» не матчился
+// внутри «UFC 330». Возвращает null при упоминании кодов двух разных турниров —
+// пусть решает общий скоринг, а не порядок в списке.
+export function matchEventByNumberedCode<T extends { name: string }>(
+  events: T[],
+  normalizedText: string
+): T | null {
+  const matches: T[] = [];
+
+  for (const event of events) {
+    const code = normalizeComparableText(event.name).match(/^ufc (\d+)(?:\D|$)/);
+    if (!code) {
+      continue;
+    }
+
+    const pattern = new RegExp(`(?:^|\\D)ufc[\\s-]${code[1]}(?:\\D|$)`);
+    if (pattern.test(normalizedText)) {
+      matches.push(event);
+    }
+  }
+
+  return matches.length === 1 ? (matches[0] ?? null) : null;
+}
+
 function findBestMatch<T>(items: T[], getAliases: (item: T) => string[], text: string, minScore: number) {
   let best: { item: T; score: number } | null = null;
 
@@ -575,6 +601,7 @@ async function inferRelations(input: IngestDraftInput) {
 
   const event =
     eventBySlug ??
+    matchEventByNumberedCode(events, text) ??
     findBestMatch(events, (item) => buildAliases([item.slug, item.name]), text, 0.72);
 
   const russianStems = (nameRu: string) => {

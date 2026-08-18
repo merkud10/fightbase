@@ -111,6 +111,10 @@ model Tag {
 model Fighter {
   id          String           @id @default(cuid())
   slug        String           @unique
+  // ID атлета в ESPN API — источник обогащения, доступный с серверного IP
+  // (ufc.com закрыт Cloudflare для дата-центров). Заполняется ростер-синком
+  // по матчу имени с участниками турниров ESPN.
+  espnId      String?          @unique
   name        String
   nameRu      String?
   nickname    String?
