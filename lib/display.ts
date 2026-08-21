@@ -242,6 +242,23 @@ export function getDisplayName(fighter: { name: string; nameRu?: string | null }
   return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
 }
 
+// Фото есть не у всех бойцов, а профили без него теперь тоже уходят в индекс,
+// поэтому вместо пустой заливки показываем инициалы — блок перестаёт читаться
+// как незагрузившаяся картинка.
+export function getFighterInitials(displayName: string) {
+  // Делим только по пробелам: в «So-Yul Kim» дефис держит одно имя,
+  // и разбиение по нему дало бы «SY» вместо «SK».
+  const parts = displayName
+    .split(/\s+/)
+    .map((part) => part.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+
+  return parts
+    .slice(0, 2)
+    .map((part) => ([...part][0] ?? "").toUpperCase())
+    .join("");
+}
+
 export function isUsablePhoto(url?: string | null) {
   const raw = String(url || "").trim();
   if (!raw) {

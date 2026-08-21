@@ -1,11 +1,4 @@
-export function hasUsablePhotoUrl(value: string | null | undefined) {
-  const url = String(value || "").trim();
-  if (!url) {
-    return false;
-  }
-
-  return !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(url);
-}
+import { isUsablePhoto } from "@/lib/display";
 
 export function looksLikeLowQualitySlug(value: string) {
   return /-\d+$|i-am-still-here|wants-this|journey-continues|ufc-|vegas|edmonton|mexico-city/i.test(value);
@@ -17,7 +10,7 @@ export function looksLikeLowQualitySlug(value: string) {
 export function getFighterPriority(status: string, photoUrl: string | null | undefined) {
   const base = status === "champion" ? 0.9 : status === "retired" ? 0.6 : 0.8;
 
-  return hasUsablePhotoUrl(photoUrl) ? base : Math.round((base - 0.1) * 10) / 10;
+  return isUsablePhoto(photoUrl) ? base : Math.round((base - 0.1) * 10) / 10;
 }
 
 // Лента целиком попадает в sitemap, поэтому архив не должен просить обход

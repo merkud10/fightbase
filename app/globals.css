@@ -1379,12 +1379,20 @@ img {
 /* ── FIGHTER ── */
 
 .fighter-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 92px;
   height: 92px;
   margin: 0 auto 16px;
   border-radius: 0;
   background: linear-gradient(135deg, var(--red), var(--red-dark));
   clip-path: polygon(0 0, 100% 0, 100% 80%, 80% 100%, 0 100%);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  user-select: none;
 }
 
 .fighter-avatar-large,
@@ -1415,6 +1423,7 @@ img {
   height: auto;
   border-radius: var(--radius-lg);
   margin: 0 auto;
+  font-size: 96px;
 }
 
 .recent-fight-cards {

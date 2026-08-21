@@ -11,7 +11,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFighterPageData } from "@/lib/db";
-import { formatFightStatus, formatWeightClass, getDisplayName } from "@/lib/display";
+import { formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -516,7 +516,9 @@ export default async function FighterPage({
                 priority
               />
             ) : (
-              <div className="fighter-avatar fighter-avatar-large" />
+              <div className="fighter-avatar fighter-avatar-large" role="img" aria-label={displayName}>
+                {getFighterInitials(displayName)}
+              </div>
             )}
           </div>
 

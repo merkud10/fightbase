@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { getFighterInitials } from "../lib/display";
 import { getArticleFreshness, getFighterPriority } from "../lib/sitemap-entries";
 
 const PHOTO = "https://fightbase.ru/media/fighters/abubakar-nurmagomedov-ceefd9b402bb.avif";
@@ -17,6 +18,16 @@ test("карточка без пригодного фото теряет 0.1 п�
   assert.equal(getFighterPriority("active", null), 0.7);
   assert.equal(getFighterPriority("active", SILHOUETTE), 0.7);
   assert.equal(getFighterPriority("retired", ""), 0.5);
+});
+
+test("плейсхолдер без фото показывает инициалы вместо пустой заливки", () => {
+  assert.equal(getFighterInitials("Мэтт Хоруич"), "МХ");
+  assert.equal(getFighterInitials("Abubakar Nurmagomedov"), "AN");
+  assert.equal(getFighterInitials("Хабиб"), "Х");
+  assert.equal(getFighterInitials("Jose Aldo Junior"), "JA");
+  assert.equal(getFighterInitials("Marlon 'Chito' Vera"), "MC");
+  assert.equal(getFighterInitials("So-Yul Kim"), "SK");
+  assert.equal(getFighterInitials("   "), "");
 });
 
 test("свежесть статьи понижает частоту обхода по возрасту", () => {

@@ -9,6 +9,7 @@ import {
   formatFighterStatus,
   formatWeightClass,
   getDisplayName,
+  getFighterInitials,
   isUsablePhoto
 } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -233,7 +234,9 @@ export function FighterCard({ fighter, locale }: { fighter: FighterCardData; loc
           loading="lazy"
         />
       ) : (
-        <div className="fighter-avatar" />
+        <div className="fighter-avatar" role="img" aria-label={displayName}>
+          {getFighterInitials(displayName)}
+        </div>
       )}
       <p className="kicker">{fighter.promotion?.shortName ?? "UFC"}</p>
       <h3>{displayName}</h3>
