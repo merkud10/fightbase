@@ -8,10 +8,10 @@ test("buildPairSlug сортирует слаги лексикографичес
   assert.equal(buildPairSlug("aljamain-sterling", "sean-omalley"), "aljamain-sterling-vs-sean-omalley");
 });
 
-// Тест-сторож: пара, различающаяся на дефисе, проверяет, что порядок задаётся
-// именно побайтовым сравнением. Дефис ('-', 0x2D) меньше любой строчной буквы,
-// поэтому o-malley < omalley и должен стоять первым.
-test("buildPairSlug: дефис сортируется раньше буквы (побайтовое сравнение)", () => {
+// Дефис ('-', 0x2D) меньше любой строчной буквы, поэтому o-malley идёт первым.
+// Отличить побайтовое сравнение от localeCompare тестом на легальных слагах нельзя —
+// на алфавите [a-z0-9-] они не расходятся; здесь фиксируется только сам порядок.
+test("buildPairSlug: дефис сортируется раньше буквы", () => {
   assert.equal(buildPairSlug("omalley", "o-malley"), "o-malley-vs-omalley");
   assert.equal(buildPairSlug("o-malley", "omalley"), "o-malley-vs-omalley");
 });
