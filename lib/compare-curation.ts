@@ -1,4 +1,4 @@
-import { PAIR_SEPARATOR } from "@/lib/compare-pairs";
+import { buildPairSlug, sortSlugPair } from "@/lib/compare-pairs";
 import { looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
 import type { UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
 
@@ -38,10 +38,8 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       return;
     }
 
-    const sorted = [rawA, rawB].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    const slugA = sorted[0] as string;
-    const slugB = sorted[1] as string;
-    const pairSlug = `${slugA}${PAIR_SEPARATOR}${slugB}`;
+    const [slugA, slugB] = sortSlugPair(rawA, rawB);
+    const pairSlug = buildPairSlug(slugA, slugB);
     const existing = byPairSlug.get(pairSlug);
 
     if (existing) {
