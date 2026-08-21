@@ -51,7 +51,7 @@ test("дубли со слагом вида -N на конце отсеиваю�
 test("пары из боёв попадают в набор и помечаются hasFight", () => {
   const pairs = buildCuratedPairs({
     groups: [],
-    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: true }],
+    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: true, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
@@ -66,7 +66,7 @@ test("пары из боёв попадают в набор и помечают�
 test("пара из боя и из рейтинга не дублируется, флаги боя сохраняются", () => {
   const pairs = buildCuratedPairs({
     groups: GROUPS,
-    fightPairs: [{ slugA: "islam-makhachev", slugB: "arman-tsarukyan", isScheduled: true }],
+    fightPairs: [{ slugA: "islam-makhachev", slugB: "arman-tsarukyan", isScheduled: true, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
@@ -81,7 +81,7 @@ test("пара из боя и из рейтинга не дублируется,
 test("при пустом снимке рейтинга набор сводится к парам из боёв", () => {
   const pairs = buildCuratedPairs({
     groups: [],
-    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: false }],
+    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: false, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
@@ -91,17 +91,47 @@ test("при пустом снимке рейтинга набор сводит�
 test("боец сам с собой в набор не попадает", () => {
   const pairs = buildCuratedPairs({
     groups: [],
-    fightPairs: [{ slugA: "sean-omalley", slugB: "sean-omalley", isScheduled: false }],
+    fightPairs: [{ slugA: "sean-omalley", slugB: "sean-omalley", isScheduled: false, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
   assert.deepEqual(pairs, []);
 });
 
+// Без этого пары из боёв приходили бы без веса и сваливались на хабе в одну кучу,
+// хотя у модели Fight своя весовая категория есть.
+test("пара из боя берёт весовую категорию из самого боя", () => {
+  const pairs = buildCuratedPairs({
+    groups: [],
+    fightPairs: [
+      { slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: true, weightClass: "Bantamweight" }
+    ],
+    resolveSlug: RESOLVE
+  });
+
+  const pair = pairs[0];
+  assert.ok(pair);
+  assert.equal(pair.weightClass, "Bantamweight");
+});
+
+test("вес из рейтинга не затирается парой из боя", () => {
+  const pairs = buildCuratedPairs({
+    groups: GROUPS,
+    fightPairs: [
+      { slugA: "islam-makhachev", slugB: "arman-tsarukyan", isScheduled: true, weightClass: "Catchweight" }
+    ],
+    resolveSlug: RESOLVE
+  });
+
+  const pair = pairs.find((item) => item.pairSlug === "arman-tsarukyan-vs-islam-makhachev");
+  assert.ok(pair);
+  assert.equal(pair.weightClass, "Легкий вес");
+});
+
 test("слаги в паре хранятся в каноническом порядке", () => {
   const pairs = buildCuratedPairs({
     groups: [],
-    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: false }],
+    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: false, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
@@ -131,7 +161,7 @@ test("боец в группе одновременно как чемпион и
 test("weightClass берётся из рейтинга, если пара сначала пришла из боя", () => {
   const pairs = buildCuratedPairs({
     groups: GROUPS,
-    fightPairs: [{ slugA: "arman-tsarukyan", slugB: "islam-makhachev", isScheduled: false }],
+    fightPairs: [{ slugA: "arman-tsarukyan", slugB: "islam-makhachev", isScheduled: false, weightClass: null }],
     resolveSlug: RESOLVE
   });
 
@@ -145,7 +175,7 @@ test("weightClass берётся из рейтинга, если пара сна
 test("weightClass не перезаписывается нулём, если пара сначала из рейтинга, потом из боя", () => {
   const pairs = buildCuratedPairs({
     groups: GROUPS,
-    fightPairs: [{ slugA: "islam-makhachev", slugB: "arman-tsarukyan", isScheduled: true }],
+    fightPairs: [{ slugA: "islam-makhachev", slugB: "arman-tsarukyan", isScheduled: true, weightClass: null }],
     resolveSlug: RESOLVE
   });
 

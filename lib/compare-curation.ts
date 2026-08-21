@@ -15,6 +15,7 @@ export type FightPairInput = {
   slugA: string;
   slugB: string;
   isScheduled: boolean;
+  weightClass: string | null;
 };
 
 type BuildCuratedPairsInput = {
@@ -83,7 +84,7 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       continue;
     }
 
-    add(fight.slugA, fight.slugB, null, fight);
+    add(fight.slugA, fight.slugB, fight.weightClass, fight);
   }
 
   return [...byPairSlug.values()];

@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { buildCuratedPairs, type CuratedPair } from "@/lib/compare-curation";
 import { splitPairSlugCandidates } from "@/lib/compare-pairs";
+import { getBaseWeightClass } from "@/lib/display";
 import { prisma } from "@/lib/prisma";
 import { getUfcOfficialRankingLinks } from "./fighters";
 import { getUfcRankingSnapshot } from "./rankings";
@@ -139,6 +140,7 @@ export const getCuratedComparisonPairs = cache(async function getCuratedComparis
     prisma.fight.findMany({
       select: {
         status: true,
+        weightClass: true,
         fighterA: { select: { slug: true } },
         fighterB: { select: { slug: true } }
       }
@@ -150,7 +152,8 @@ export const getCuratedComparisonPairs = cache(async function getCuratedComparis
     fightPairs: fights.map((fight) => ({
       slugA: fight.fighterA.slug,
       slugB: fight.fighterB.slug,
-      isScheduled: fight.status === "scheduled"
+      isScheduled: fight.status === "scheduled",
+      weightClass: getBaseWeightClass(fight.weightClass) || null
     })),
     resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
   });
