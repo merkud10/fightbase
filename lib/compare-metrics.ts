@@ -1,13 +1,20 @@
+import type { Fighter } from "@prisma/client";
+
 import type { Locale } from "@/lib/locale-config";
 
 export type CompareDirection = "higher" | "lower" | "neutral";
 
+type NumericFighterKey = {
+  [K in keyof Fighter]-?: NonNullable<Fighter[K]> extends number ? K : never;
+}[keyof Fighter];
+
 export type CompareMetric = {
-  key: string;
+  key: NumericFighterKey;
   labelRu: string;
   labelEn: string;
   direction: CompareDirection;
   suffix?: string;
+  decimals?: number;
 };
 
 // direction: "higher" — больше лучше, "lower" — меньше лучше,
@@ -19,14 +26,14 @@ export const COMPARE_METRICS: CompareMetric[] = [
   { key: "winsByKnockout", labelRu: "Побед KO/TKO", labelEn: "Wins by KO/TKO", direction: "higher" },
   { key: "winsBySubmission", labelRu: "Побед сабмишеном", labelEn: "Wins by submission", direction: "higher" },
   { key: "winsByDecision", labelRu: "Побед решением", labelEn: "Wins by decision", direction: "higher" },
-  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher" },
+  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher", decimals: 2 },
   { key: "strikeAccuracy", labelRu: "Точность ударов", labelEn: "Strike accuracy", direction: "higher", suffix: "%" },
-  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower" },
+  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower", decimals: 2 },
   { key: "strikeDefense", labelRu: "Защита в стойке", labelEn: "Strike defense", direction: "higher", suffix: "%" },
-  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher" },
+  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher", decimals: 2 },
   { key: "takedownAccuracy", labelRu: "Точность тейкдаунов", labelEn: "Takedown accuracy", direction: "higher", suffix: "%" },
   { key: "takedownDefense", labelRu: "Защита от тейкдаунов", labelEn: "Takedown defense", direction: "higher", suffix: "%" },
-  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher" },
+  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher", decimals: 2 }
 ];
 
 export function getMetricLabel(metric: CompareMetric, locale: Locale) {
@@ -46,10 +53,9 @@ export function pickBetterSide(
     return null;
   }
 
-  // NaN технически проходит typeof === "number", но сравнения с ним всегда false,
-  // поэтому оба ветвления ниже вернут null — случайно корректное поведение.
-  // На практике NaN в базу не попадает (Prisma валидирует Float), но проверим явно.
-  if (Number.isNaN(valueA) || Number.isNaN(valueB)) {
+  // NaN не равен ничему, поэтому без этой проверки сравнение ниже всегда даёт
+  // false и молча присуждает победу стороне B. Infinity отсекаем заодно.
+  if (!Number.isFinite(valueA) || !Number.isFinite(valueB)) {
     return null;
   }
 
@@ -64,9 +70,11 @@ export function pickBetterSide(
 
 export function formatMetricValue(metric: CompareMetric, value: number | null | undefined) {
   // 0 — валидное значение (например, 0 сабмишенов), не должно превращаться в «—»
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return "—";
   }
 
-  return `${value}${metric.suffix ?? ""}`;
+  const formatted = metric.decimals !== undefined ? value.toFixed(metric.decimals) : String(value);
+
+  return `${formatted}${metric.suffix ?? ""}`;
 }

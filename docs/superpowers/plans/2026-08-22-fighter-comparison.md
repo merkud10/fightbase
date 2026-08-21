@@ -203,7 +203,7 @@ git commit -m "feat: канонизация слага пары для срав�
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { COMPARE_METRICS, pickBetterSide } from "../lib/compare-metrics";
+import { COMPARE_METRICS, formatMetricValue, pickBetterSide } from "../lib/compare-metrics";
 
 test("для обычной метрики лучше большее значение", () => {
   assert.equal(pickBetterSide({ direction: "higher" }, 3.5, 2.1), "a");
@@ -229,17 +229,65 @@ test("пропущенное значение у одной стороны сн�
   assert.equal(pickBetterSide({ direction: "higher" }, null, null), null);
 });
 
+test("NaN и Infinity не присуждают победу ни одной стороне", () => {
+  assert.equal(pickBetterSide({ direction: "higher" }, NaN, NaN), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, NaN, 3), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, 3, NaN), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, Infinity, 3), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, 3, Infinity), null);
+});
+
 test("нейтральные метрики не подсвечиваются никогда", () => {
   assert.equal(pickBetterSide({ direction: "neutral" }, 44, 33), null);
+
   const age = COMPARE_METRICS.find((metric) => metric.key === "age");
-  assert.equal(age?.direction, "neutral");
+  assert.ok(age, "возраст должен быть в списке");
+  assert.equal(pickBetterSide(age, 30, 25), null);
+
   const height = COMPARE_METRICS.find((metric) => metric.key === "heightCm");
-  assert.equal(height?.direction, "neutral");
+  assert.ok(height, "рост должен быть в списке");
+  assert.equal(pickBetterSide(height, 185, 170), null);
 });
 
 test("размах рук сравнивается — большее значение преимущество", () => {
   const reach = COMPARE_METRICS.find((metric) => metric.key === "reachCm");
-  assert.equal(reach?.direction, "higher");
+  assert.ok(reach, "метрика размаха рук должна быть в списке");
+  assert.equal(pickBetterSide(reach, 198, 183), "a");
+});
+
+test("formatMetricValue: ноль — валидное значение, не «—»", () => {
+  const metric = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(metric, 0), "0");
+  assert.equal(formatMetricValue(metric, null), "—");
+  assert.equal(formatMetricValue(metric, undefined), "—");
+});
+
+test("formatMetricValue: NaN и Infinity возвращают «—»", () => {
+  const metric = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(metric, NaN), "—");
+  assert.equal(formatMetricValue(metric, Infinity), "—");
+});
+
+test("formatMetricValue: суффиксы форматируются корректно", () => {
+  const accuracy = COMPARE_METRICS.find((m) => m.key === "strikeAccuracy")!;
+  assert.equal(formatMetricValue(accuracy, 53), "53%");
+
+  const reach = COMPARE_METRICS.find((m) => m.key === "reachCm")!;
+  assert.equal(formatMetricValue(reach, 198), "198 см");
+});
+
+test("formatMetricValue: decimals фиксирует знаки после запятой", () => {
+  const slpm = COMPARE_METRICS.find((m) => m.key === "sigStrikesLandedPerMin")!;
+  assert.equal(formatMetricValue(slpm, 4), "4.00");
+
+  const ko = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(ko, 4), "4");
+});
+
+test("ключи метрик в COMPARE_METRICS уникальны", () => {
+  const keys = COMPARE_METRICS.map((m) => m.key);
+  const unique = new Set(keys);
+  assert.equal(unique.size, keys.length, "обнаружен дублирующийся ключ в COMPARE_METRICS");
 });
 ```
 
@@ -253,16 +301,23 @@ Expected: FAIL — `Cannot find module '../lib/compare-metrics'`
 Создать `lib/compare-metrics.ts`:
 
 ```typescript
+import type { Fighter } from "@prisma/client";
+
 import type { Locale } from "@/lib/locale-config";
 
 export type CompareDirection = "higher" | "lower" | "neutral";
 
+type NumericFighterKey = {
+  [K in keyof Fighter]-?: NonNullable<Fighter[K]> extends number ? K : never;
+}[keyof Fighter];
+
 export type CompareMetric = {
-  key: string;
+  key: NumericFighterKey;
   labelRu: string;
   labelEn: string;
   direction: CompareDirection;
   suffix?: string;
+  decimals?: number;
 };
 
 // direction: "higher" — больше лучше, "lower" — меньше лучше,
@@ -274,14 +329,14 @@ export const COMPARE_METRICS: CompareMetric[] = [
   { key: "winsByKnockout", labelRu: "Побед KO/TKO", labelEn: "Wins by KO/TKO", direction: "higher" },
   { key: "winsBySubmission", labelRu: "Побед сабмишеном", labelEn: "Wins by submission", direction: "higher" },
   { key: "winsByDecision", labelRu: "Побед решением", labelEn: "Wins by decision", direction: "higher" },
-  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher" },
+  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher", decimals: 2 },
   { key: "strikeAccuracy", labelRu: "Точность ударов", labelEn: "Strike accuracy", direction: "higher", suffix: "%" },
-  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower" },
+  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower", decimals: 2 },
   { key: "strikeDefense", labelRu: "Защита в стойке", labelEn: "Strike defense", direction: "higher", suffix: "%" },
-  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher" },
+  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher", decimals: 2 },
   { key: "takedownAccuracy", labelRu: "Точность тейкдаунов", labelEn: "Takedown accuracy", direction: "higher", suffix: "%" },
   { key: "takedownDefense", labelRu: "Защита от тейкдаунов", labelEn: "Takedown defense", direction: "higher", suffix: "%" },
-  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher" }
+  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher", decimals: 2 }
 ];
 
 export function getMetricLabel(metric: CompareMetric, locale: Locale) {
@@ -301,6 +356,12 @@ export function pickBetterSide(
     return null;
   }
 
+  // NaN не равен ничему, поэтому без этой проверки сравнение ниже всегда даёт
+  // false и молча присуждает победу стороне B. Infinity отсекаем заодно.
+  if (!Number.isFinite(valueA) || !Number.isFinite(valueB)) {
+    return null;
+  }
+
   if (valueA === valueB) {
     return null;
   }
@@ -311,11 +372,14 @@ export function pickBetterSide(
 }
 
 export function formatMetricValue(metric: CompareMetric, value: number | null | undefined) {
-  if (typeof value !== "number") {
+  // 0 — валидное значение (например, 0 сабмишенов), не должно превращаться в «—»
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return "—";
   }
 
-  return `${value}${metric.suffix ?? ""}`;
+  const formatted = metric.decimals !== undefined ? value.toFixed(metric.decimals) : String(value);
+
+  return `${formatted}${metric.suffix ?? ""}`;
 }
 ```
 
