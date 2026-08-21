@@ -4,6 +4,7 @@ import { getArticleRouteBase } from "@/lib/article-routes";
 import { getQuotesPageData } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
+import { getArticleFreshness, getFighterPriority, looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
 
 const staticRoutes = [
   "",
@@ -22,21 +23,11 @@ const staticRoutes = [
   "/terms"
 ];
 
-function hasUsablePhotoUrl(value: string | null | undefined) {
-  const url = String(value || "").trim();
-  if (!url) {
-    return false;
-  }
-
-  return !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(url);
-}
-
-function looksLikeLowQualitySlug(value: string) {
-  return /-\d+$|i-am-still-here|wants-this|journey-continues|ufc-|vegas|edmonton|mexico-city/i.test(value);
-}
+export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
+  const now = Date.now();
   const [articles, events, fighters, predictionSnapshots, quotes] = await Promise.all([
     prisma.article.findMany({
       where: {
@@ -45,12 +36,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: {
         slug: true,
         category: true,
+        publishedAt: true,
         updatedAt: true
       },
       orderBy: {
         updatedAt: "desc"
-      },
-      take: 500
+      }
     }),
     prisma.event.findMany({
       select: {
@@ -59,8 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       orderBy: {
         updatedAt: "desc"
-      },
-      take: 500
+      }
     }),
     prisma.fighter.findMany({
       where: {
@@ -68,23 +58,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           slug: {
             in: ["ufc"]
           }
-        },
-        status: {
-          in: ["active", "champion", "prospect"]
-        },
-        photoUrl: {
-          not: null
         }
       },
       select: {
         slug: true,
+        status: true,
         photoUrl: true,
         updatedAt: true
       },
       orderBy: {
         updatedAt: "desc"
-      },
-      take: 2000
+      }
     }),
     prisma.fightPredictionSnapshot.findMany({
       select: {
@@ -102,14 +86,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       orderBy: {
         updatedAt: "desc"
-      },
-      take: 1000
+      }
     }),
     getQuotesPageData()
   ]);
-  const fighterEntries = fighters.filter(
-    (fighter) => hasUsablePhotoUrl(fighter.photoUrl) && !looksLikeLowQualitySlug(fighter.slug)
-  );
+  const fighterEntries = fighters.filter((fighter) => !looksLikeLowQualitySlug(fighter.slug));
   const staticEntries: MetadataRoute.Sitemap = staticRoutes
     .filter((path) => path !== "/quotes" || quotes.totalCount > 0)
     .map((path) => ({
@@ -123,8 +104,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...articles.map((article) => ({
       url: `${siteUrl}/ru${getArticleRouteBase(article.category)}/${article.slug}`,
       lastModified: article.updatedAt,
-      changeFrequency: "daily" as const,
-      priority: 0.9
+      ...getArticleFreshness(article.publishedAt, now)
     })),
     ...events.map((event) => ({
       url: `${siteUrl}/ru/events/${event.slug}`,
@@ -141,8 +121,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...fighterEntries.map((fighter) => ({
       url: `${siteUrl}/ru/fighters/${fighter.slug}`,
       lastModified: fighter.updatedAt,
-      changeFrequency: "weekly" as const,
-      priority: 0.8
+      changeFrequency: fighter.status === "retired" ? ("monthly" as const) : ("weekly" as const),
+      priority: getFighterPriority(fighter.status, fighter.photoUrl)
     }))
   ];
 }
