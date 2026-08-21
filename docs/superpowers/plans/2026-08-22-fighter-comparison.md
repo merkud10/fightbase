@@ -42,7 +42,7 @@
 - Create: `lib/compare-pairs.ts`
 - Test: `tests/compare-pairs.test.ts`
 
-- [ ] **Step 1: Написать падающий тест**
+- [x] **Step 1: Написать падающий тест**
 
 Создать `tests/compare-pairs.test.ts`:
 
@@ -50,16 +50,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPairSlug, isCanonicalPairSlug, splitPairSlugCandidates } from "../lib/compare-pairs";
+import { buildPairSlug, isCanonicalPairOrder, splitPairSlugCandidates } from "../lib/compare-pairs";
 
 test("buildPairSlug сортирует слаги лексикографически", () => {
   assert.equal(buildPairSlug("sean-omalley", "aljamain-sterling"), "aljamain-sterling-vs-sean-omalley");
   assert.equal(buildPairSlug("aljamain-sterling", "sean-omalley"), "aljamain-sterling-vs-sean-omalley");
 });
 
-test("isCanonicalPairSlug различает канонический и обратный порядок", () => {
-  assert.equal(isCanonicalPairSlug("aljamain-sterling", "sean-omalley"), true);
-  assert.equal(isCanonicalPairSlug("sean-omalley", "aljamain-sterling"), false);
+// Тест-сторож: пара, различающаяся на дефисе, проверяет, что порядок задаётся
+// именно побайтовым сравнением. Дефис ('-', 0x2D) меньше любой строчной буквы,
+// поэтому o-malley < omalley и должен стоять первым.
+test("buildPairSlug: дефис сортируется раньше буквы (побайтовое сравнение)", () => {
+  assert.equal(buildPairSlug("omalley", "o-malley"), "o-malley-vs-omalley");
+  assert.equal(buildPairSlug("o-malley", "omalley"), "o-malley-vs-omalley");
+});
+
+// Фиксируем поведение при одинаковых слагах: модуль намеренно не валидирует,
+// что бойцы разные — это делает вызывающий код.
+test("buildPairSlug при одинаковых слагах", () => {
+  assert.equal(buildPairSlug("jon-jones", "jon-jones"), "jon-jones-vs-jon-jones");
+});
+
+test("isCanonicalPairOrder различает канонический и обратный порядок", () => {
+  assert.equal(isCanonicalPairOrder("aljamain-sterling", "sean-omalley"), true);
+  assert.equal(isCanonicalPairOrder("sean-omalley", "aljamain-sterling"), false);
+});
+
+test("isCanonicalPairOrder при одинаковых слагах возвращает true", () => {
+  assert.equal(isCanonicalPairOrder("jon-jones", "jon-jones"), true);
 });
 
 test("splitPairSlugCandidates возвращает единственный разрез для обычного слага", () => {
@@ -69,8 +87,6 @@ test("splitPairSlugCandidates возвращает единственный ра
 });
 
 test("splitPairSlugCandidates перебирает все разрезы, если -vs- встречается несколько раз", () => {
-  // Гипотетический боец со слагом, содержащим -vs-: разрез неоднозначен,
-  // выбор правильного варианта остаётся за вызывающим кодом (он проверяет базу).
   assert.deepEqual(splitPairSlugCandidates("a-vs-b-vs-c"), [
     { a: "a", b: "b-vs-c" },
     { a: "a-vs-b", b: "c" }
@@ -82,6 +98,17 @@ test("splitPairSlugCandidates отвергает пути без раздели�
   assert.deepEqual(splitPairSlugCandidates("-vs-sean-omalley"), []);
   assert.deepEqual(splitPairSlugCandidates("sean-omalley-vs-"), []);
 });
+
+// Нормализация регистра: URL может прийти в смешанном регистре,
+// splitPairSlugCandidates обязана отдавать кандидатов в нижнем регистре.
+test("splitPairSlugCandidates приводит входную строку к нижнему регистру", () => {
+  assert.deepEqual(splitPairSlugCandidates("Jon-Jones-vs-Aljamain-Sterling"), [
+    { a: "jon-jones", b: "aljamain-sterling" }
+  ]);
+  assert.deepEqual(splitPairSlugCandidates("SEAN-OMALLEY-VS-JON-JONES"), [
+    { a: "sean-omalley", b: "jon-jones" }
+  ]);
+});
 ```
 
 - [ ] **Step 2: Запустить тест и убедиться, что он падает**
@@ -89,38 +116,59 @@ test("splitPairSlugCandidates отвергает пути без раздели�
 Run: `node --import tsx --test tests/compare-pairs.test.ts`
 Expected: FAIL — `Cannot find module '../lib/compare-pairs'`
 
-- [ ] **Step 3: Написать минимальную реализацию**
+- [x] **Step 3: Написать минимальную реализацию**
 
 Создать `lib/compare-pairs.ts`:
 
 ```typescript
 export const PAIR_SEPARATOR = "-vs-";
 
+// Тип кандидата разбора — экспортируется, чтобы вызывающий код не дублировал его.
+export type PairSlugCandidate = { a: string; b: string };
+
 export function buildPairSlug(slugA: string, slugB: string) {
-  const [first, second] = [slugA, slugB].sort((a, b) => a.localeCompare(b, "en"));
+  // Побайтовое сравнение операторами < / >: результат одинаков во всех сборках Node
+  // независимо от версии ICU. localeCompare не подходит, потому что его результат
+  // зависит от полноты ICU-данных в конкретном бинаре, а этот порядок запекается
+  // в канонические URL и sitemap — смена порядка означала бы массовую переиндексацию.
+  // Слаги содержат только [a-z0-9-], locale-sensitive collation тут не нужна.
+  //
+  // ВАЖНО: порядок нельзя менять. Он запечён в канонические URL и sitemap;
+  // любое изменение = массовая переиндексация раздела сравнения.
+  const [first, second] = [slugA, slugB].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   return `${first}${PAIR_SEPARATOR}${second}`;
 }
 
-export function isCanonicalPairSlug(slugA: string, slugB: string) {
+export function isCanonicalPairOrder(slugA: string, slugB: string) {
   return buildPairSlug(slugA, slugB) === `${slugA}${PAIR_SEPARATOR}${slugB}`;
 }
 
 // Слаг бойца теоретически может содержать "-vs-", поэтому разрез неоднозначен.
 // Возвращаем все варианты; правильный выбирает вызывающий код, сверяясь с базой.
-export function splitPairSlugCandidates(pairSlug: string) {
-  const candidates: { a: string; b: string }[] = [];
-  let index = pairSlug.indexOf(PAIR_SEPARATOR);
+//
+// Входная строка приводится к нижнему регистру: URL может прийти в произвольном
+// регистре, а лукап в базе — регистронезависим. Без нормализации страница открылась
+// бы по двум адресам без редиректа, что создаёт ровно тот дубль, который раздел
+// исключает. После нормализации сборка канонического слага из слагов базы (всегда
+// нижний регистр) не совпадёт с исходным URL и вызовет корректный 308.
+//
+// Кандидаты упорядочены от самого короткого `a` к самому длинному:
+// первый разрез всегда даёт наименьший `a` и наибольший `b`.
+export function splitPairSlugCandidates(pairSlug: string): PairSlugCandidate[] {
+  const normalized = pairSlug.toLowerCase();
+  const candidates: PairSlugCandidate[] = [];
+  let index = normalized.indexOf(PAIR_SEPARATOR);
 
   while (index !== -1) {
-    const a = pairSlug.slice(0, index);
-    const b = pairSlug.slice(index + PAIR_SEPARATOR.length);
+    const a = normalized.slice(0, index);
+    const b = normalized.slice(index + PAIR_SEPARATOR.length);
 
     if (a && b) {
       candidates.push({ a, b });
     }
 
-    index = pairSlug.indexOf(PAIR_SEPARATOR, index + 1);
+    index = normalized.indexOf(PAIR_SEPARATOR, index + 1);
   }
 
   return candidates;
@@ -130,7 +178,7 @@ export function splitPairSlugCandidates(pairSlug: string) {
 - [ ] **Step 4: Запустить тест и убедиться, что он проходит**
 
 Run: `node --import tsx --test tests/compare-pairs.test.ts`
-Expected: PASS, 5 тестов
+Expected: PASS, 9 тестов
 
 - [ ] **Step 5: Коммит**
 
