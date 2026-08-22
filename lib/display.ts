@@ -198,16 +198,24 @@ export function getWeightClassFilterValues(value: string) {
   return [...new Set([value, canonical, localized].map((item) => decodeHtmlEntities(String(item || "")).trim()).filter(Boolean))];
 }
 
+// Отсекает титульную пометку и «bout», оставляя сам дивизион: у боёв весовая
+// приходит как «Flyweight Title», и без этого один дивизион дробится на несколько.
+export function getBaseWeightClass(value: string) {
+  const cleaned = decodeHtmlEntities(String(value || "")).replace(/\s+/g, " ").trim();
+  const base = cleaned
+    .replace(/\s*(interim\s+)?title\s*$/i, "")
+    .replace(/\s*bout$/i, "")
+    .trim();
+
+  return normalizeWeightClassValue(base);
+}
+
 export function formatWeightClass(value: string, locale: Locale) {
   const cleaned = decodeHtmlEntities(String(value || "")).replace(/\s+/g, " ").trim();
   const isBout = /\bbout$/i.test(cleaned);
   const isTitle = /\btitle\b/i.test(cleaned);
   const isInterim = /\binterim\b/i.test(cleaned);
-  const base = cleaned
-    .replace(/\s*(interim\s+)?title\s*$/i, "")
-    .replace(/\s*bout$/i, "")
-    .trim();
-  const normalized = normalizeWeightClassValue(base);
+  const normalized = getBaseWeightClass(cleaned);
   const localized = localizeFromMap(weightClassMap, normalized, locale);
   if (isTitle) {
     const titleLabel = isInterim

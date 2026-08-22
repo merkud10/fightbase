@@ -11,6 +11,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { getFighterPageData } from "@/lib/db";
+import { getNamedCuratedComparisonPairs } from "@/lib/db/comparison";
 import { formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -471,6 +472,20 @@ export default async function FighterPage({
     fighter.winsBySubmission != null ||
     fighter.winsByDecision != null;
 
+  // Только курируемые пары: остальные страницы сравнения закрыты от индексации,
+  // и ссылки на них лили бы вес в никуда.
+  const comparisonPairs = (await getNamedCuratedComparisonPairs())
+    .filter((pair) => pair.slugA === fighter.slug || pair.slugB === fighter.slug)
+    .slice(0, 6)
+    .map((pair) => {
+      const opponent = pair.slugA === fighter.slug ? pair.fighterB : pair.fighterA;
+
+      return {
+        pairSlug: pair.pairSlug,
+        opponentName: getDisplayName(opponent, locale)
+      };
+    });
+
   return (
     <main className="container">
       <JsonLd data={breadcrumbJsonLd} />
@@ -684,6 +699,19 @@ export default async function FighterPage({
                   <p className="copy">{fighter.averageFightTime ?? "—"}</p>
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {comparisonPairs.length > 0 ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Сравнить с" : "Compare with"}</h3>
+              <ul className="compare-links">
+                {comparisonPairs.map((pair) => (
+                  <li key={pair.pairSlug}>
+                    <Link href={localizePath(`/compare/${pair.pairSlug}`, locale)}>{pair.opponentName}</Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 

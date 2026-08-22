@@ -3738,3 +3738,226 @@ th {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── COMPARE ── */
+
+.compare-table {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* Центральная колонка фиксирована, значения прижаты к внешним краям: при `auto`
+   метки разной длины расталкивали числа, и колонки не вставали в вертикальные
+   линии — а ради них tale of the tape и читают. */
+.compare-table-head,
+.compare-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(150px, 240px) 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+}
+
+.compare-table-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+.compare-table-name {
+  font-family: var(--font-heading), "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.compare-table-head .compare-table-name:first-child {
+  text-align: left;
+}
+
+.compare-table-head .compare-table-name:last-child {
+  text-align: right;
+}
+
+.compare-table-head-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.compare-row + .compare-row {
+  border-top: 1px solid var(--line);
+}
+
+.compare-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-row .compare-value:first-child {
+  text-align: left;
+}
+
+.compare-row .compare-value:last-child {
+  text-align: right;
+}
+
+.compare-value.is-better {
+  color: var(--red);
+  font-weight: 800;
+}
+
+.compare-label {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 560px) {
+  .compare-table-head,
+  .compare-row {
+    grid-template-columns: 1fr minmax(96px, 150px) 1fr;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .compare-table-name {
+    font-size: 0.8125rem;
+  }
+
+  .compare-table-head-label,
+  .compare-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.02em;
+  }
+
+  .compare-value {
+    font-size: 0.9375rem;
+  }
+}
+
+.compare-hub-group {
+  padding: 22px 24px;
+  margin-bottom: 18px;
+}
+
+.compare-hub-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.compare-hub-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* Колонки, а не один длинный столбец: 60+ пар в одну колонку читаются как
+   простыня, а по дивизионам их редко больше пары десятков. */
+.compare-hub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px 18px;
+}
+
+.compare-hub-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.compare-hub-item a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.compare-hub-item a:hover {
+  color: var(--red);
+}
+
+.compare-hub-badge {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--red);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .compare-hub-group {
+    padding: 18px 16px;
+  }
+
+  .compare-hub-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compare-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.compare-links li {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.compare-links a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.compare-links a:hover {
+  color: var(--red);
+}
+
+/* В ячейке карда ссылка на сравнение идёт второй строкой, чтобы не ломать
+   ширину колонки прогноза на узких экранах. */
+.compare-inline-link {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.compare-cta {
+  margin: 12px 0 0;
+}
+
+/* Девятый пункт меню («Сравнение») не влезает в одну строку между брендом и
+   кнопкой подписки на узких десктопах — до перехода в бургер (1080px) ужимаем
+   промежутки и трекинг, иначе хвост меню уезжает под кнопку. */
+@media (min-width: 1081px) and (max-width: 1220px) {
+  .nav-links {
+    gap: 10px;
+  }
+
+  .nav-link {
+    letter-spacing: 0.1em;
+  }
+}

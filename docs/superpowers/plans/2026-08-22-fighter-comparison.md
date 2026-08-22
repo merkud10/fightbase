@@ -42,7 +42,7 @@
 - Create: `lib/compare-pairs.ts`
 - Test: `tests/compare-pairs.test.ts`
 
-- [ ] **Step 1: Написать падающий тест**
+- [x] **Step 1: Написать падающий тест**
 
 Создать `tests/compare-pairs.test.ts`:
 
@@ -50,16 +50,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPairSlug, isCanonicalPairSlug, splitPairSlugCandidates } from "../lib/compare-pairs";
+import { buildPairSlug, isCanonicalPairOrder, splitPairSlugCandidates } from "../lib/compare-pairs";
 
 test("buildPairSlug сортирует слаги лексикографически", () => {
   assert.equal(buildPairSlug("sean-omalley", "aljamain-sterling"), "aljamain-sterling-vs-sean-omalley");
   assert.equal(buildPairSlug("aljamain-sterling", "sean-omalley"), "aljamain-sterling-vs-sean-omalley");
 });
 
-test("isCanonicalPairSlug различает канонический и обратный порядок", () => {
-  assert.equal(isCanonicalPairSlug("aljamain-sterling", "sean-omalley"), true);
-  assert.equal(isCanonicalPairSlug("sean-omalley", "aljamain-sterling"), false);
+// Тест-сторож: пара, различающаяся на дефисе, проверяет, что порядок задаётся
+// именно побайтовым сравнением. Дефис ('-', 0x2D) меньше любой строчной буквы,
+// поэтому o-malley < omalley и должен стоять первым.
+test("buildPairSlug: дефис сортируется раньше буквы (побайтовое сравнение)", () => {
+  assert.equal(buildPairSlug("omalley", "o-malley"), "o-malley-vs-omalley");
+  assert.equal(buildPairSlug("o-malley", "omalley"), "o-malley-vs-omalley");
+});
+
+// Фиксируем поведение при одинаковых слагах: модуль намеренно не валидирует,
+// что бойцы разные — это делает вызывающий код.
+test("buildPairSlug при одинаковых слагах", () => {
+  assert.equal(buildPairSlug("jon-jones", "jon-jones"), "jon-jones-vs-jon-jones");
+});
+
+test("isCanonicalPairOrder различает канонический и обратный порядок", () => {
+  assert.equal(isCanonicalPairOrder("aljamain-sterling", "sean-omalley"), true);
+  assert.equal(isCanonicalPairOrder("sean-omalley", "aljamain-sterling"), false);
+});
+
+test("isCanonicalPairOrder при одинаковых слагах возвращает true", () => {
+  assert.equal(isCanonicalPairOrder("jon-jones", "jon-jones"), true);
 });
 
 test("splitPairSlugCandidates возвращает единственный разрез для обычного слага", () => {
@@ -69,8 +87,6 @@ test("splitPairSlugCandidates возвращает единственный ра
 });
 
 test("splitPairSlugCandidates перебирает все разрезы, если -vs- встречается несколько раз", () => {
-  // Гипотетический боец со слагом, содержащим -vs-: разрез неоднозначен,
-  // выбор правильного варианта остаётся за вызывающим кодом (он проверяет базу).
   assert.deepEqual(splitPairSlugCandidates("a-vs-b-vs-c"), [
     { a: "a", b: "b-vs-c" },
     { a: "a-vs-b", b: "c" }
@@ -82,6 +98,17 @@ test("splitPairSlugCandidates отвергает пути без раздели�
   assert.deepEqual(splitPairSlugCandidates("-vs-sean-omalley"), []);
   assert.deepEqual(splitPairSlugCandidates("sean-omalley-vs-"), []);
 });
+
+// Нормализация регистра: URL может прийти в смешанном регистре,
+// splitPairSlugCandidates обязана отдавать кандидатов в нижнем регистре.
+test("splitPairSlugCandidates приводит входную строку к нижнему регистру", () => {
+  assert.deepEqual(splitPairSlugCandidates("Jon-Jones-vs-Aljamain-Sterling"), [
+    { a: "jon-jones", b: "aljamain-sterling" }
+  ]);
+  assert.deepEqual(splitPairSlugCandidates("SEAN-OMALLEY-VS-JON-JONES"), [
+    { a: "sean-omalley", b: "jon-jones" }
+  ]);
+});
 ```
 
 - [ ] **Step 2: Запустить тест и убедиться, что он падает**
@@ -89,38 +116,59 @@ test("splitPairSlugCandidates отвергает пути без раздели�
 Run: `node --import tsx --test tests/compare-pairs.test.ts`
 Expected: FAIL — `Cannot find module '../lib/compare-pairs'`
 
-- [ ] **Step 3: Написать минимальную реализацию**
+- [x] **Step 3: Написать минимальную реализацию**
 
 Создать `lib/compare-pairs.ts`:
 
 ```typescript
 export const PAIR_SEPARATOR = "-vs-";
 
+// Тип кандидата разбора — экспортируется, чтобы вызывающий код не дублировал его.
+export type PairSlugCandidate = { a: string; b: string };
+
 export function buildPairSlug(slugA: string, slugB: string) {
-  const [first, second] = [slugA, slugB].sort((a, b) => a.localeCompare(b, "en"));
+  // Побайтовое сравнение операторами < / >: результат одинаков во всех сборках Node
+  // независимо от версии ICU. localeCompare не подходит, потому что его результат
+  // зависит от полноты ICU-данных в конкретном бинаре, а этот порядок запекается
+  // в канонические URL и sitemap — смена порядка означала бы массовую переиндексацию.
+  // Слаги содержат только [a-z0-9-], locale-sensitive collation тут не нужна.
+  //
+  // ВАЖНО: порядок нельзя менять. Он запечён в канонические URL и sitemap;
+  // любое изменение = массовая переиндексация раздела сравнения.
+  const [first, second] = [slugA, slugB].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   return `${first}${PAIR_SEPARATOR}${second}`;
 }
 
-export function isCanonicalPairSlug(slugA: string, slugB: string) {
+export function isCanonicalPairOrder(slugA: string, slugB: string) {
   return buildPairSlug(slugA, slugB) === `${slugA}${PAIR_SEPARATOR}${slugB}`;
 }
 
 // Слаг бойца теоретически может содержать "-vs-", поэтому разрез неоднозначен.
 // Возвращаем все варианты; правильный выбирает вызывающий код, сверяясь с базой.
-export function splitPairSlugCandidates(pairSlug: string) {
-  const candidates: { a: string; b: string }[] = [];
-  let index = pairSlug.indexOf(PAIR_SEPARATOR);
+//
+// Входная строка приводится к нижнему регистру: URL может прийти в произвольном
+// регистре, а лукап в базе — регистронезависим. Без нормализации страница открылась
+// бы по двум адресам без редиректа, что создаёт ровно тот дубль, который раздел
+// исключает. После нормализации сборка канонического слага из слагов базы (всегда
+// нижний регистр) не совпадёт с исходным URL и вызовет корректный 308.
+//
+// Кандидаты упорядочены от самого короткого `a` к самому длинному:
+// первый разрез всегда даёт наименьший `a` и наибольший `b`.
+export function splitPairSlugCandidates(pairSlug: string): PairSlugCandidate[] {
+  const normalized = pairSlug.toLowerCase();
+  const candidates: PairSlugCandidate[] = [];
+  let index = normalized.indexOf(PAIR_SEPARATOR);
 
   while (index !== -1) {
-    const a = pairSlug.slice(0, index);
-    const b = pairSlug.slice(index + PAIR_SEPARATOR.length);
+    const a = normalized.slice(0, index);
+    const b = normalized.slice(index + PAIR_SEPARATOR.length);
 
     if (a && b) {
       candidates.push({ a, b });
     }
 
-    index = pairSlug.indexOf(PAIR_SEPARATOR, index + 1);
+    index = normalized.indexOf(PAIR_SEPARATOR, index + 1);
   }
 
   return candidates;
@@ -130,7 +178,7 @@ export function splitPairSlugCandidates(pairSlug: string) {
 - [ ] **Step 4: Запустить тест и убедиться, что он проходит**
 
 Run: `node --import tsx --test tests/compare-pairs.test.ts`
-Expected: PASS, 5 тестов
+Expected: PASS, 9 тестов
 
 - [ ] **Step 5: Коммит**
 
@@ -155,7 +203,7 @@ git commit -m "feat: канонизация слага пары для срав�
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { COMPARE_METRICS, pickBetterSide } from "../lib/compare-metrics";
+import { COMPARE_METRICS, formatMetricValue, pickBetterSide } from "../lib/compare-metrics";
 
 test("для обычной метрики лучше большее значение", () => {
   assert.equal(pickBetterSide({ direction: "higher" }, 3.5, 2.1), "a");
@@ -181,17 +229,65 @@ test("пропущенное значение у одной стороны сн�
   assert.equal(pickBetterSide({ direction: "higher" }, null, null), null);
 });
 
+test("NaN и Infinity не присуждают победу ни одной стороне", () => {
+  assert.equal(pickBetterSide({ direction: "higher" }, NaN, NaN), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, NaN, 3), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, 3, NaN), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, Infinity, 3), null);
+  assert.equal(pickBetterSide({ direction: "higher" }, 3, Infinity), null);
+});
+
 test("нейтральные метрики не подсвечиваются никогда", () => {
   assert.equal(pickBetterSide({ direction: "neutral" }, 44, 33), null);
+
   const age = COMPARE_METRICS.find((metric) => metric.key === "age");
-  assert.equal(age?.direction, "neutral");
+  assert.ok(age, "возраст должен быть в списке");
+  assert.equal(pickBetterSide(age, 30, 25), null);
+
   const height = COMPARE_METRICS.find((metric) => metric.key === "heightCm");
-  assert.equal(height?.direction, "neutral");
+  assert.ok(height, "рост должен быть в списке");
+  assert.equal(pickBetterSide(height, 185, 170), null);
 });
 
 test("размах рук сравнивается — большее значение преимущество", () => {
   const reach = COMPARE_METRICS.find((metric) => metric.key === "reachCm");
-  assert.equal(reach?.direction, "higher");
+  assert.ok(reach, "метрика размаха рук должна быть в списке");
+  assert.equal(pickBetterSide(reach, 198, 183), "a");
+});
+
+test("formatMetricValue: ноль — валидное значение, не «—»", () => {
+  const metric = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(metric, 0), "0");
+  assert.equal(formatMetricValue(metric, null), "—");
+  assert.equal(formatMetricValue(metric, undefined), "—");
+});
+
+test("formatMetricValue: NaN и Infinity возвращают «—»", () => {
+  const metric = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(metric, NaN), "—");
+  assert.equal(formatMetricValue(metric, Infinity), "—");
+});
+
+test("formatMetricValue: суффиксы форматируются корректно", () => {
+  const accuracy = COMPARE_METRICS.find((m) => m.key === "strikeAccuracy")!;
+  assert.equal(formatMetricValue(accuracy, 53), "53%");
+
+  const reach = COMPARE_METRICS.find((m) => m.key === "reachCm")!;
+  assert.equal(formatMetricValue(reach, 198), "198 см");
+});
+
+test("formatMetricValue: decimals фиксирует знаки после запятой", () => {
+  const slpm = COMPARE_METRICS.find((m) => m.key === "sigStrikesLandedPerMin")!;
+  assert.equal(formatMetricValue(slpm, 4), "4.00");
+
+  const ko = COMPARE_METRICS.find((m) => m.key === "winsByKnockout")!;
+  assert.equal(formatMetricValue(ko, 4), "4");
+});
+
+test("ключи метрик в COMPARE_METRICS уникальны", () => {
+  const keys = COMPARE_METRICS.map((m) => m.key);
+  const unique = new Set(keys);
+  assert.equal(unique.size, keys.length, "обнаружен дублирующийся ключ в COMPARE_METRICS");
 });
 ```
 
@@ -205,16 +301,23 @@ Expected: FAIL — `Cannot find module '../lib/compare-metrics'`
 Создать `lib/compare-metrics.ts`:
 
 ```typescript
+import type { Fighter } from "@prisma/client";
+
 import type { Locale } from "@/lib/locale-config";
 
 export type CompareDirection = "higher" | "lower" | "neutral";
 
+type NumericFighterKey = {
+  [K in keyof Fighter]-?: NonNullable<Fighter[K]> extends number ? K : never;
+}[keyof Fighter];
+
 export type CompareMetric = {
-  key: string;
+  key: NumericFighterKey;
   labelRu: string;
   labelEn: string;
   direction: CompareDirection;
   suffix?: string;
+  decimals?: number;
 };
 
 // direction: "higher" — больше лучше, "lower" — меньше лучше,
@@ -226,14 +329,14 @@ export const COMPARE_METRICS: CompareMetric[] = [
   { key: "winsByKnockout", labelRu: "Побед KO/TKO", labelEn: "Wins by KO/TKO", direction: "higher" },
   { key: "winsBySubmission", labelRu: "Побед сабмишеном", labelEn: "Wins by submission", direction: "higher" },
   { key: "winsByDecision", labelRu: "Побед решением", labelEn: "Wins by decision", direction: "higher" },
-  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher" },
+  { key: "sigStrikesLandedPerMin", labelRu: "SLpM", labelEn: "SLpM", direction: "higher", decimals: 2 },
   { key: "strikeAccuracy", labelRu: "Точность ударов", labelEn: "Strike accuracy", direction: "higher", suffix: "%" },
-  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower" },
+  { key: "sigStrikesAbsorbedPerMin", labelRu: "SApM", labelEn: "SApM", direction: "lower", decimals: 2 },
   { key: "strikeDefense", labelRu: "Защита в стойке", labelEn: "Strike defense", direction: "higher", suffix: "%" },
-  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher" },
+  { key: "takedownAveragePer15", labelRu: "Тейкдауны / 15 мин", labelEn: "Takedowns / 15 min", direction: "higher", decimals: 2 },
   { key: "takedownAccuracy", labelRu: "Точность тейкдаунов", labelEn: "Takedown accuracy", direction: "higher", suffix: "%" },
   { key: "takedownDefense", labelRu: "Защита от тейкдаунов", labelEn: "Takedown defense", direction: "higher", suffix: "%" },
-  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher" }
+  { key: "submissionAveragePer15", labelRu: "Сабмишены / 15 мин", labelEn: "Submissions / 15 min", direction: "higher", decimals: 2 }
 ];
 
 export function getMetricLabel(metric: CompareMetric, locale: Locale) {
@@ -253,6 +356,12 @@ export function pickBetterSide(
     return null;
   }
 
+  // NaN не равен ничему, поэтому без этой проверки сравнение ниже всегда даёт
+  // false и молча присуждает победу стороне B. Infinity отсекаем заодно.
+  if (!Number.isFinite(valueA) || !Number.isFinite(valueB)) {
+    return null;
+  }
+
   if (valueA === valueB) {
     return null;
   }
@@ -263,11 +372,14 @@ export function pickBetterSide(
 }
 
 export function formatMetricValue(metric: CompareMetric, value: number | null | undefined) {
-  if (typeof value !== "number") {
+  // 0 — валидное значение (например, 0 сабмишенов), не должно превращаться в «—»
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return "—";
   }
 
-  return `${value}${metric.suffix ?? ""}`;
+  const formatted = metric.decimals !== undefined ? value.toFixed(metric.decimals) : String(value);
+
+  return `${formatted}${metric.suffix ?? ""}`;
 }
 ```
 

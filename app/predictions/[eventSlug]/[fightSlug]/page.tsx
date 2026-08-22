@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
+import { buildPairSlug } from "@/lib/compare-pairs";
 import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
@@ -295,6 +296,15 @@ export default async function FightPredictionPage({
           </div>
         </div>
       </section>
+
+      <p className="compare-cta">
+        <Link
+          href={localizePath(`/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`, locale)}
+          className="event-table-link"
+        >
+          {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
+        </Link>
+      </p>
 
       {fight.status === "completed" ? (() => {
         const verdict = resolvePredictionVerdict({
