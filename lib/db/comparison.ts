@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
 import { buildCuratedPairs, type CuratedPair } from "@/lib/compare-curation";
@@ -138,30 +139,42 @@ export const getComparisonPageData = cache(async function getComparisonPageData(
   return null;
 });
 
-export const getCuratedComparisonPairs = cache(async function getCuratedComparisonPairs(): Promise<CuratedPair[]> {
-  const [snapshot, links, fights] = await Promise.all([
-    getUfcRankingSnapshot(),
-    getUfcOfficialRankingLinks(),
-    prisma.fight.findMany({
-      select: {
-        status: true,
-        weightClass: true,
-        fighterA: { select: { slug: true } },
-        fighterB: { select: { slug: true } }
-      }
-    })
-  ]);
+// Набор пар считается двумя полными сканами (все бойцы + все бои), а нужен он на
+// каждой странице бойца, на каждой странице пары, на хабе и в sitemap — при обходе
+// краулером это тысячи повторов. Меняется набор не чаще снимка рейтинга, поэтому
+// час кеша достаточно; cache() сверху дедуплицирует вызовы внутри одного запроса.
+const loadCuratedComparisonPairs = unstable_cache(
+  async function loadCuratedComparisonPairs(): Promise<CuratedPair[]> {
+    const [snapshot, links, fights] = await Promise.all([
+      getUfcRankingSnapshot(),
+      getUfcOfficialRankingLinks(),
+      prisma.fight.findMany({
+        select: {
+          status: true,
+          weightClass: true,
+          fighterA: { select: { slug: true } },
+          fighterB: { select: { slug: true } }
+        }
+      })
+    ]);
 
-  return buildCuratedPairs({
-    groups: snapshot?.groups ?? [],
-    fightPairs: fights.map((fight) => ({
-      slugA: fight.fighterA.slug,
-      slugB: fight.fighterB.slug,
-      isScheduled: fight.status === "scheduled",
-      weightClass: getBaseWeightClass(fight.weightClass) || null
-    })),
-    resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
-  });
+    return buildCuratedPairs({
+      groups: snapshot?.groups ?? [],
+      fightPairs: fights.map((fight) => ({
+        slugA: fight.fighterA.slug,
+        slugB: fight.fighterB.slug,
+        isScheduled: fight.status === "scheduled",
+        weightClass: getBaseWeightClass(fight.weightClass) || null
+      })),
+      resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
+    });
+  },
+  ["compare:curated-pairs:v1"],
+  { revalidate: 3600, tags: ["compare-curated-pairs"] }
+);
+
+export const getCuratedComparisonPairs = cache(async function getCuratedComparisonPairs(): Promise<CuratedPair[]> {
+  return loadCuratedComparisonPairs();
 });
 
 export type CuratedPairFighter = {
