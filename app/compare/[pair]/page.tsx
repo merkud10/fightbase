@@ -122,9 +122,28 @@ export default async function ComparePage({ params }: ComparePageProps) {
     }))
   };
 
+  const buildPersonJsonLd = (fighter: typeof fighterA, name: string) => ({
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: fighter.name,
+    alternateName: [fighter.nameRu, fighter.nickname, name !== fighter.name ? name : null].filter(Boolean),
+    image: fighter.photoUrl || undefined,
+    url: `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`,
+    nationality: fighter.country || undefined,
+    memberOf: fighter.team
+      ? {
+          "@type": "SportsTeam",
+          name: fighter.team
+        }
+      : undefined,
+    jobTitle: fighter.promotion?.shortName ? `${fighter.promotion.shortName} fighter` : "MMA fighter"
+  });
+
   return (
     <main className="container">
       <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={buildPersonJsonLd(fighterA, nameA)} />
+      <JsonLd data={buildPersonJsonLd(fighterB, nameB)} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow={eyebrow}
