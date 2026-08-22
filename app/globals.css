@@ -3749,10 +3749,13 @@ th {
   overflow: hidden;
 }
 
+/* Центральная колонка фиксирована, значения прижаты к внешним краям: при `auto`
+   метки разной длины расталкивали числа, и колонки не вставали в вертикальные
+   линии — а ради них tale of the tape и читают. */
 .compare-table-head,
 .compare-row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr minmax(150px, 240px) 1fr;
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
@@ -3773,11 +3776,11 @@ th {
 }
 
 .compare-table-head .compare-table-name:first-child {
-  text-align: right;
+  text-align: left;
 }
 
 .compare-table-head .compare-table-name:last-child {
-  text-align: left;
+  text-align: right;
 }
 
 .compare-table-head-label {
@@ -3800,11 +3803,11 @@ th {
 }
 
 .compare-row .compare-value:first-child {
-  text-align: right;
+  text-align: left;
 }
 
 .compare-row .compare-value:last-child {
-  text-align: left;
+  text-align: right;
 }
 
 .compare-value.is-better {
@@ -3823,6 +3826,7 @@ th {
 @media (max-width: 560px) {
   .compare-table-head,
   .compare-row {
+    grid-template-columns: 1fr minmax(96px, 150px) 1fr;
     gap: 8px;
     padding: 10px 12px;
   }
