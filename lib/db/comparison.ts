@@ -158,3 +158,45 @@ export const getCuratedComparisonPairs = cache(async function getCuratedComparis
     resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
   });
 });
+
+export type CuratedPairFighter = {
+  slug: string;
+  name: string;
+  nameRu: string | null;
+};
+
+export type NamedCuratedPair = CuratedPair & {
+  fighterA: CuratedPairFighter;
+  fighterB: CuratedPairFighter;
+};
+
+export const getNamedCuratedComparisonPairs = cache(async function getNamedCuratedComparisonPairs(): Promise<
+  NamedCuratedPair[]
+> {
+  const pairs = await getCuratedComparisonPairs();
+  const slugs = [...new Set(pairs.flatMap((pair) => [pair.slugA, pair.slugB]))];
+
+  if (slugs.length === 0) {
+    return [];
+  }
+
+  // Имена догружаем одним запросом по уникальным слагам: пар кратно больше,
+  // чем участвующих в них бойцов, и запрос на пару дал бы сотни обращений.
+  const fighters = await prisma.fighter.findMany({
+    where: { slug: { in: slugs } },
+    select: { slug: true, name: true, nameRu: true }
+  });
+  const bySlug = new Map(fighters.map((fighter) => [fighter.slug, fighter]));
+
+  return pairs.flatMap((pair) => {
+    const fighterA = bySlug.get(pair.slugA);
+    const fighterB = bySlug.get(pair.slugB);
+
+    // Слаг из рейтинга мог остаться без профиля в базе — такая ссылка отдала бы 404.
+    if (!fighterA || !fighterB) {
+      return [];
+    }
+
+    return [{ ...pair, fighterA, fighterB }];
+  });
+});
