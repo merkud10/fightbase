@@ -1,6 +1,7 @@
 import { buildPairSlug, sortSlugPair } from "@/lib/compare-pairs";
+import { getBaseWeightClass } from "@/lib/display";
 import { looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
-import type { UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
+import { isPoundForPoundRankingGroup, type UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
 
 export type CuratedPair = {
   pairSlug: string;
@@ -63,6 +64,16 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
   };
 
   for (const group of groups) {
+    // P4P-рейтинг сводит бойцов из разных дивизионов: такие пары в курируемый
+    // набор не входят, иначе в индекс уехали бы сотни междивизионных страниц.
+    if (isPoundForPoundRankingGroup(group.title)) {
+      continue;
+    }
+
+    // Заголовок группы и вес боя попадают в одно поле weightClass, поэтому
+    // приводим их одним словарём: иначе «Легкий вес» и Lightweight разъедутся
+    // на хабе в две секции одного дивизиона.
+    const weightClass = getBaseWeightClass(group.title) || null;
     const names = [group.champion.name, ...group.rows.map((row) => row.name)];
     const slugs = names.map((name) => resolveSlug(name)).filter(isUsableSlug);
     // Дедупликация нужна, если один боец попал в rows и как чемпион одновременно.
@@ -74,7 +85,7 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       for (let j = i + 1; j < unique.length; j += 1) {
         const b = unique[j];
         if (!b) continue;
-        add(a, b, group.title, null);
+        add(a, b, weightClass, null);
       }
     }
   }

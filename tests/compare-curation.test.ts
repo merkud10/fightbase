@@ -125,7 +125,34 @@ test("вес из рейтинга не затирается парой из б�
 
   const pair = pairs.find((item) => item.pairSlug === "arman-tsarukyan-vs-islam-makhachev");
   assert.ok(pair);
-  assert.equal(pair.weightClass, "Легкий вес");
+  assert.equal(pair.weightClass, "Lightweight");
+});
+
+// Пары из P4P междивизионные, а раздел строится по дивизионам.
+test("группа pound-for-pound не даёт ни одной пары", () => {
+  const base = GROUPS[0];
+  assert.ok(base);
+
+  for (const title of ["Men's Pound-for-Pound", "Women's Pound-for-Pound Top Rank", "Вне зависимости от категорий"]) {
+    const pairs = buildCuratedPairs({ groups: [{ ...base, title }], fightPairs: [], resolveSlug: RESOLVE });
+
+    assert.deepEqual(pairs, [], title);
+  }
+});
+
+// Заголовок группы и вес боя попадают в одно поле, поэтому должны быть в одном словаре.
+test("заголовок группы нормализуется к тому же весу, что и вес боя", () => {
+  const fromGroup = buildCuratedPairs({ groups: GROUPS, fightPairs: [], resolveSlug: RESOLVE });
+  const fromFight = buildCuratedPairs({
+    groups: [],
+    fightPairs: [
+      { slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: false, weightClass: "Lightweight" }
+    ],
+    resolveSlug: RESOLVE
+  });
+
+  assert.equal(fromGroup[0]?.weightClass, "Lightweight");
+  assert.equal(fromFight[0]?.weightClass, fromGroup[0]?.weightClass);
 });
 
 test("слаги в паре хранятся в каноническом порядке", () => {
@@ -169,7 +196,7 @@ test("weightClass берётся из рейтинга, если пара сна
   // Пары из боёв обрабатываются после рейтинга, поэтому в этом кейсе
   // рейтинговый weightClass должен уже присутствовать.
   // Если порядок обратный — weightClass ?? weightClass срабатывает при мердже.
-  assert.equal(target?.weightClass, "Легкий вес");
+  assert.equal(target?.weightClass, "Lightweight");
 });
 
 test("weightClass не перезаписывается нулём, если пара сначала из рейтинга, потом из боя", () => {
@@ -180,5 +207,5 @@ test("weightClass не перезаписывается нулём, если п�
   });
 
   const target = pairs.find((pair) => pair.pairSlug === "arman-tsarukyan-vs-islam-makhachev");
-  assert.equal(target?.weightClass, "Легкий вес");
+  assert.equal(target?.weightClass, "Lightweight");
 });
