@@ -8,6 +8,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
+import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData } from "@/lib/db";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
@@ -266,6 +267,17 @@ export default async function EventPage({
                       ) : (
                         <span className="event-table-pending">{locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}</span>
                       )}
+                      {fight.fighterA.slug && fight.fighterB.slug ? (
+                        <Link
+                          href={localizePath(
+                            `/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`,
+                            locale
+                          )}
+                          className="event-table-link compare-inline-link"
+                        >
+                          {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
+                        </Link>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

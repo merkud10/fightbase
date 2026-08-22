@@ -3914,3 +3914,50 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.compare-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.compare-links li {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.compare-links a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.compare-links a:hover {
+  color: var(--red);
+}
+
+/* В ячейке карда ссылка на сравнение идёт второй строкой, чтобы не ломать
+   ширину колонки прогноза на узких экранах. */
+.compare-inline-link {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.compare-cta {
+  margin: 12px 0 0;
+}
+
+/* Девятый пункт меню («Сравнение») не влезает в одну строку между брендом и
+   кнопкой подписки на узких десктопах — до перехода в бургер (1080px) ужимаем
+   промежутки и трекинг, иначе хвост меню уезжает под кнопку. */
+@media (min-width: 1081px) and (max-width: 1220px) {
+  .nav-links {
+    gap: 10px;
+  }
+
+  .nav-link {
+    letter-spacing: 0.1em;
+  }
+}
