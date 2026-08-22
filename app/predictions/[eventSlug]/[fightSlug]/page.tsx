@@ -297,16 +297,14 @@ export default async function FightPredictionPage({
         </div>
       </section>
 
-      {fight.fighterA.slug && fight.fighterB.slug ? (
-        <p className="compare-cta">
-          <Link
-            href={localizePath(`/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`, locale)}
-            className="event-table-link"
-          >
-            {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
-          </Link>
-        </p>
-      ) : null}
+      <p className="compare-cta">
+        <Link
+          href={localizePath(`/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`, locale)}
+          className="event-table-link"
+        >
+          {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
+        </Link>
+      </p>
 
       {fight.status === "completed" ? (() => {
         const verdict = resolvePredictionVerdict({

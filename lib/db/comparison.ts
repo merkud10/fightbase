@@ -71,10 +71,15 @@ export type ComparisonPageData = {
   headToHead: ComparisonHeadToHeadFight[];
 };
 
+// Каждый кандидат разреза стоит отдельного запроса к базе, а сегмент пути приходит
+// извне: `a-vs-a-vs-…` из сотни повторений дал бы сотню запросов на один HTTP-вызов.
+// Реальный слаг бойца с "-vs-" внутри — экзотика, больше пары разрезов не бывает.
+const MAX_PAIR_SLUG_CANDIDATES = 8;
+
 export const getComparisonPageData = cache(async function getComparisonPageData(
   pairSlug: string
 ): Promise<ComparisonPageData | null> {
-  for (const candidate of splitPairSlugCandidates(pairSlug)) {
+  for (const candidate of splitPairSlugCandidates(pairSlug).slice(0, MAX_PAIR_SLUG_CANDIDATES)) {
     if (candidate.a === candidate.b) {
       continue;
     }

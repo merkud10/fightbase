@@ -267,17 +267,15 @@ export default async function EventPage({
                       ) : (
                         <span className="event-table-pending">{locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}</span>
                       )}
-                      {fight.fighterA.slug && fight.fighterB.slug ? (
-                        <Link
-                          href={localizePath(
-                            `/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`,
-                            locale
-                          )}
-                          className="event-table-link compare-inline-link"
-                        >
-                          {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
-                        </Link>
-                      ) : null}
+                      <Link
+                        href={localizePath(
+                          `/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`,
+                          locale
+                        )}
+                        className="event-table-link compare-inline-link"
+                      >
+                        {locale === "ru" ? "Сравнить бойцов" : "Compare fighters"}
+                      </Link>
                     </td>
                   </tr>
                 ))}
