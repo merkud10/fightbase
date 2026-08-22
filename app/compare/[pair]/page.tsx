@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
-export const revalidate = 3600;
-
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompareTable } from "@/components/compare-table";
 import { JsonLd } from "@/components/json-ld";
@@ -15,6 +13,8 @@ import { getLocale } from "@/lib/i18n";
 import { buildPageMetadata } from "@/lib/page-metadata";
 import { localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
+
+export const revalidate = 3600;
 
 type ComparePageProps = {
   params: Promise<{ pair: string }>;

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const revalidate = 3600;
-
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHero } from "@/components/page-hero";
 import { getNamedCuratedComparisonPairs, type NamedCuratedPair } from "@/lib/db/comparison";
@@ -11,6 +9,8 @@ import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
+
+export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();

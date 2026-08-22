@@ -85,6 +85,7 @@ export function CompareTable({ fighterA, fighterB, locale }: CompareTableProps) 
 
   const nameA = getDisplayName(fighterA, locale);
   const nameB = getDisplayName(fighterB, locale);
+  const betterLabel = isRu ? "(лучший показатель)" : "(better value)";
 
   return (
     <section className="compare-table" aria-label={isRu ? "Сравнение характеристик" : "Attribute comparison"}>
@@ -96,9 +97,16 @@ export function CompareTable({ fighterA, fighterB, locale }: CompareTableProps) 
       <div className="compare-table-rows">
         {rows.map((row) => (
           <div className="compare-row" key={row.key}>
-            <span className={row.better === "a" ? "compare-value is-better" : "compare-value"}>{row.valueA}</span>
+            <span className={row.better === "a" ? "compare-value is-better" : "compare-value"}>
+              {row.valueA}
+              {/* Преимущество передаётся цветом и насыщенностью — скринридеру нужен текст. */}
+              {row.better === "a" ? <span className="sr-only"> {betterLabel}</span> : null}
+            </span>
             <span className="compare-label">{row.label}</span>
-            <span className={row.better === "b" ? "compare-value is-better" : "compare-value"}>{row.valueB}</span>
+            <span className={row.better === "b" ? "compare-value is-better" : "compare-value"}>
+              {row.valueB}
+              {row.better === "b" ? <span className="sr-only"> {betterLabel}</span> : null}
+            </span>
           </div>
         ))}
       </div>

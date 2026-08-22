@@ -1,7 +1,6 @@
 export const PAIR_SEPARATOR = "-vs-";
 
-// Тип кандидата разбора — экспортируется, чтобы вызывающий код не дублировал его.
-export type PairSlugCandidate = { a: string; b: string };
+type PairSlugCandidate = { a: string; b: string };
 
 // Единственное место, где задан канонический порядок слагов в паре. Побайтовое
 // сравнение, а не localeCompare: его результат зависит от полноты ICU-данных
@@ -16,10 +15,6 @@ export function buildPairSlug(slugA: string, slugB: string) {
   const [first, second] = sortSlugPair(slugA, slugB);
 
   return `${first}${PAIR_SEPARATOR}${second}`;
-}
-
-export function isCanonicalPairOrder(slugA: string, slugB: string) {
-  return buildPairSlug(slugA, slugB) === `${slugA}${PAIR_SEPARATOR}${slugB}`;
 }
 
 // Слаг бойца теоретически может содержать "-vs-", поэтому разрез неоднозначен.

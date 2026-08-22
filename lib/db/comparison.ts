@@ -210,7 +210,9 @@ export const getNamedCuratedComparisonPairs = cache(async function getNamedCurat
     const fighterA = bySlug.get(pair.slugA);
     const fighterB = bySlug.get(pair.slugB);
 
-    // Слаг из рейтинга мог остаться без профиля в базе — такая ссылка отдала бы 404.
+    // Набор пар и имена бойцов — два независимых запроса с разным временем жизни,
+    // и между ними бойца могут удалить. flatMap здесь бесплатно превращает
+    // потенциально битую ссылку в её отсутствие.
     if (!fighterA || !fighterB) {
       return [];
     }

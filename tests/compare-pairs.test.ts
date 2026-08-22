@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPairSlug, isCanonicalPairOrder, splitPairSlugCandidates } from "../lib/compare-pairs";
+import { buildPairSlug, splitPairSlugCandidates } from "../lib/compare-pairs";
 
 test("buildPairSlug сортирует слаги лексикографически", () => {
   assert.equal(buildPairSlug("sean-omalley", "aljamain-sterling"), "aljamain-sterling-vs-sean-omalley");
@@ -20,15 +20,6 @@ test("buildPairSlug: дефис сортируется раньше буквы",
 // что бойцы разные — это делает вызывающий код.
 test("buildPairSlug при одинаковых слагах", () => {
   assert.equal(buildPairSlug("jon-jones", "jon-jones"), "jon-jones-vs-jon-jones");
-});
-
-test("isCanonicalPairOrder различает канонический и обратный порядок", () => {
-  assert.equal(isCanonicalPairOrder("aljamain-sterling", "sean-omalley"), true);
-  assert.equal(isCanonicalPairOrder("sean-omalley", "aljamain-sterling"), false);
-});
-
-test("isCanonicalPairOrder при одинаковых слагах возвращает true", () => {
-  assert.equal(isCanonicalPairOrder("jon-jones", "jon-jones"), true);
 });
 
 test("splitPairSlugCandidates возвращает единственный разрез для обычного слага", () => {
