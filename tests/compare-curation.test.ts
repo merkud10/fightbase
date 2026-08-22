@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCuratedPairs } from "../lib/compare-curation";
+import { buildCuratedPairs, normalizeCuratedWeightClass } from "../lib/compare-curation";
+import { formatWeightClass } from "../lib/display";
 
 const GROUPS = [
   {
@@ -153,6 +154,19 @@ test("заголовок группы нормализуется к тому ж�
 
   assert.equal(fromGroup[0]?.weightClass, "Lightweight");
   assert.equal(fromFight[0]?.weightClass, fromGroup[0]?.weightClass);
+});
+
+// Оба случая всплыли только на проде: в локальной базе таких значений нет.
+test("заглушки веса не становятся заголовком секции", () => {
+  for (const value of ["Unknown", "TBD", "TBA", "N/A", "-", "", null, undefined]) {
+    assert.equal(normalizeCuratedWeightClass(value), null, `ожидался null для ${JSON.stringify(value)}`);
+  }
+});
+
+test("договорной вес через пробел переводится, а не остаётся английским", () => {
+  const normalized = normalizeCuratedWeightClass("Catch Weight");
+  assert.equal(normalized, "Catchweight");
+  assert.equal(formatWeightClass(normalized as string, "ru"), "Договорной вес");
 });
 
 test("слаги в паре хранятся в каноническом порядке", () => {

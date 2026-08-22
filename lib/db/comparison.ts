@@ -2,9 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
-import { buildCuratedPairs, type CuratedPair } from "@/lib/compare-curation";
+import { buildCuratedPairs, normalizeCuratedWeightClass, type CuratedPair } from "@/lib/compare-curation";
 import { splitPairSlugCandidates } from "@/lib/compare-pairs";
-import { getBaseWeightClass } from "@/lib/display";
 import { prisma } from "@/lib/prisma";
 import { getUfcOfficialRankingLinks } from "./fighters";
 import { getUfcRankingSnapshot } from "./rankings";
@@ -164,7 +163,7 @@ const loadCuratedComparisonPairs = unstable_cache(
         slugA: fight.fighterA.slug,
         slugB: fight.fighterB.slug,
         isScheduled: fight.status === "scheduled",
-        weightClass: getBaseWeightClass(fight.weightClass) || null
+        weightClass: normalizeCuratedWeightClass(fight.weightClass)
       })),
       resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
     });

@@ -100,6 +100,9 @@ const weightClassAliases: Record<string, string> = {
   heavyweight: "Heavyweight",
   "тяжелый вес": "Heavyweight",
   catchweight: "Catchweight",
+  // ESPN пишет договорной вес и через пробел — без этого алиаса значение
+  // проходит мимо словаря и показывается на русской странице как «Catch Weight».
+  "catch weight": "Catchweight",
   "договорной вес": "Catchweight",
   openweight: "Openweight",
   "открытый вес": "Openweight",

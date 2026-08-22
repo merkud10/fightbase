@@ -3,6 +3,16 @@ import { getBaseWeightClass } from "@/lib/display";
 import { looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
 import { isPoundForPoundRankingGroup, type UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
 
+// У части боёв вес записан заглушкой. Такое значение не должно становиться
+// заголовком секции на хабе — пара уходит в группу «Другие пары».
+const PLACEHOLDER_WEIGHT_CLASS = /^(unknown|tbd|tba|n\/a|-)$/i;
+
+export function normalizeCuratedWeightClass(value: string | null | undefined) {
+  const cleaned = getBaseWeightClass(String(value || ""));
+
+  return cleaned && !PLACEHOLDER_WEIGHT_CLASS.test(cleaned) ? cleaned : null;
+}
+
 export type CuratedPair = {
   pairSlug: string;
   slugA: string;
@@ -73,7 +83,7 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
     // Заголовок группы и вес боя попадают в одно поле weightClass, поэтому
     // приводим их одним словарём: иначе «Легкий вес» и Lightweight разъедутся
     // на хабе в две секции одного дивизиона.
-    const weightClass = getBaseWeightClass(group.title) || null;
+    const weightClass = normalizeCuratedWeightClass(group.title);
     const names = [group.champion.name, ...group.rows.map((row) => row.name)];
     const slugs = names.map((name) => resolveSlug(name)).filter(isUsableSlug);
     // Дедупликация нужна, если один боец попал в rows и как чемпион одновременно.
