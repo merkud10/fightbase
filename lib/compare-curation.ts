@@ -31,10 +31,16 @@ export type CuratedPair = {
 export const COMPARE_INDEX_RANK_DEPTH = 5;
 
 // Хаб показывает все курируемые пары, но в sitemap и в индекс пускаем только те,
-// у которых есть собственный повод существовать: предстоящий бой или верх
-// рейтинга. Прошедшие бои уже описаны страницей события и разбором.
+// у которых есть собственный повод существовать: очная встреча (состоявшаяся или
+// назначенная) либо верх рейтинга. hasFight покрывает и запланированные бои —
+// isScheduled без hasFight не бывает.
+//
+// Сначала здесь стояло isScheduled вместо hasFight, из расчёта что прошедший бой
+// уже описан страницей события. Search Console это опроверг: показы шли как раз
+// по парам с прошедшим боем и бойцами вне топа рейтинга — по запросам вида
+// «X vs Y», то есть ровно по назначению раздела.
 export function isIndexableComparisonPair(pair: CuratedPair) {
-  return pair.isScheduled || (pair.rankDepth !== null && pair.rankDepth <= COMPARE_INDEX_RANK_DEPTH);
+  return pair.hasFight || (pair.rankDepth !== null && pair.rankDepth <= COMPARE_INDEX_RANK_DEPTH);
 }
 
 export type FightPairInput = {

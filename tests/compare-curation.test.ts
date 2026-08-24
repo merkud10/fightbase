@@ -249,7 +249,7 @@ test("пара, пришедшая только из боя, остаётся б
   assert.equal(pairs[0]?.rankDepth, null);
 });
 
-test("в индекс идут только запланированные бои и верх рейтинга", () => {
+test("в индекс идут пары с реальным боем и верх рейтинга", () => {
   const scheduled = {
     pairSlug: "a-vs-b",
     slugA: "a",
@@ -265,7 +265,9 @@ test("в индекс идут только запланированные бо�
 
   assert.equal(isIndexableComparisonPair(scheduled), true);
   assert.equal(isIndexableComparisonPair(topRanked), true);
-  // Прошедший бой уже описан страницей события и разбором — дубль в индексе не нужен.
-  assert.equal(isIndexableComparisonPair(pastFight), false);
+  // Очный бой — единственное, что делает страницу пары уникальной, и именно по
+  // таким парам Google давал показы, даже когда бойцы вне топа рейтинга.
+  assert.equal(isIndexableComparisonPair(pastFight), true);
+  // Комбинаторика рейтинга ниже топа: своего содержания у страницы нет.
   assert.equal(isIndexableComparisonPair(deepRanked), false);
 });
