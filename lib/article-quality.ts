@@ -176,14 +176,26 @@ const SOURCE_CREDIT_PATTERNS = [
   /^\s*(заглавное\s+)?фото[:\s]/i,
   /^\s*photo[:\s]/i,
   /предоставлено\s+getty\s*image/i,
-  /«?чемпионат»?/i,
+  /«чемпионат[а-я]*»/i,
 ];
+
+/**
+ * Служебная приставка в начале заголовка: «Источник: …», «Фото: …». В теле статьи
+ * такая строка — целиком подпись об источнике и вырезается, но в заголовке за ней
+ * идёт сама новость, поэтому срезаем только саму приставку.
+ */
+const TITLE_CREDIT_PREFIX = /^\s*(заглавное\s+)?(источник|source|фото|photo)\s*:\s*/i;
 
 const SOURCE_CREDIT_MAX_LENGTH = 160;
 
-/** Упоминания изданий, которые нужно вычищать на уровне предложений в любой длине абзаца. */
+/**
+ * Упоминания изданий, которые нужно вычищать на уровне предложений в любой длине абзаца.
+ *
+ * «Чемпионат» требует кавычек или домена: без них паттерн съедал обычное слово и
+ * вместе с ним целое предложение («…на чемпионате Дагестана»).
+ */
 const INLINE_PUBLICATION_PATTERNS = [
-  /«?чемпионат[а-я]*»?/i,
+  /«чемпионат[а-я]*»|championat\.com|чемпионат\.com/i,
   /metaratings|meta-ratings|мета-?рейтинг/i,
 ];
 
@@ -217,7 +229,10 @@ export function cleanNewsText(value: string, fighters: RelatedFighter[] = []) {
 }
 
 export function cleanNewsTitle(value: string, fighters: RelatedFighter[] = []) {
-  let next = cleanNewsText(value, fighters);
+  // Заголовок прогоняем без removePromoParas: та логика выбрасывает абзац целиком,
+  // а заголовок — это ровно один короткий абзац. Совпадение с паттерном подписи
+  // обнуляло title, и статья уходила в индекс с пустыми <title>, <h1> и headline.
+  let next = applyFighterNames(applyCommonReplacements(value.replace(TITLE_CREDIT_PREFIX, "")), fighters);
 
   next = next
     .replace(/\bРезультат(ы)? основного боя\b/gi, "Результат главного боя")
@@ -228,7 +243,8 @@ export function cleanNewsTitle(value: string, fighters: RelatedFighter[] = []) {
     .replace(/\bБоевой поход за титул среднего веса: Чимаев против Стрикленда возглавит UFC 328\b/gi, "Чимаев и Стрикленд возглавят UFC 328")
     .replace(/\bUFC объявляет ABC в качестве консультантов по регулированию исторического турнира UFC в Белом доме\b/gi, "ABC станет регуляторным консультантом турнира UFC в Белом доме");
 
-  return normalizeWhitespace(next);
+  // Пустой заголовок хуже неочищенного: статья с ним уходит в поиск безымянной.
+  return normalizeWhitespace(next) || normalizeWhitespace(value);
 }
 
 export function buildRussianMeaningBlock(articleText: string) {
