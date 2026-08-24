@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCuratedPairs, normalizeCuratedWeightClass } from "../lib/compare-curation";
+import {
+  buildCuratedPairs,
+  COMPARE_INDEX_RANK_DEPTH,
+  isIndexableComparisonPair,
+  normalizeCuratedWeightClass
+} from "../lib/compare-curation";
 import { formatWeightClass } from "../lib/display";
 
 const GROUPS = [
@@ -222,4 +227,45 @@ test("weightClass не перезаписывается нулём, если п�
 
   const target = pairs.find((pair) => pair.pairSlug === "arman-tsarukyan-vs-islam-makhachev");
   assert.equal(target?.weightClass, "Lightweight");
+});
+
+test("rankDepth пары равен худшей позиции из двух бойцов", () => {
+  const pairs = buildCuratedPairs({ groups: GROUPS, fightPairs: [], resolveSlug: RESOLVE });
+  const byPairSlug = new Map(pairs.map((pair) => [pair.pairSlug, pair]));
+
+  // Чемпион считается глубиной 0, боец с номером N — глубиной N.
+  assert.equal(byPairSlug.get("arman-tsarukyan-vs-islam-makhachev")?.rankDepth, 1);
+  assert.equal(byPairSlug.get("charles-oliveira-vs-islam-makhachev")?.rankDepth, 2);
+  assert.equal(byPairSlug.get("arman-tsarukyan-vs-charles-oliveira")?.rankDepth, 2);
+});
+
+test("пара, пришедшая только из боя, остаётся без rankDepth", () => {
+  const pairs = buildCuratedPairs({
+    groups: [],
+    fightPairs: [{ slugA: "sean-omalley", slugB: "aljamain-sterling", isScheduled: true, weightClass: null }],
+    resolveSlug: RESOLVE
+  });
+
+  assert.equal(pairs[0]?.rankDepth, null);
+});
+
+test("в индекс идут только запланированные бои и верх рейтинга", () => {
+  const scheduled = {
+    pairSlug: "a-vs-b",
+    slugA: "a",
+    slugB: "b",
+    weightClass: null,
+    hasFight: true,
+    isScheduled: true,
+    rankDepth: null
+  };
+  const pastFight = { ...scheduled, pairSlug: "c-vs-d", isScheduled: false };
+  const topRanked = { ...pastFight, pairSlug: "e-vs-f", hasFight: false, rankDepth: COMPARE_INDEX_RANK_DEPTH };
+  const deepRanked = { ...topRanked, pairSlug: "g-vs-h", rankDepth: COMPARE_INDEX_RANK_DEPTH + 1 };
+
+  assert.equal(isIndexableComparisonPair(scheduled), true);
+  assert.equal(isIndexableComparisonPair(topRanked), true);
+  // Прошедший бой уже описан страницей события и разбором — дубль в индексе не нужен.
+  assert.equal(isIndexableComparisonPair(pastFight), false);
+  assert.equal(isIndexableComparisonPair(deepRanked), false);
 });

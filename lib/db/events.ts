@@ -453,6 +453,23 @@ export const getPredictionPageParams = cache(async function getPredictionPagePar
   });
 });
 
+// Прогноз живёт только пока у боя есть снимок: после турнира снимок удаляется, и
+// страница пропадает. Отдавать 404 по адресу, который был в выдаче, дорого —
+// сам бой остаётся описан на странице события, туда и уводим. Проверяем, что бой
+// действительно принадлежит этому событию, иначе опечатка в URL получила бы
+// редирект вместо честного 404.
+export const getPredictionFallbackEventSlug = cache(async function getPredictionFallbackEventSlug(
+  eventSlug: string,
+  fightSlug: string
+) {
+  const fight = await prisma.fight.findUnique({
+    where: { slug: fightSlug },
+    select: { event: { select: { slug: true } } }
+  });
+
+  return fight?.event.slug === eventSlug ? eventSlug : null;
+});
+
 export const getFightPredictionPageData = cache(async function getFightPredictionPageData(eventSlug: string, fightSlug: string) {
   const fight = await prisma.fight.findUnique({
     where: { slug: fightSlug },

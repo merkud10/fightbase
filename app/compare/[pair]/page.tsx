@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CompareTable } from "@/components/compare-table";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { isIndexableComparisonPair } from "@/lib/compare-curation";
 import { buildPairSlug } from "@/lib/compare-pairs";
 import { getComparisonPageData, getCuratedComparisonPairs } from "@/lib/db/comparison";
 import { formatFightMethod, formatWeightClass, getBaseWeightClass, getDisplayName } from "@/lib/display";
@@ -60,14 +61,15 @@ export async function generateMetadata({ params }: ComparePageProps): Promise<Me
   });
 
   const curated = await getCuratedComparisonPairs();
-  const isCurated = curated.some((entry) => entry.pairSlug === canonicalPair);
+  const entry = curated.find((pair) => pair.pairSlug === canonicalPair);
 
-  if (isCurated) {
+  if (entry && isIndexableComparisonPair(entry)) {
     return metadata;
   }
 
-  // Некурируемых комбинаций комбинаторно много — в индекс их не пускаем,
-  // но ссылки со страницы обходить разрешаем.
+  // Комбинаций комбинаторно много, и даже курируемых пар набираются сотни:
+  // в индекс пускаем только предстоящие бои и верх рейтинга, но ссылки со
+  // страницы обходить разрешаем.
   return {
     ...metadata,
     robots: { index: false, follow: true }

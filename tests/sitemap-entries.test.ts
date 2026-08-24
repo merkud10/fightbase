@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getFighterInitials } from "../lib/display";
-import { getArticleFreshness, getFighterPriority } from "../lib/sitemap-entries";
+import { getArticleFreshness, getFighterPriority, isPlaceholderFightSlug } from "../lib/sitemap-entries";
 
 const PHOTO = "https://fightbase.ru/media/fighters/abubakar-nurmagomedov-ceefd9b402bb.avif";
 const SILHOUETTE = "https://ufc.com/themes/custom/ufc/assets/img/silhouette.png";
@@ -28,6 +28,19 @@ test("плейсхолдер без фото показывает инициал
   assert.equal(getFighterInitials("Marlon 'Chito' Vera"), "MC");
   assert.equal(getFighterInitials("So-Yul Kim"), "SK");
   assert.equal(getFighterInitials("   "), "");
+});
+
+test("бой с необъявленным соперником опознаётся по слагу", () => {
+  assert.equal(isPlaceholderFightSlug("opponent-tba-vs-tba-12"), true);
+  assert.equal(isPlaceholderFightSlug("tba-vs-opponent-tba-2"), true);
+  assert.equal(isPlaceholderFightSlug("petr-yan-vs-tbd"), true);
+});
+
+test("настоящие имена с сочетанием tba внутри слова не считаются плейсхолдером", () => {
+  // Namsrai Batbayar — «tba» стоит внутри фамилии, а не отдельным сегментом.
+  assert.equal(isPlaceholderFightSlug("namsrai-batbayar-vs-andre-lima"), false);
+  assert.equal(isPlaceholderFightSlug("petr-yan-vs-merab-dvalishvili"), false);
+  assert.equal(isPlaceholderFightSlug(""), false);
 });
 
 test("свежесть статьи понижает частоту обхода по возрасту", () => {

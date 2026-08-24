@@ -10,7 +10,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        // Фото бойцов отдаются через /api/image-proxy: под общий запрет /api они
+        // попадать не должны, иначе карточки выпадают из Google Картинок.
+        allow: ["/", "/api/image-proxy"],
         disallow: ["/admin", "/api"]
       }
     ],

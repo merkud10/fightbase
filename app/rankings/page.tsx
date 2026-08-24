@@ -17,8 +17,16 @@ import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 
-export async function generateMetadata(): Promise<Metadata> {
+type RankingsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export async function generateMetadata({ searchParams }: RankingsPageProps): Promise<Metadata> {
   const locale = await getLocale();
+  const params = (await searchParams) ?? {};
+  // Фильтр по дивизиону не создаёт новую страницу — это подмножество того же
+  // рейтинга. Держим его вне индекса так же, как фильтры в /news и /fighters.
+  const hasFilters = Boolean(readParam(params.division));
   const canonical = localizePath("/rankings", locale);
   const title = locale === "ru" ? "Рейтинги UFC" : "UFC Rankings";
   const description =
@@ -38,13 +46,15 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       url: canonical,
       images: [ogImageUrl()]
-    }
+    },
+    robots: hasFilters
+      ? {
+          index: false,
+          follow: true
+        }
+      : undefined
   };
 }
-
-type RankingsPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
 
 export default async function RankingsPage({ searchParams }: RankingsPageProps) {
   const locale = await getLocale();

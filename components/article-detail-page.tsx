@@ -2,19 +2,20 @@ import type { ArticleCategory } from "@prisma/client";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import { AdSlot } from "@/components/ad-slot";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
-import { getArticleRouteBase } from "@/lib/article-routes";
+import { getArticleRouteBase, resolveMovedArticlePath } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
 import { getArticlePageData, getRelatedArticles } from "@/lib/db";
 import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
+import type { Locale } from "@/lib/locale-config";
 import { ShareButtons } from "@/components/share-buttons";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
@@ -75,6 +76,22 @@ function getSectionLabels(category: ArticleCategory, locale: "ru" | "en") {
   }
 }
 
+// Ищем тот же slug без привязки к рубрике: если материал нашёлся, значит он
+// переехал, и старый адрес должен отдать 308 на новый вместо 404.
+async function redirectMovedArticle(slug: string, category: ArticleCategory, locale: Locale) {
+  const moved = await getArticlePageData(slug);
+
+  if (!moved) {
+    return;
+  }
+
+  const path = resolveMovedArticlePath(category, moved.category, moved.slug);
+
+  if (path) {
+    permanentRedirect(localizePath(path, locale));
+  }
+}
+
 export async function generateArticlePageMetadata(
   slug: string,
   category: "news" | "analysis" | "interview"
@@ -83,6 +100,10 @@ export async function generateArticlePageMetadata(
   const article = await getArticlePageData(slug, category);
 
   if (!article) {
+    // Тот же slug мог переехать в другую рубрику — тогда старый адрес ведёт на
+    // новый, а не в 404. Редирект, как и notFound(), обязан сработать здесь:
+    // метаданные считаются до того, как уйдёт 200 из loading-границы.
+    await redirectMovedArticle(slug, category, locale);
     // notFound() here (not only in the page body) is what makes the response a real
     // HTTP 404: metadata resolves before streaming starts, while the page body runs
     // after the 200 shell has already been flushed through the loading boundary.
@@ -134,6 +155,7 @@ export async function ArticleDetailPage({
   const article = await getArticlePageData(slug, category);
 
   if (!article) {
+    await redirectMovedArticle(slug, category, locale);
     notFound();
   }
 

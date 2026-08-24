@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
-import { getFightPredictionPageData, getPredictionPageParams } from "@/lib/db";
+import { getFightPredictionPageData, getPredictionFallbackEventSlug, getPredictionPageParams } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
+import type { Locale } from "@/lib/locale-config";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { fighterHasComparableStats, getDisplayName } from "@/lib/predictions";
 import { getSnapshotContent } from "@/lib/prediction-snapshot";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
+import { isPlaceholderFightSlug } from "@/lib/sitemap-entries";
 import { ShareButtons } from "@/components/share-buttons";
 import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
@@ -66,6 +68,16 @@ function hasUsablePhoto(url?: string | null) {
   );
 }
 
+// Снимок прогноза удаляется после турнира — адрес, который был в выдаче, не
+// должен превращаться в 404: сам бой остаётся описан на странице события.
+async function redirectToEventFallback(eventSlug: string, fightSlug: string, locale: Locale) {
+  const fallback = await getPredictionFallbackEventSlug(eventSlug, fightSlug);
+
+  if (fallback) {
+    permanentRedirect(localizePath(`/events/${fallback}`, locale));
+  }
+}
+
 export async function generateMetadata({
   params
 }: {
@@ -77,6 +89,7 @@ export async function generateMetadata({
 
   if (!data) {
     // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
+    await redirectToEventFallback(eventSlug, fightSlug, locale);
     notFound();
   }
 
@@ -108,7 +121,9 @@ export async function generateMetadata({
       images: [ogImage]
     },
     robots: {
-      index: true,
+      // Бои без объявленного соперника дают неотличимые друг от друга страницы
+      // («Opponent TBA — TBA»), поэтому в индекс идут только определённые пары.
+      index: !isPlaceholderFightSlug(fightSlug),
       follow: true
     }
   };
@@ -133,6 +148,7 @@ export default async function FightPredictionPage({
   const data = await getFightPredictionPageData(eventSlug, fightSlug);
 
   if (!data) {
+    await redirectToEventFallback(eventSlug, fightSlug, locale);
     notFound();
   }
 

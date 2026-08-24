@@ -4,6 +4,16 @@ export function looksLikeLowQualitySlug(value: string) {
   return /-\d+$|i-am-still-here|wants-this|journey-continues|ufc-|vegas|edmonton|mexico-city/i.test(value);
 }
 
+// Бой с необъявленным соперником получает слаг вида opponent-tba-vs-tba-12.
+// Страницы таких боёв неотличимы друг от друга («Opponent TBA — TBA»), поэтому
+// ни в карту сайта, ни в индекс они не идут. Сравниваем по сегментам слага:
+// «tba» встречается и внутри настоящих фамилий (Batbayar).
+export function isPlaceholderFightSlug(value: string | null | undefined) {
+  return String(value || "")
+    .split("-")
+    .some((part) => part === "tba" || part === "tbd");
+}
+
 // Профили ушедших бойцов и карточки без фото остаются в индексе: рекорд, история
 // боёв и биография у них заполнены, а поисковый спрос по ветеранам не исчезает.
 // Приоритет понижаем, чтобы краулинг-бюджет уходил в первую очередь на актуальный ростер.

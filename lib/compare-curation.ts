@@ -20,7 +20,22 @@ export type CuratedPair = {
   weightClass: string | null;
   hasFight: boolean;
   isScheduled: boolean;
+  // Худшая из двух рейтинговых позиций: чемпион — 0, боец под номером N — N.
+  // null означает, что пара пришла не из рейтинга, а из карточки боя.
+  rankDepth: number | null;
 };
+
+// До какой позиции рейтинга пара считается достаточно интересной для индекса.
+// Чемпион + первая пятёрка дивизиона: пары ниже читателю почти не нужны, а в
+// выдаче они дают тысячи почти одинаковых страниц.
+export const COMPARE_INDEX_RANK_DEPTH = 5;
+
+// Хаб показывает все курируемые пары, но в sitemap и в индекс пускаем только те,
+// у которых есть собственный повод существовать: предстоящий бой или верх
+// рейтинга. Прошедшие бои уже описаны страницей события и разбором.
+export function isIndexableComparisonPair(pair: CuratedPair) {
+  return pair.isScheduled || (pair.rankDepth !== null && pair.rankDepth <= COMPARE_INDEX_RANK_DEPTH);
+}
 
 export type FightPairInput = {
   slugA: string;
@@ -45,7 +60,13 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
   // Канонический порядок получаем той же сортировкой, что buildPairSlug,
   // а не обратным разбором строки: слаг бойца может содержать PAIR_SEPARATOR,
   // и split("-vs-") дал бы неоднозначный результат.
-  const add = (rawA: string, rawB: string, weightClass: string | null, fight: FightPairInput | null) => {
+  const add = (
+    rawA: string,
+    rawB: string,
+    weightClass: string | null,
+    fight: FightPairInput | null,
+    rankDepth: number | null
+  ) => {
     if (rawA === rawB) {
       return;
     }
@@ -60,6 +81,11 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       existing.isScheduled = existing.isScheduled || Boolean(fight?.isScheduled);
       // weightClass может отсутствовать у пары из боя; сохраняем первый ненулевой.
       existing.weightClass = existing.weightClass ?? weightClass;
+      // Один боец может стоять в рейтинге двух дивизионов: оставляем позицию
+      // повыше, иначе пара потеряет право на индекс из-за второго дивизиона.
+      if (rankDepth !== null) {
+        existing.rankDepth = existing.rankDepth === null ? rankDepth : Math.min(existing.rankDepth, rankDepth);
+      }
       return;
     }
 
@@ -69,7 +95,8 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       slugB,
       weightClass,
       hasFight: Boolean(fight),
-      isScheduled: Boolean(fight?.isScheduled)
+      isScheduled: Boolean(fight?.isScheduled),
+      rankDepth
     });
   };
 
@@ -84,18 +111,32 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
     // приводим их одним словарём: иначе «Легкий вес» и Lightweight разъедутся
     // на хабе в две секции одного дивизиона.
     const weightClass = normalizeCuratedWeightClass(group.title);
-    const names = [group.champion.name, ...group.rows.map((row) => row.name)];
-    const slugs = names.map((name) => resolveSlug(name)).filter(isUsableSlug);
-    // Дедупликация нужна, если один боец попал в rows и как чемпион одновременно.
-    const unique = [...new Set(slugs)];
+    const ranked = [
+      { name: group.champion.name, depth: 0 },
+      ...group.rows.map((row) => ({ name: row.name, depth: row.rank }))
+    ];
+    // Дедупликация нужна, если один боец попал в rows и как чемпион одновременно;
+    // за бойцом оставляем лучшую (меньшую) из его позиций.
+    const depthBySlug = new Map<string, number>();
+    for (const entry of ranked) {
+      const slug = resolveSlug(entry.name);
+      if (!isUsableSlug(slug)) {
+        continue;
+      }
+      const known = depthBySlug.get(slug);
+      depthBySlug.set(slug, known === undefined ? entry.depth : Math.min(known, entry.depth));
+    }
 
+    const unique = [...depthBySlug.keys()];
     for (let i = 0; i < unique.length; i += 1) {
       const a = unique[i];
       if (!a) continue;
       for (let j = i + 1; j < unique.length; j += 1) {
         const b = unique[j];
         if (!b) continue;
-        add(a, b, weightClass, null);
+        // Пара не сильнее слабейшего из двух: сравнение чемпиона с 14-м номером
+        // такая же периферия, как и пара двух четырнадцатых.
+        add(a, b, weightClass, null, Math.max(depthBySlug.get(a) ?? 0, depthBySlug.get(b) ?? 0));
       }
     }
   }
@@ -105,7 +146,7 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
       continue;
     }
 
-    add(fight.slugA, fight.slugB, fight.weightClass, fight);
+    add(fight.slugA, fight.slugB, fight.weightClass, fight, null);
   }
 
   return [...byPairSlug.values()];

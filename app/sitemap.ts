@@ -1,11 +1,17 @@
 import type { MetadataRoute } from "next";
 
 import { getArticleRouteBase } from "@/lib/article-routes";
+import { isIndexableComparisonPair } from "@/lib/compare-curation";
 import { getQuotesPageData } from "@/lib/db";
 import { getCuratedComparisonPairs } from "@/lib/db/comparison";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
-import { getArticleFreshness, getFighterPriority, looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
+import {
+  getArticleFreshness,
+  getFighterPriority,
+  isPlaceholderFightSlug,
+  looksLikeLowQualitySlug
+} from "@/lib/sitemap-entries";
 
 const staticRoutes = [
   "",
@@ -115,13 +121,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.8
     })),
-    ...predictionSnapshots.filter((s) => s.fight.slug).map((snapshot) => ({
-      url: `${siteUrl}/ru/predictions/${snapshot.fight.event.slug}/${snapshot.fight.slug}`,
-      lastModified: snapshot.updatedAt,
-      changeFrequency: "daily" as const,
-      priority: 0.85
-    })),
-    ...comparisonPairs.map((pair) => ({
+    ...predictionSnapshots
+      .filter((snapshot) => snapshot.fight.slug && !isPlaceholderFightSlug(snapshot.fight.slug))
+      .map((snapshot) => ({
+        url: `${siteUrl}/ru/predictions/${snapshot.fight.event.slug}/${snapshot.fight.slug}`,
+        lastModified: snapshot.updatedAt,
+        changeFrequency: "daily" as const,
+        priority: 0.85
+      })),
+    ...comparisonPairs.filter(isIndexableComparisonPair).map((pair) => ({
       url: `${siteUrl}/ru/compare/${pair.pairSlug}`,
       changeFrequency: pair.isScheduled ? ("weekly" as const) : ("monthly" as const),
       priority: 0.6
