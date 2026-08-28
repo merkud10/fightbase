@@ -22,6 +22,28 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"]
   },
+  async redirects() {
+    // Шесть профилей были заведены под чужими slug: по адресу
+    // /fighters/kristof-dzhotko отдавался Майк Малотт. Slug исправлены в базе,
+    // а старые адреса Google уже проиндексировал — уводим их 301-м, чтобы
+    // не терять накопленный вес и не плодить 404.
+    const renamedFighterSlugs: Record<string, string> = {
+      "kristof-dzhotko": "mike-malott",
+      "kori-makkenna-6": "jasmine-jasudavicius",
+      "kori-makkenna-7": "julia-polastri",
+      "aleks-oliveyra-2": "mitch-raposo",
+      "shiyunia-tafua": "junior-tafa",
+      "lyudovit-klayn-1": "daniel-barez"
+    };
+
+    return Object.entries(renamedFighterSlugs).flatMap(([from, to]) =>
+      ["/ru", "/en", ""].map((prefix) => ({
+        source: `${prefix}/fighters/${from}`,
+        destination: `${prefix}/fighters/${to}`,
+        permanent: true
+      }))
+    );
+  },
   async headers() {
     const isDev = process.env.NODE_ENV === "development";
 
