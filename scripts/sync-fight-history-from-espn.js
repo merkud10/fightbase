@@ -137,6 +137,10 @@ async function main() {
   const resultFixes = [];
   const espnIdBackfill = new Map();
   const nameCollisions = [];
+  // ESPN отдаёт один и тот же бой не единожды, иногда с датой, разъезжающейся
+  // на сутки. Карта существующих строк снимается один раз до цикла и о своих же
+  // вставках не знает, поэтому ведём отдельный учёт уже поставленного в очередь.
+  const queued = new Set();
   let unmatched = 0;
 
   for (const fight of espnFights) {
@@ -187,6 +191,16 @@ async function main() {
         continue;
       }
 
+      // Ключ огрубляем до суток и берём обе соседние даты: если тот же бой
+      // приедет со сдвигом на день, он попадёт в уже занятый ключ.
+      const dayIndex = Math.floor(fight.date.getTime() / DAY_MS);
+      const opponentKey = normalizeName(opponent.name);
+      const keys = [dayIndex - 1, dayIndex, dayIndex + 1].map((day) => `${fighter.id}|${opponentKey}|${day}`);
+      if (keys.some((key) => queued.has(key))) {
+        continue;
+      }
+      queued.add(`${fighter.id}|${opponentKey}|${dayIndex}`);
+
       creates.push({
         fighterId: fighter.id,
         slug: fighter.slug,
@@ -212,6 +226,13 @@ async function main() {
     newRows: creates.length,
     skippedNameCollisions: nameCollisions.length,
     resultsCorrected: resultFixes.length,
+    // Раскрыть скрытое «уточняется» — безобидно. Перевернуть уже определённый
+    // исход — заявка на то, что наши данные неверны, и её надо смотреть глазами.
+    resultsRevealed: resultFixes.filter((fix) => fix.from === "Результат уточняется").length,
+    // «Победа»→«Поражение» — подпись прежнего бага, где всем ставилась победа.
+    // Обратное направление подозрительнее: скорее ошибка сопоставления бойцов.
+    flippedWinToLoss: resultFixes.filter((fix) => fix.from === "Победа" && fix.to === "Поражение").length,
+    flippedLossToWin: resultFixes.filter((fix) => fix.from === "Поражение" && fix.to === "Победа").length,
     espnIdBackfill: espnIdBackfill.size
   };
 
@@ -220,7 +241,7 @@ async function main() {
       JSON.stringify(
         {
           ...summary,
-          sampleFixes: resultFixes.slice(0, 4),
+          sampleFlips: resultFixes.filter((fix) => fix.from !== "Результат уточняется").slice(0, 10),
           sampleCollisions: nameCollisions.slice(0, 8),
           sampleNew: creates.slice(0, 3)
         },

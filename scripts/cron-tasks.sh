@@ -8,6 +8,7 @@
 #   sync-news      — AI news discovery
 #   sync-odds      — sync events + fights + odds
 #   sync-roster    — sync fighter roster
+#   sync-fight-history — восстановить историю боёв из архива ESPN
 # =============================================================
 set -euo pipefail
 
@@ -150,6 +151,13 @@ extract_json_field() {
   sed -n "s/.*\"${field}\":\"\\([^\"]*\\)\".*/\\1/p" <<< "${json}" | head -n1
 }
 
+# extract_json_field берёт строковые значения; для числовых нужен свой разбор.
+extract_json_number() {
+  local json="$1"
+  local field="$2"
+  sed -n "s/.*\"${field}\": *\\([0-9][0-9]*\\).*/\\1/p" <<< "${json}" | head -n1
+}
+
 ensure_expected_job() {
   local task_name="$1"
   local expected_job="$2"
@@ -259,6 +267,26 @@ case "${TASK}" in
     fi
     ;;
 
+  sync-fight-history)
+    log "Starting sync-fight-history"
+    # Идёт напрямую к скрипту, а не через /api/cron: источник здесь ESPN, и
+    # эндпоинта под него нет. ufc.com, откуда историю брали раньше, отдаёт с
+    # сервера 403 — Cloudflare блокирует дата-центры.
+    # Двух месяцев хватает на свежие турниры, прогон идемпотентен. Глубокий
+    # разбор архива запускается вручную с бо́льшим --months.
+    output=$(cd /opt/fightbase && node scripts/sync-fight-history-from-espn.js --months 2 --apply 2>&1) || {
+      log "sync-fight-history FAILED: ${output}"
+      send_tg_alert "❌ История боёв: сбой синхронизации"
+      exit 1
+    }
+    log "sync-fight-history: ${output}"
+    new_rows="$(extract_json_number "${output}" "newRows")"
+    fixed="$(extract_json_number "${output}" "resultsCorrected")"
+    if [ "${new_rows:-0}" != "0" ] || [ "${fixed:-0}" != "0" ]; then
+      send_tg_alert "✅ История боёв: +${new_rows:-0} боёв, исправлено исходов: ${fixed:-0}"
+    fi
+    ;;
+
   silence-check)
     log "Starting silence-check"
     response=$(curl -sf -w "\n%{http_code}" "${BASE_URL}/api/ops/diagnostics" \
@@ -284,7 +312,7 @@ case "${TASK}" in
     ;;
 
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|silence-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-fight-history|silence-check}"
     exit 1
     ;;
 esac
