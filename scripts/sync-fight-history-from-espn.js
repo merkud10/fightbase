@@ -32,9 +32,75 @@ function normalizeName(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
+    // NFD раскладывает только диакритику. Польская «ł», скандинавская «ø» и
+    // прочие — самостоятельные буквы, и без этой замены «Syguła» и «Sygula»
+    // остаются разными строками.
+    .replace(/ł/gi, "l")
+    .replace(/ø/gi, "o")
+    .replace(/đ/gi, "d")
+    .replace(/ß/g, "ss")
+    .replace(/æ/gi, "ae")
+    .replace(/œ/gi, "oe")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+// Дата и боец уже однозначно определяют бой: за сутки дважды не выступают.
+// Поэтому для подтверждения хватает совпадения фамилии — это покрывает
+// уменьшительные формы («Zach» против «Zachary») и опечатки в имени.
+function looksLikeSamePerson(left, right) {
+  // «Jr.», «III» и подобное стоит на месте фамилии и подменяет её при сравнении.
+  const dropSuffixes = (words) => {
+    const cleaned = words.filter((word) => !["jr", "sr", "ii", "iii", "iv"].includes(word));
+    return cleaned.length > 0 ? cleaned : words;
+  };
+
+  const leftWords = dropSuffixes(normalizeName(left).split(" ").filter(Boolean));
+  const rightWords = dropSuffixes(normalizeName(right).split(" ").filter(Boolean));
+
+  if (leftWords.length === 0 || rightWords.length === 0) {
+    return false;
+  }
+
+  if (leftWords.every((word) => rightWords.includes(word)) || rightWords.every((word) => leftWords.includes(word))) {
+    return true;
+  }
+
+  const leftSurname = leftWords[leftWords.length - 1];
+  const rightSurname = rightWords[rightWords.length - 1];
+
+  if (leftSurname.length > 2 && leftSurname === rightSurname) {
+    return true;
+  }
+
+  // Фамилии часто расходятся на букву-две: «Vazquez»/«Vasquez»,
+  // «Sadykhov»/«Sadkyhov». Чем короче фамилия, тем легче случайно склеить
+  // разных людей, поэтому для четырёхбуквенных допускаем лишь одну замену.
+  const shortest = Math.min(leftSurname.length, rightSurname.length);
+  if (shortest >= 5) {
+    return editDistance(leftSurname, rightSurname) <= 2;
+  }
+  if (shortest === 4) {
+    return editDistance(leftSurname, rightSurname) <= 1;
+  }
+
+  return false;
+}
+
+function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost);
+    }
+    previous = current;
+  }
+
+  return previous[right.length];
 }
 
 function formatDateStamp(date) {
@@ -186,12 +252,7 @@ async function main() {
         // Часто это тот же соперник, записанный короче: у нас «Pulyaev», у ESPN
         // «Andrey Pulyaev». Если все наши слова входят в имя ESPN (или наоборот),
         // это один человек, и строку можно чинить, а не пропускать.
-        const ourWords = normalizeName(sameDay.opponentName).split(" ").filter(Boolean);
-        const espnWords = normalizeName(opponent.name).split(" ").filter(Boolean);
-        const subset =
-          ourWords.length > 0 &&
-          espnWords.length > 0 &&
-          (ourWords.every((word) => espnWords.includes(word)) || espnWords.every((word) => ourWords.includes(word)));
+        const subset = looksLikeSamePerson(sameDay.opponentName, opponent.name);
 
         nameCollisions.push({
           slug: fighter.slug,
@@ -272,7 +333,7 @@ async function main() {
         {
           ...summary,
           sampleFlips: resultFixes.filter((fix) => fix.from !== "Результат уточняется").slice(0, 10),
-          sampleCollisions: nameCollisions.slice(0, 8),
+          sampleCollisions: nameCollisions.filter((item) => !item.sameFighter).slice(0, 20),
           sampleNew: creates.slice(0, 3)
         },
         null,
@@ -314,4 +375,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { normalizeName, buildMonthWindows, parseMethod };
+module.exports = { normalizeName, looksLikeSamePerson, buildMonthWindows, parseMethod };

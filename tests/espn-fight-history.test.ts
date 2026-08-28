@@ -2,7 +2,53 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { normalizeName, buildMonthWindows, parseMethod } = require("../scripts/sync-fight-history-from-espn.js");
+const { normalizeName, looksLikeSamePerson, buildMonthWindows, parseMethod } = require("../scripts/sync-fight-history-from-espn.js");
+
+test("самостоятельные буквы приводятся к латинице, а не только диакритика", () => {
+  assert.equal(normalizeName("Klaudia Syguła"), normalizeName("Klaudia Sygula"));
+  assert.equal(normalizeName("Michał Oleksiejczuk"), normalizeName("Michal Oleksiejczuk"));
+  assert.equal(normalizeName("Jakub Wikłacz"), normalizeName("Jakub Wiklacz"));
+});
+
+test("один человек опознаётся по сокращению имени и опечатке", () => {
+  assert.equal(looksLikeSamePerson("Zachary Reese", "Zach Reese"), true);
+  assert.equal(looksLikeSamePerson("Cameron Teague", "Cam Teague"), true);
+  assert.equal(looksLikeSamePerson("Brogdan Grad", "Bogdan Grad"), true);
+  assert.equal(looksLikeSamePerson("Aswell Jr.", "Michael Aswell"), true);
+});
+
+test("фамилия с опечаткой в одну-две буквы опознаётся", () => {
+  assert.equal(looksLikeSamePerson("Gianni Vasquez", "Gianni Vazquez"), true);
+  assert.equal(looksLikeSamePerson("Roman Koplov", "Roman Kopylov"), true);
+  assert.equal(looksLikeSamePerson("Nazim Sadkyhov", "Nazim Sadykhov"), true);
+  assert.equal(looksLikeSamePerson("Elves Brenner", "Elves Brener"), true);
+});
+
+test("короткая фамилия допускает лишь одну замену", () => {
+  assert.equal(looksLikeSamePerson("Takashi Soto", "Takashi Sato"), true);
+  assert.equal(looksLikeSamePerson("Ivan Kort", "Ivan Kurta"), false);
+});
+
+test("девичья фамилия остаётся неразрешимой и не угадывается", () => {
+  assert.equal(looksLikeSamePerson("Katlyn Chookagian", "Katlyn Cerminara"), false);
+  assert.equal(looksLikeSamePerson("Tecia Torres", "Tecia Pennington"), false);
+});
+
+test("непохожие фамилии не склеиваются расстоянием редактирования", () => {
+  assert.equal(looksLikeSamePerson("Ribiero", "Christian Leroy Duncan"), false);
+  assert.equal(looksLikeSamePerson("Rayanne Amanda", "Rayanne dos Santos"), false);
+  assert.equal(looksLikeSamePerson("Jose Silva", "Jose Souza"), false);
+});
+
+test("разные бойцы не склеиваются", () => {
+  assert.equal(looksLikeSamePerson("Conor McGregor", "Nate Diaz"), false);
+  assert.equal(looksLikeSamePerson("via rear-naked choke", "Ketlen Souza"), false);
+  assert.equal(looksLikeSamePerson("", "Ketlen Souza"), false);
+});
+
+test("совпадение по слишком короткой фамилии не засчитывается", () => {
+  assert.equal(looksLikeSamePerson("Jon Li", "Mark Li"), false);
+});
 
 test("окна покрывают запрошенное число месяцев без пропусков", () => {
   const windows = buildMonthWindows(12);
