@@ -15,11 +15,22 @@ function pluralizeRu(value, one, few, many) {
   return many;
 }
 
-function needsRewrite(bio, fighter) {
+// Правила ниже считают «требующим переписывания» почти любое живое био: латиница
+// внутри прозвища («Kid Dynamite»), текст не с самого nameRu, упоминание команды.
+// Замена же собирается шаблоном buildGenericBio и всегда беднее исходника —
+// на проде под эти правила подпадало больше тысячи профилей, включая написанные
+// вручную. Поэтому по умолчанию переписываем только пустые био, а стилевую
+// чистку включаем явным флагом.
+//
+// Фактические расхождения (устаревший рекорд, сменившийся дивизион) чинит
+// scripts/repair-fighter-bio-facts.js — точечно, сохраняя текст.
+function needsRewrite(bio, fighter, { stylistic = false } = {}) {
   const text = String(bio || "").trim();
   const lower = text.toLowerCase();
 
   if (!text) return true;
+  if (!stylistic) return false;
+
   if (text.length < 140) return true;
   if (/women'?s/i.test(text)) return true;
   if (/[A-Za-z]{4,}.*[A-Za-z]{4,}/.test(text)) return true;
@@ -78,14 +89,22 @@ async function main() {
     }
   });
 
+  const stylistic = process.argv.includes("--stylistic");
+  const dryRun = process.argv.includes("--dry-run");
   let updated = 0;
 
   for (const fighter of fighters) {
-    if (!needsRewrite(fighter.bio, fighter)) {
+    if (!needsRewrite(fighter.bio, fighter, { stylistic })) {
       continue;
     }
 
     const nextBio = rewriteBio(fighter);
+
+    if (dryRun) {
+      updated += 1;
+      continue;
+    }
+
     await prisma.fighter.update({
       where: { id: fighter.id },
       data: {
@@ -97,7 +116,8 @@ async function main() {
     updated += 1;
   }
 
-  console.log(`Refreshed Russian fighter bio quality: ${updated}`);
+  const mode = `${dryRun ? "dry-run, " : ""}${stylistic ? "стилевая чистка" : "только пустые био"}`;
+  console.log(`Refreshed Russian fighter bio quality (${mode}): ${updated}`);
 }
 
 main()
