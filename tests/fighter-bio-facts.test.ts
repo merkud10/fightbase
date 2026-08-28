@@ -2,7 +2,55 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { fixRecordInBio, fixWeightClassInBio, findUnsafeWeightMentions } = require("../scripts/repair-fighter-bio-facts.js");
+const {
+  fixRecordInBio,
+  fixEnglishRecordInBio,
+  fixWeightClassInBio,
+  findUnsafeWeightMentions,
+  englishArticle
+} = require("../scripts/repair-fighter-bio-facts.js");
+
+test("английский рекорд подтягивается к полю", () => {
+  const bio = "The official profile lists a 28-1-0 professional record.";
+  const { text, changed } = fixEnglishRecordInBio(bio, "29-1-0");
+
+  assert.equal(changed, true);
+  assert.equal(text, "The official profile lists a 29-1-0 professional record.");
+});
+
+test("артикль пересчитывается при смене числа", () => {
+  const { text } = fixEnglishRecordInBio("The official profile lists an 11-2-0 professional record.", "12-2-0");
+
+  assert.match(text, /lists a 12-2-0 professional record/);
+});
+
+test("артикль становится an, когда число этого требует", () => {
+  const { text } = fixEnglishRecordInBio("The official profile lists a 7-2-0 professional record.", "8-2-0");
+
+  assert.match(text, /lists an 8-2-0 professional record/);
+});
+
+test("англ. артикли по числам", () => {
+  assert.equal(englishArticle(8), "an");
+  assert.equal(englishArticle(11), "an");
+  assert.equal(englishArticle(18), "an");
+  assert.equal(englishArticle(1), "a");
+  assert.equal(englishArticle(12), "a");
+  assert.equal(englishArticle(20), "a");
+});
+
+test("форма Career record тоже правится", () => {
+  const { text } = fixEnglishRecordInBio("Career record: 22-9-0.", "22-10-0");
+
+  assert.match(text, /Career record: 22-10-0/);
+});
+
+test("совпадающий английский рекорд не трогается", () => {
+  const bio = "The official profile lists a 29-1-0 professional record.";
+  const { changed } = fixEnglishRecordInBio(bio, "29-1-0");
+
+  assert.equal(changed, false);
+});
 
 test("рекорд цифрами подтягивается к полю записи", () => {
   const bio = "Обладает рекордом 7-2-0 и тренируется в команде Minnesota Top Team.";

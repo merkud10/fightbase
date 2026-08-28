@@ -134,6 +134,50 @@ function fixRecordInBio(text, record) {
   return { text: next, changed };
 }
 
+// «an 11-2-0», но «a 10-3-0»: артикль зависит от звучания первого числа,
+// поэтому при смене рекорда его нужно пересчитать. Гласный звук в начале дают
+// eight, eleven, eighteen и производные от них десятки.
+function englishArticle(number) {
+  const value = Math.abs(Number(number) || 0);
+  const leading = value >= 100 ? Number(String(value).slice(0, 2)) : value;
+  const vowelSounding = [8, 11, 18].includes(leading) || (leading >= 80 && leading <= 89);
+  return vowelSounding ? "an" : "a";
+}
+
+// bioEn уходит в description разметки Person JSON-LD на обеих локалях,
+// поэтому устаревший рекорд здесь Google читает напрямую.
+function fixEnglishRecordInBio(text, record) {
+  const parsed = parseRecord(record);
+  if (!parsed) {
+    return { text, changed: false };
+  }
+
+  const canonical = String(record).trim();
+  const compact = canonical.replace(/\s+/g, "");
+  let changed = false;
+
+  let next = text.replace(
+    /\b(an?)\s+(\d+\s*-\s*\d+(?:\s*-\s*\d+)?)(\s+professional\s+record)/gi,
+    (whole, article, found, tail) => {
+      if (found.replace(/\s+/g, "") === compact) {
+        return whole;
+      }
+      changed = true;
+      return `${englishArticle(parsed.wins)} ${canonical}${tail}`;
+    }
+  );
+
+  next = next.replace(/(Career\s+record:\s*)(\d+\s*-\s*\d+(?:\s*-\s*\d+)?)/gi, (whole, prefix, found) => {
+    if (found.replace(/\s+/g, "") === compact) {
+      return whole;
+    }
+    changed = true;
+    return `${prefix}${canonical}`;
+  });
+
+  return { text: next, changed };
+}
+
 // Только настоящее время — прямое утверждение о текущем дивизионе.
 function fixWeightClassInBio(text, weightClass) {
   const expected = DIVISION_PREPOSITIONAL[weightClass];
@@ -200,7 +244,7 @@ function findUnsafeWeightMentions(text, weightClass) {
 async function main() {
   const apply = process.argv.includes("--apply");
   const fighters = await prisma.fighter.findMany({
-    select: { id: true, slug: true, bio: true, record: true, weightClass: true }
+    select: { id: true, slug: true, bio: true, bioEn: true, record: true, weightClass: true }
   });
 
   const updates = [];
@@ -216,10 +260,29 @@ async function main() {
     const recordStep = fixRecordInBio(original, fighter.record);
     const weightStep = fixWeightClassInBio(recordStep.text, fighter.weightClass);
 
-    if (recordStep.changed || weightStep.changed) {
-      updates.push({ id: fighter.id, slug: fighter.slug, bio: weightStep.text });
+    const originalEn = String(fighter.bioEn || "");
+    const englishStep = originalEn.trim()
+      ? fixEnglishRecordInBio(originalEn, fighter.record)
+      : { text: originalEn, changed: false };
+
+    if (recordStep.changed || weightStep.changed || englishStep.changed) {
+      const data = { id: fighter.id, slug: fighter.slug };
+      if (recordStep.changed || weightStep.changed) {
+        data.bio = weightStep.text;
+      }
+      if (englishStep.changed) {
+        data.bioEn = englishStep.text;
+      }
+      updates.push(data);
+
       if (samples.length < 6) {
-        samples.push({ slug: fighter.slug, before: original.slice(0, 150), after: weightStep.text.slice(0, 150) });
+        const changedRu = recordStep.changed || weightStep.changed;
+        samples.push({
+          slug: fighter.slug,
+          field: changedRu ? (englishStep.changed ? "bio + bioEn" : "bio") : "bioEn",
+          before: (changedRu ? original : originalEn).slice(0, 140),
+          after: (changedRu ? weightStep.text : englishStep.text).slice(0, 140)
+        });
       }
     }
 
@@ -247,7 +310,10 @@ async function main() {
   }
 
   for (const update of updates) {
-    await prisma.fighter.update({ where: { id: update.id }, data: { bio: update.bio } });
+    const data = {};
+    if (update.bio !== undefined) data.bio = update.bio;
+    if (update.bioEn !== undefined) data.bioEn = update.bioEn;
+    await prisma.fighter.update({ where: { id: update.id }, data });
   }
 
   console.log(
@@ -270,4 +336,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { fixRecordInBio, fixWeightClassInBio, findUnsafeWeightMentions };
+module.exports = { fixRecordInBio, fixEnglishRecordInBio, fixWeightClassInBio, findUnsafeWeightMentions, englishArticle };
