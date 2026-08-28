@@ -137,6 +137,7 @@ async function main() {
   const resultFixes = [];
   const espnIdBackfill = new Map();
   const nameCollisions = [];
+  const collisionRepairs = [];
   // ESPN отдаёт один и тот же бой не единожды, иногда с датой, разъезжающейся
   // на сутки. Карта существующих строк снимается один раз до цикла и о своих же
   // вставках не знает, поэтому ведём отдельный учёт уже поставленного в очередь.
@@ -182,12 +183,39 @@ async function main() {
       // Такие случаи считаем отдельно: это мера риска, а не просто статистика.
       const sameDay = fighter.recentFights.find((row) => Math.abs(row.date.getTime() - fight.date.getTime()) <= DAY_MS);
       if (sameDay) {
+        // Часто это тот же соперник, записанный короче: у нас «Pulyaev», у ESPN
+        // «Andrey Pulyaev». Если все наши слова входят в имя ESPN (или наоборот),
+        // это один человек, и строку можно чинить, а не пропускать.
+        const ourWords = normalizeName(sameDay.opponentName).split(" ").filter(Boolean);
+        const espnWords = normalizeName(opponent.name).split(" ").filter(Boolean);
+        const subset =
+          ourWords.length > 0 &&
+          espnWords.length > 0 &&
+          (ourWords.every((word) => espnWords.includes(word)) || espnWords.every((word) => ourWords.includes(word)));
+
         nameCollisions.push({
           slug: fighter.slug,
           espnOpponent: opponent.name,
           ourOpponent: sameDay.opponentName,
-          date: fight.date.toISOString().slice(0, 10)
+          date: fight.date.toISOString().slice(0, 10),
+          sameFighter: subset,
+          rowId: sameDay.id,
+          currentResult: sameDay.result,
+          espnResult: result
         });
+
+        // Имя берём у ESPN как каноническое: оно и полнее («Pulyaev» ->
+        // «Andrey Pulyaev»), и чистит мусор вроде «stopped Luke Fernandez»,
+        // где в поле имени осел глагол из протокола.
+        if (subset && (sameDay.result !== result || sameDay.opponentName !== opponent.name)) {
+          collisionRepairs.push({
+            id: sameDay.id,
+            result,
+            opponentName: opponent.name,
+            opponentNameRu: transliterateName(opponent.name)
+          });
+        }
+
         continue;
       }
 
@@ -225,6 +253,8 @@ async function main() {
     unmatchedParticipants: unmatched,
     newRows: creates.length,
     skippedNameCollisions: nameCollisions.length,
+    collisionsSameFighter: nameCollisions.filter((item) => item.sameFighter).length,
+    collisionsRepaired: collisionRepairs.length,
     resultsCorrected: resultFixes.length,
     // Раскрыть скрытое «уточняется» — безобидно. Перевернуть уже определённый
     // исход — заявка на то, что наши данные неверны, и её надо смотреть глазами.
@@ -254,6 +284,11 @@ async function main() {
 
   for (const fix of resultFixes) {
     await prisma.fighterRecentFight.update({ where: { id: fix.id }, data: { result: fix.to } });
+  }
+
+  for (const repair of collisionRepairs) {
+    const { id, ...data } = repair;
+    await prisma.fighterRecentFight.update({ where: { id }, data });
   }
 
   for (const row of creates) {
