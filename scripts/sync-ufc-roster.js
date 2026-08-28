@@ -290,11 +290,15 @@ function inferResultFromNotes(notes) {
     return "";
   }
 
-  if (/won|stopped|submitted|scored/i.test(text)) {
+  // «was stopped by» и «was submitted by» описывают поражение, но содержат
+  // те же глаголы, что и победа, — без этой отсечки они попадают в первую ветку.
+  const passiveLoss = /\bwas (?:stopped|submitted|knocked out|defeated)\b/i.test(text);
+
+  if (!passiveLoss && /won|stopped|submitted|scored/i.test(text)) {
     return "Победа";
   }
 
-  if (/disqualified|lost|was defeated|was stopped|was knocked out|was submitted/i.test(text)) {
+  if (passiveLoss || /disqualified|lost|was defeated/i.test(text)) {
     return "Поражение";
   }
 
@@ -506,10 +510,15 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       const eventUrl = (cardHtml.match(/href="(https:\/\/www\.ufc\.com\/event\/[^"#?]+)(?:#[^"]*)?"/i) || [])[1] || "";
       const eventSlug = eventUrl.split("/event/")[1] || "";
       const eventName = prettifyEventName(eventSlug) || "UFC";
-      const outcomePlaques = [...cardHtml.matchAll(/c-card-event--athlete-results__plaque\s+(win|loss|draw|nc)[^"]*">\s*([^<]+)\s*<\/div>/gi)].map((match) => ({
-        statusClass: match[1].toLowerCase(),
-        label: stripTags(match[2])
-      }));
+      // Исход каждого бойца лежит в классе его же блока с фотографией
+      // (…__red-image win / …__blue-image loss), рядом со ссылкой на атлета.
+      // Отдельная плашка «Win» на карточке одна и всегда принадлежит
+      // победителю, поэтому исход проигравшего по ней не восстанавливается.
+      const outcomeBySlug = new Map(
+        [...cardHtml.matchAll(/results__image[^"]*?\b(win|loss|draw|nc)"[\s\S]{0,400}?\/athlete\/([^"?#]+)/gi)].map(
+          (match) => [match[2], match[1].toLowerCase()]
+        )
+      );
 
       if (!dateText || fighterLinks.length < 2 || fighterNames.length < 2) {
         continue;
@@ -528,9 +537,17 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
         fighterNames.find((value, index) => index !== ourIndex && value) ||
         "Соперник не указан"
       );
-      const outcome = outcomePlaques[ourIndex]?.label || outcomePlaques.find(Boolean)?.label || "";
+      const outcome = outcomeBySlug.get(athleteSlug) || "";
       const mappedResult =
-        /win/i.test(outcome) ? "Победа" : /loss/i.test(outcome) ? "Поражение" : /draw/i.test(outcome) ? "Ничья" : /nc/i.test(outcome) ? "Несостоявшийся бой" : "Результат уточняется";
+        outcome === "win"
+          ? "Победа"
+          : outcome === "loss"
+            ? "Поражение"
+            : outcome === "draw"
+              ? "Ничья"
+              : outcome === "nc"
+                ? "Несостоявшийся бой"
+                : "Результат уточняется";
 
       const resultMap = new Map(resultRows.map((match) => [stripTags(match[1]).toLowerCase(), stripTags(match[2])]));
       const parsedFight = {
@@ -574,9 +591,10 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       })
     );
 
-    const result = /won|stopped|submitted|scored/i.test(body)
+    const passiveLoss = /\bwas (?:stopped|submitted|knocked out|defeated)\b/i.test(body);
+    const result = !passiveLoss && /won|stopped|submitted|scored/i.test(body)
       ? "Победа"
-      : /disqualified|lost|was defeated|was stopped|was knocked out|was submitted/i.test(body)
+      : passiveLoss || /disqualified|lost|was defeated/i.test(body)
         ? "Поражение"
           : /no contest/i.test(body)
           ? "Несостоявшийся бой"
@@ -637,9 +655,11 @@ function parseUfcRecentFights(html, athleteSlug, athleteName, weightClass) {
       .trim();
   for (const fight of fights) {
     const dateKey = fight.date ? new Date(fight.date).getUTCFullYear() : "no-date";
-    const eventKey = normalizeKey(fight.eventName);
     const opponentKey = normalizeKey(fight.opponentName).split(" ").slice(-1)[0] || normalizeKey(fight.opponentName);
-    const key = `${dateKey}:${eventKey}:${opponentKey}`;
+    // eventName в ключ не входит: карточный парсер берёт его из слага события
+    // («UFC Fight Night December 17 2022»), Q&A-парсер — из <strong>
+    // («UFC Fight Night»). Один бой давал два разных ключа и две строки.
+    const key = `${dateKey}:${opponentKey}`;
     const existing = deduped.get(key);
     deduped.set(key, existing ? mergeParsedRecentFight(existing, fight) : fight);
   }
