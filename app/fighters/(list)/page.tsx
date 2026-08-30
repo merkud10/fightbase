@@ -16,6 +16,7 @@ import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
+import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
 
 type FightersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -93,6 +94,18 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
 
   return (
     <main className="container">
+      <JsonLd
+        data={buildBreadcrumbJsonLd([
+          {
+            name: locale === "ru" ? "Главная" : "Home",
+            url: new URL(localizePath("/", locale), siteUrl).toString()
+          },
+          {
+            name: locale === "ru" ? "Бойцы" : "Fighters",
+            url: collectionUrl
+          }
+        ])}
+      />
       <JsonLd
         data={{
           "@context": "https://schema.org",
