@@ -113,3 +113,23 @@ export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, 
 
   return jsonLd;
 }
+
+export type BreadcrumbCrumb = {
+  name: string;
+  url: string;
+};
+
+export function buildBreadcrumbJsonLd(crumbs: BreadcrumbCrumb[]): Record<string, unknown> {
+  const visible = crumbs.filter((crumb) => crumb.name.trim().length > 0);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: visible.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.name,
+      item: crumb.url
+    }))
+  };
+}
