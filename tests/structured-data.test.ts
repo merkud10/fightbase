@@ -65,10 +65,16 @@ test("buildBreadcrumbJsonLd отбрасывает крошки без имен�
 test("buildWebSiteJsonLd объявляет SearchAction на страницу поиска", () => {
   const jsonLd = buildWebSiteJsonLd("https://fightbase.ru") as {
     "@type": string;
+    url: string;
+    inLanguage: string;
+    publisher: Record<string, unknown>;
     potentialAction: { "@type": string; target: { urlTemplate: string }; "query-input": string };
   };
 
   assert.equal(jsonLd["@type"], "WebSite");
+  assert.equal(jsonLd.url, "https://fightbase.ru/ru");
+  assert.equal(jsonLd.inLanguage, "ru-RU");
+  assert.deepEqual(jsonLd.publisher, { "@type": "Organization", name: "FightBase Media" });
   assert.equal(jsonLd.potentialAction["@type"], "SearchAction");
   assert.equal(jsonLd.potentialAction.target.urlTemplate, "https://fightbase.ru/ru/search?q={search_term_string}");
   assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");

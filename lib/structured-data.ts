@@ -124,6 +124,8 @@ export function buildWebSiteJsonLd(siteUrl: string): Record<string, unknown> {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "FightBase Media",
+    // Сайт отдаётся только на русском; /en редиректится на /ru — см. buildLocaleAlternates
+    // в lib/locale-path.ts. Поэтому локаль здесь зафиксирована, а не параметризована.
     url: `${siteUrl}/ru`,
     publisher: {
       "@type": "Organization",
