@@ -4,6 +4,7 @@ import Link from "next/link";
 
 export const revalidate = 3600;
 
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
@@ -61,6 +62,10 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   const locale = await getLocale();
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL(localizePath("/rankings", locale), siteUrl).toString();
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Рейтинги" : "Rankings" }
+  ];
   const params = (await searchParams) ?? {};
   const divisionParam = readParam(params.division);
   const [rankingSnapshot, rankingLinks] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
@@ -102,16 +107,12 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          {
-            name: locale === "ru" ? "Главная" : "Home",
-            url: new URL(localizePath("/", locale), siteUrl).toString()
-          },
-          {
-            name: locale === "ru" ? "Рейтинги" : "Rankings",
-            url: collectionUrl
-          }
-        ])}
+        data={buildBreadcrumbJsonLd(
+          breadcrumbItems.map((item) => ({
+            name: item.label,
+            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
+          }))
+        )}
       />
       <JsonLd
         data={{
@@ -133,6 +134,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
         />
       ) : null}
 
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/rankings"
         title={locale === "ru" ? "Рейтинги" : "Rankings"}

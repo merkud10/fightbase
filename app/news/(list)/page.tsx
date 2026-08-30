@@ -4,6 +4,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 import { ArticleCard } from "@/components/cards";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
@@ -73,6 +74,10 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const activeFiltersCount = [filters.tag].filter(Boolean).length;
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL(localizePath("/news", locale), siteUrl).toString();
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Новости" : "News" }
+  ];
   const itemListElements = articles.slice(0, 12).map((article, index) => ({
     "@type": "ListItem",
     position: index + 1,
@@ -83,16 +88,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          {
-            name: locale === "ru" ? "Главная" : "Home",
-            url: new URL(localizePath("/", locale), siteUrl).toString()
-          },
-          {
-            name: locale === "ru" ? "Новости" : "News",
-            url: collectionUrl
-          }
-        ])}
+        data={buildBreadcrumbJsonLd(
+          breadcrumbItems.map((item) => ({
+            name: item.label,
+            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
+          }))
+        )}
       />
       <JsonLd
         data={{
@@ -114,6 +115,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         />
       ) : null}
 
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/news"
         title={locale === "ru" ? "Новости" : "News"}

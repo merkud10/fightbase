@@ -71,16 +71,12 @@ export default async function PredictionsPage() {
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          {
-            name: locale === "ru" ? "Главная" : "Home",
-            url: new URL(localizePath("/", locale), siteUrl).toString()
-          },
-          {
-            name: locale === "ru" ? "Прогнозы" : "Predictions",
-            url: collectionUrl
-          }
-        ])}
+        data={buildBreadcrumbJsonLd(
+          breadcrumbItems.map((item) => ({
+            name: item.label,
+            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
+          }))
+        )}
       />
       <JsonLd
         data={{

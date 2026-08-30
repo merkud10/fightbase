@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 export const revalidate = 3600;
 
 import { FighterCard } from "@/components/cards";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { FilterSection, FilterEmptyState } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
@@ -85,6 +86,10 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
   const activeFiltersCount = [filters.query, filters.status, filters.weightClass].filter(Boolean).length;
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL(localizePath("/fighters", locale), siteUrl).toString();
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Бойцы" : "Fighters" }
+  ];
   const itemListElements = fighters.slice(0, 24).filter(Boolean).map((fighter, index) => ({
     "@type": "ListItem",
     position: index + 1,
@@ -95,16 +100,12 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          {
-            name: locale === "ru" ? "Главная" : "Home",
-            url: new URL(localizePath("/", locale), siteUrl).toString()
-          },
-          {
-            name: locale === "ru" ? "Бойцы" : "Fighters",
-            url: collectionUrl
-          }
-        ])}
+        data={buildBreadcrumbJsonLd(
+          breadcrumbItems.map((item) => ({
+            name: item.label,
+            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
+          }))
+        )}
       />
       <JsonLd
         data={{
@@ -126,6 +127,7 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
         />
       ) : null}
 
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/fighters"
         title={locale === "ru" ? "Бойцы" : "Fighters"}

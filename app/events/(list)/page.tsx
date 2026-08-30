@@ -3,6 +3,7 @@ import Link from "next/link";
 
 export const revalidate = 3600;
 
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { FilterEmptyState, FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
@@ -74,6 +75,10 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const activeFiltersCount = [filters.status].filter(Boolean).length;
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL(localizePath("/events", locale), siteUrl).toString();
+  const breadcrumbItems = [
+    { label: locale === "ru" ? "Главная" : "Home", href: "/" },
+    { label: locale === "ru" ? "Турниры" : "Events" }
+  ];
   const itemListElements = events.slice(0, 12).map((event, index) => ({
     "@type": "ListItem",
     position: index + 1,
@@ -84,16 +89,12 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd([
-          {
-            name: locale === "ru" ? "Главная" : "Home",
-            url: new URL(localizePath("/", locale), siteUrl).toString()
-          },
-          {
-            name: locale === "ru" ? "Турниры" : "Events",
-            url: collectionUrl
-          }
-        ])}
+        data={buildBreadcrumbJsonLd(
+          breadcrumbItems.map((item) => ({
+            name: item.label,
+            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
+          }))
+        )}
       />
       <JsonLd
         data={{
@@ -115,6 +116,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         />
       ) : null}
 
+      <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/events"
         title={locale === "ru" ? "Расписание турниров UFC" : "UFC event schedule"}
