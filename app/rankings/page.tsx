@@ -16,6 +16,7 @@ import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
+import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
 
 type RankingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -59,6 +60,7 @@ export async function generateMetadata({ searchParams }: RankingsPageProps): Pro
 export default async function RankingsPage({ searchParams }: RankingsPageProps) {
   const locale = await getLocale();
   const siteUrl = getSiteUrl();
+  const collectionUrl = new URL(localizePath("/rankings", locale), siteUrl).toString();
   const params = (await searchParams) ?? {};
   const divisionParam = readParam(params.division);
   const [rankingSnapshot, rankingLinks] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
@@ -100,11 +102,23 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   return (
     <main className="container">
       <JsonLd
+        data={buildBreadcrumbJsonLd([
+          {
+            name: locale === "ru" ? "Главная" : "Home",
+            url: new URL(localizePath("/", locale), siteUrl).toString()
+          },
+          {
+            name: locale === "ru" ? "Рейтинги" : "Rankings",
+            url: collectionUrl
+          }
+        ])}
+      />
+      <JsonLd
         data={{
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: "UFC Rankings",
-          url: new URL(localizePath("/rankings", locale), siteUrl).toString(),
+          url: collectionUrl,
           inLanguage: locale === "ru" ? "ru-RU" : "en-US"
         }}
       />
