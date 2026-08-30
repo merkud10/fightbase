@@ -13,6 +13,7 @@ import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
 import { getSiteUrl } from "@/lib/site";
+import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
 
 export const revalidate = 86400;
 
@@ -44,6 +45,7 @@ export default async function PredictionsPage() {
   const locale = await getLocale();
   const [events, accuracy] = await Promise.all([getPredictionsPageData(), getPredictionAccuracy()]);
   const siteUrl = getSiteUrl();
+  const collectionUrl = new URL(localizePath("/predictions", locale), siteUrl).toString();
   const eventsWithSnapshots = events.map((event) => ({
     ...event,
     fights: event.fights.filter((fight) => fight.predictionSnapshot)
@@ -69,11 +71,23 @@ export default async function PredictionsPage() {
   return (
     <main className="container">
       <JsonLd
+        data={buildBreadcrumbJsonLd([
+          {
+            name: locale === "ru" ? "Главная" : "Home",
+            url: new URL(localizePath("/", locale), siteUrl).toString()
+          },
+          {
+            name: locale === "ru" ? "Прогнозы" : "Predictions",
+            url: collectionUrl
+          }
+        ])}
+      />
+      <JsonLd
         data={{
           "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: locale === "ru" ? "Прогнозы UFC" : "UFC predictions",
-          url: new URL(localizePath("/predictions", locale), siteUrl).toString()
+          url: collectionUrl
         }}
       />
       {itemList.length > 0 ? (
