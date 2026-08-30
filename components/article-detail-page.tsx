@@ -19,7 +19,7 @@ import type { Locale } from "@/lib/locale-config";
 import { ShareButtons } from "@/components/share-buttons";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
-import { buildBreadcrumbJsonLd, buildPublisherJsonLd } from "@/lib/structured-data";
+import { buildTrailBreadcrumbJsonLd, buildPublisherJsonLd } from "@/lib/structured-data";
 import { getSiteUrl } from "@/lib/site";
 
 function splitIntoParagraphs(text: string) {
@@ -184,12 +184,7 @@ export async function ArticleDetailPage({
     { label: labels.index, href: getArticleRouteBase(category) },
     { label: article.title }
   ];
-  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
-    breadcrumbItems.map((item) => ({
-      name: item.label,
-      url: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : articleUrl
-    }))
-  );
+  const breadcrumbJsonLd = buildTrailBreadcrumbJsonLd(breadcrumbItems, { locale, siteUrl, currentUrl: articleUrl });
   const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": category === "news" ? "NewsArticle" : "Article",

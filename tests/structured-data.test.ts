@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildBreadcrumbJsonLd, buildPublisherJsonLd, buildSportsEventJsonLd, buildWebSiteJsonLd } from "../lib/structured-data";
+import { buildBreadcrumbJsonLd, buildPublisherJsonLd, buildSportsEventJsonLd, buildTrailBreadcrumbJsonLd, buildWebSiteJsonLd } from "../lib/structured-data";
 
 const baseInput = {
   name: "UFC 330",
@@ -93,4 +93,29 @@ test("buildPublisherJsonLd отдаёт логотип с абсолютным U
   assert.equal(publisher.logo.url, "https://fightbase.ru/gorilla-crown-logo.png");
   assert.equal(publisher.logo.width, 1024);
   assert.equal(publisher.logo.height, 1024);
+});
+
+test("buildTrailBreadcrumbJsonLd строит абсолютные ссылки и подставляет текущий URL последней крошке", () => {
+  const jsonLd = buildTrailBreadcrumbJsonLd(
+    [
+      { label: "Главная", href: "/" },
+      { label: "Новости", href: "/news" },
+      { label: "UFC 330" }
+    ],
+    { locale: "ru", siteUrl: "https://fightbase.ru", currentUrl: "https://fightbase.ru/ru/news/ufc-330" }
+  ) as { itemListElement: Array<{ name: string; item: string }> };
+
+  assert.deepEqual(
+    jsonLd.itemListElement.map((entry) => entry.item),
+    ["https://fightbase.ru/ru", "https://fightbase.ru/ru/news", "https://fightbase.ru/ru/news/ufc-330"]
+  );
+});
+
+test("buildTrailBreadcrumbJsonLd не сдваивает слэш, когда siteUrl — объект URL", () => {
+  const jsonLd = buildTrailBreadcrumbJsonLd(
+    [{ label: "Главная", href: "/" }, { label: "Новости" }],
+    { locale: "ru", siteUrl: new URL("https://fightbase.ru"), currentUrl: "https://fightbase.ru/ru/news" }
+  ) as { itemListElement: Array<{ item: string }> };
+
+  assert.equal(jsonLd.itemListElement[0]?.item, "https://fightbase.ru/ru");
 });

@@ -13,7 +13,7 @@ import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
 import { getSiteUrl } from "@/lib/site";
-import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
+import { buildTrailBreadcrumbJsonLd } from "@/lib/structured-data";
 
 export const revalidate = 86400;
 
@@ -71,12 +71,7 @@ export default async function PredictionsPage() {
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd(
-          breadcrumbItems.map((item) => ({
-            name: item.label,
-            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
-          }))
-        )}
+        data={buildTrailBreadcrumbJsonLd(breadcrumbItems, { locale, siteUrl, currentUrl: collectionUrl })}
       />
       <JsonLd
         data={{

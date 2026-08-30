@@ -1,6 +1,9 @@
 // Shared builder for SportsEvent JSON-LD so the event detail and fight
 // prediction pages emit identical, complete structured data.
 
+import type { Locale } from "@/lib/locale-config";
+import { localizePath } from "@/lib/locale-path";
+
 // Брендовый логотип в public/. Единственный источник правды о файле и его
 // размерах: на него опираются и JSON-LD издателя, и дефолтная OG-картинка.
 export const BRAND_LOGO_PATH = "/gorilla-crown-logo.png";
@@ -175,4 +178,26 @@ export function buildBreadcrumbJsonLd(crumbs: BreadcrumbCrumb[]): Record<string,
       item: crumb.url
     }))
   };
+}
+
+export type BreadcrumbTrailItem = {
+  label: string;
+  href?: string;
+};
+
+// Собирает BreadcrumbList из того же массива, что рендерит видимый компонент
+// Breadcrumbs, — так разметка не может разойтись с тем, что видит пользователь.
+// Последняя крошка обычно без href: ей подставляется currentUrl.
+export function buildTrailBreadcrumbJsonLd(
+  items: BreadcrumbTrailItem[],
+  options: { locale: Locale; siteUrl: string | URL; currentUrl: string }
+): Record<string, unknown> {
+  const origin = options.siteUrl.toString().replace(/\/$/, "");
+
+  return buildBreadcrumbJsonLd(
+    items.map((item) => ({
+      name: item.label,
+      url: item.href ? `${origin}${localizePath(item.href, options.locale)}` : options.currentUrl
+    }))
+  );
 }

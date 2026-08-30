@@ -16,7 +16,7 @@ import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
-import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
+import { buildTrailBreadcrumbJsonLd } from "@/lib/structured-data";
 
 type EventsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -89,12 +89,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   return (
     <main className="container">
       <JsonLd
-        data={buildBreadcrumbJsonLd(
-          breadcrumbItems.map((item) => ({
-            name: item.label,
-            url: item.href ? new URL(localizePath(item.href, locale), siteUrl).toString() : collectionUrl
-          }))
-        )}
+        data={buildTrailBreadcrumbJsonLd(breadcrumbItems, { locale, siteUrl, currentUrl: collectionUrl })}
       />
       <JsonLd
         data={{

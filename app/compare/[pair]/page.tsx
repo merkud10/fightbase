@@ -14,7 +14,7 @@ import { getLocale } from "@/lib/i18n";
 import { buildPageMetadata } from "@/lib/page-metadata";
 import { localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
-import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
+import { buildTrailBreadcrumbJsonLd } from "@/lib/structured-data";
 
 export const revalidate = 3600;
 
@@ -114,12 +114,7 @@ export default async function ComparePage({ params }: ComparePageProps) {
     { label: isRu ? "Сравнение" : "Compare", href: "/compare" },
     { label: `${nameA} — ${nameB}` }
   ];
-  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
-    breadcrumbItems.map((item) => ({
-      name: item.label,
-      url: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : pageUrl
-    }))
-  );
+  const breadcrumbJsonLd = buildTrailBreadcrumbJsonLd(breadcrumbItems, { locale, siteUrl, currentUrl: pageUrl });
 
   const buildPersonJsonLd = (fighter: typeof fighterA, name: string) => ({
     "@context": "https://schema.org",
