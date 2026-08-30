@@ -17,7 +17,7 @@ import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
-import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
+import { buildBreadcrumbJsonLd, buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
 export async function generateMetadata({
   params
@@ -104,16 +104,12 @@ export default async function EventPage({
     { label: locale === "ru" ? "Турниры" : "Events", href: "/events" },
     { label: event.name }
   ];
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: breadcrumbItems.map((item, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
+    breadcrumbItems.map((item) => ({
       name: item.label,
-      item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : eventUrl
+      url: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : eventUrl
     }))
-  };
+  );
   const seenFighterIds = new Set<string>();
   const performers = orderedFights
     .flatMap((fight) => [fight.fighterA, fight.fighterB])

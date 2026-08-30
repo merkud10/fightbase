@@ -18,6 +18,7 @@ import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
+import { buildBreadcrumbJsonLd } from "@/lib/structured-data";
 
 const countryLocaleMap: Record<string, { ru: string; en: string }> = {
   "США": { ru: "США", en: "United States" },
@@ -414,16 +415,12 @@ export default async function FighterPage({
     { label: locale === "ru" ? "Бойцы" : "Fighters", href: "/fighters" },
     { label: displayName }
   ];
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: breadcrumbItems.map((item, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
+    breadcrumbItems.map((item) => ({
       name: item.label,
-      item: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : fighterUrl
+      url: item.href ? `${siteUrl}${localizePath(item.href, locale)}` : fighterUrl
     }))
-  };
+  );
   const personJsonLd = {
     "@context": "https://schema.org",
     "@type": "Person",
