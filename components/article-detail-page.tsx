@@ -19,6 +19,7 @@ import type { Locale } from "@/lib/locale-config";
 import { ShareButtons } from "@/components/share-buttons";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
+import { buildPublisherJsonLd } from "@/lib/structured-data";
 import { getSiteUrl } from "@/lib/site";
 
 function splitIntoParagraphs(text: string) {
@@ -208,11 +209,7 @@ export async function ArticleDetailPage({
       name: "FightBase Media",
       url: `${siteUrl}/ru`
     },
-    publisher: {
-      "@type": "Organization",
-      name: "FightBase Media",
-      url: `${siteUrl}/ru`
-    },
+    publisher: buildPublisherJsonLd(siteUrl),
     keywords: article.tagMap.map(({ tag }) => formatArticleTagLabel(tag.slug || tag.label, locale))
   };
 

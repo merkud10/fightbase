@@ -143,6 +143,20 @@ export function buildWebSiteJsonLd(siteUrl: string): Record<string, unknown> {
   };
 }
 
+export function buildPublisherJsonLd(siteUrl: string): Record<string, unknown> {
+  return {
+    "@type": "Organization",
+    name: "FightBase Media",
+    url: `${siteUrl}/ru`,
+    logo: {
+      "@type": "ImageObject",
+      url: `${siteUrl}/gorilla-crown-logo.png`,
+      width: 1024,
+      height: 1024
+    }
+  };
+}
+
 export function buildBreadcrumbJsonLd(crumbs: BreadcrumbCrumb[]): Record<string, unknown> {
   const visible = crumbs.filter((crumb) => crumb.name.trim().length > 0);
 
