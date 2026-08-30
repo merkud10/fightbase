@@ -12,6 +12,7 @@ import { YandexMetrikaHit } from "@/components/yandex-metrika";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
+import { buildWebSiteJsonLd } from "@/lib/structured-data";
 
 const bodyFont = Inter({
   subsets: ["latin", "cyrillic"],
@@ -160,19 +161,7 @@ export default async function RootLayout({
             inLanguage: "ru-RU"
           }}
         />
-        <JsonLd
-          data={{
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: "FightBase Media",
-            url: `${siteUrl}/ru`,
-            publisher: {
-              "@type": "Organization",
-              name: "FightBase Media"
-            },
-            inLanguage: "ru-RU"
-          }}
-        />
+        <JsonLd data={buildWebSiteJsonLd(siteUrl)} />
         <div className="page-shell">
           <Header />
           <div id="main-content" className="main-content" tabIndex={-1}>

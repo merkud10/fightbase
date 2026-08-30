@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildBreadcrumbJsonLd, buildSportsEventJsonLd } from "../lib/structured-data";
+import { buildBreadcrumbJsonLd, buildSportsEventJsonLd, buildWebSiteJsonLd } from "../lib/structured-data";
 
 const baseInput = {
   name: "UFC 330",
@@ -60,4 +60,16 @@ test("buildBreadcrumbJsonLd отбрасывает крошки без имен�
     [1, 2]
   );
   assert.equal(jsonLd.itemListElement[1]?.name, "UFC 330");
+});
+
+test("buildWebSiteJsonLd объявляет SearchAction на страницу поиска", () => {
+  const jsonLd = buildWebSiteJsonLd("https://fightbase.ru") as {
+    "@type": string;
+    potentialAction: { "@type": string; target: { urlTemplate: string }; "query-input": string };
+  };
+
+  assert.equal(jsonLd["@type"], "WebSite");
+  assert.equal(jsonLd.potentialAction["@type"], "SearchAction");
+  assert.equal(jsonLd.potentialAction.target.urlTemplate, "https://fightbase.ru/ru/search?q={search_term_string}");
+  assert.equal(jsonLd.potentialAction["query-input"], "required name=search_term_string");
 });

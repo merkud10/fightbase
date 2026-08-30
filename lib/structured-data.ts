@@ -119,6 +119,28 @@ export type BreadcrumbCrumb = {
   url: string;
 };
 
+export function buildWebSiteJsonLd(siteUrl: string): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "FightBase Media",
+    url: `${siteUrl}/ru`,
+    publisher: {
+      "@type": "Organization",
+      name: "FightBase Media"
+    },
+    inLanguage: "ru-RU",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${siteUrl}/ru/search?q={search_term_string}`
+      },
+      "query-input": "required name=search_term_string"
+    }
+  };
+}
+
 export function buildBreadcrumbJsonLd(crumbs: BreadcrumbCrumb[]): Record<string, unknown> {
   const visible = crumbs.filter((crumb) => crumb.name.trim().length > 0);
 
