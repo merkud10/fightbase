@@ -1,6 +1,11 @@
 // Shared builder for SportsEvent JSON-LD so the event detail and fight
 // prediction pages emit identical, complete structured data.
 
+// Брендовый логотип в public/. Единственный источник правды о файле и его
+// размерах: на него опираются и JSON-LD издателя, и дефолтная OG-картинка.
+export const BRAND_LOGO_PATH = "/gorilla-crown-logo.png";
+export const BRAND_LOGO_SIZE = 1024;
+
 // Official organizer sites by promotion name. Falls back to the site origin
 // when a promotion isn't mapped, so organizer.url is always present.
 const PROMOTION_OFFICIAL_URLS: Record<string, string> = {
@@ -150,9 +155,9 @@ export function buildPublisherJsonLd(siteUrl: string): Record<string, unknown> {
     url: `${siteUrl}/ru`,
     logo: {
       "@type": "ImageObject",
-      url: `${siteUrl}/gorilla-crown-logo.png`,
-      width: 1024,
-      height: 1024
+      url: `${siteUrl}${BRAND_LOGO_PATH}`,
+      width: BRAND_LOGO_SIZE,
+      height: BRAND_LOGO_SIZE
     }
   };
 }
