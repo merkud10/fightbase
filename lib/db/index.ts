@@ -5,3 +5,4 @@ export * from "./events";
 export * from "./fighters";
 export * from "./rankings";
 export * from "./search";
+export * from "./ufc-athlete-slugs";

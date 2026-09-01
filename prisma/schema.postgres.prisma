@@ -498,3 +498,15 @@ model UfcRankingSnapshot {
 
   @@index([fetchedAt])
 }
+
+// Соответствие русского слага с ufc.ru английскому слагу с ufc.com. UFC.com
+// редиректит российские IP на ufc.ru, где у атлетов свои транслитерированные
+// слаги (иногда переиспользованные от других бойцов). Соответствие неизменно,
+// поэтому TTL не нужен: в сеть ходим только за незнакомыми слагами.
+model UfcAthleteSlugAlias {
+  officialSlug String   @id
+  englishSlug  String
+  resolvedAt   DateTime @default(now())
+
+  @@index([englishSlug])
+}
