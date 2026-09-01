@@ -38,6 +38,7 @@
     "content:sync-upcoming-pipeline": "node scripts/sync-upcoming-pipeline.js",
     "content:sync-ufc-russian-names": "node scripts/sync-ufc-russian-names.js",
     "content:backfill-ufc-data": "node scripts/backfill-ufc-fighter-data.js",
+    "content:backfill-slug-aliases": "node scripts/backfill-ufc-slug-aliases.js",
     "content:cleanup-ufc-catalog": "node scripts/cleanup-ufc-catalog.js",
     "content:cleanup-ufc-russian-name-tail": "node scripts/cleanup-ufc-russian-name-tail.js",
     "content:cleanup-ufc-recent-fights": "node scripts/cleanup-ufc-recent-fights.js",
