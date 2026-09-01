@@ -6,9 +6,11 @@ import {
 
 const ATHLETE_FETCH_TIMEOUT_MS = 10_000;
 
-// Cloudflare на ufc.com отдаёт 403 на реалистичный браузерный user-agent и
-// пропускает вот этот. Тот же заголовок используется в lib/ufc-rankings.ts.
-// Не менять.
+// Тот же заголовок, что в lib/ufc-rankings.ts — держим их одинаковыми.
+// Важнее заголовка транспорт: запрос обязан идти через fetch (undici).
+// Нодовский https.get и curl Cloudflare отбивает по TLS-отпечатку — проверено
+// на проде 01.09.2026: один и тот же user-agent, https.get даёт 403, fetch 200.
+// Частые запросы подряд тоже ловят 403, поэтому резолв идёт с задержкой.
 const UFC_USER_AGENT = "Mozilla/5.0 FightBase/1.0";
 
 async function fetchAthleteHtml(slug: string): Promise<string | null> {
