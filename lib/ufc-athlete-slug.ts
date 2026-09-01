@@ -1,3 +1,5 @@
+import type { UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
+
 // UFC.com редиректит российские IP на ufc.ru, где слаг атлета транслитерирован
 // («dzhastin-getzhi») и иногда вообще достался от другого бойца
 // («dzheremaya-uells-0» — это Тацуро Таира). Английский слаг, совпадающий с
@@ -18,4 +20,38 @@ export function extractEnglishAthleteSlug(html: string): string | null {
   }
 
   return null;
+}
+
+export function collectAthleteSlugs(groups: UfcOfficialRankingGroup[]): string[] {
+  const slugs = new Set<string>();
+
+  for (const group of groups) {
+    if (group.champion.officialSlug) slugs.add(group.champion.officialSlug);
+    for (const row of group.rows) {
+      if (row.officialSlug) slugs.add(row.officialSlug);
+    }
+  }
+
+  return [...slugs];
+}
+
+// Неразрешённые слаги остаются нетронутыми: страница тогда падает на матч по
+// имени, а затем на «Ожидается» — то же поведение, что и до резолва.
+export function applyAthleteSlugAliases(
+  groups: UfcOfficialRankingGroup[],
+  resolved: Map<string, string>
+): UfcOfficialRankingGroup[] {
+  if (resolved.size === 0) return groups;
+
+  return groups.map((group) => ({
+    ...group,
+    champion: {
+      ...group.champion,
+      officialSlug: resolved.get(group.champion.officialSlug) ?? group.champion.officialSlug
+    },
+    rows: group.rows.map((row) => ({
+      ...row,
+      officialSlug: resolved.get(row.officialSlug) ?? row.officialSlug
+    }))
+  }));
 }
