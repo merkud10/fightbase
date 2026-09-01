@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   applyAthleteSlugAliases,
   collectAthleteSlugs,
-  extractEnglishAthleteSlug
+  extractEnglishAthleteSlug,
+  resolveAthleteSlugAliases
 } from "../lib/ufc-athlete-slug";
 import type { UfcOfficialRankingGroup } from "../lib/ufc-rankings";
 
@@ -90,4 +91,90 @@ test("applyAthleteSlugAliases не мутирует исходные групп�
   applyAthleteSlugAliases(groups, new Map([["dzhastin-getzhi", "justin-gaethje"]]));
 
   assert.equal(groups[0]?.rows[0]?.officialSlug, "dzhastin-getzhi");
+});
+
+function htmlFor(slug: string) {
+  return `<link rel="alternate" hreflang="en" href="https://ufc.ru/athlete/${slug}">`;
+}
+
+test("resolveAthleteSlugAliases берёт известные слаги из кэша без запросов", async () => {
+  const requested: string[] = [];
+
+  const result = await resolveAthleteSlugAliases({
+    slugs: ["dzhastin-getzhi"],
+    known: new Map([["dzhastin-getzhi", "justin-gaethje"]]),
+    fetchHtml: async (slug) => {
+      requested.push(slug);
+      return htmlFor("wrong");
+    }
+  });
+
+  assert.deepEqual(requested, []);
+  assert.equal(result.resolved.get("dzhastin-getzhi"), "justin-gaethje");
+  assert.deepEqual(result.discovered, []);
+});
+
+test("resolveAthleteSlugAliases возвращает новые соответствия для записи", async () => {
+  const result = await resolveAthleteSlugAliases({
+    slugs: ["tom-aspinell", "dzheremaya-uells-0"],
+    known: new Map(),
+    fetchHtml: async (slug) => htmlFor(slug === "tom-aspinell" ? "tom-aspinall" : "tatsuro-taira")
+  });
+
+  assert.equal(result.resolved.get("tom-aspinell"), "tom-aspinall");
+  assert.equal(result.resolved.get("dzheremaya-uells-0"), "tatsuro-taira");
+  assert.deepEqual(
+    [...result.discovered].sort((a, b) => a.officialSlug.localeCompare(b.officialSlug)),
+    [
+      { officialSlug: "dzheremaya-uells-0", englishSlug: "tatsuro-taira" },
+      { officialSlug: "tom-aspinell", englishSlug: "tom-aspinall" }
+    ]
+  );
+});
+
+test("resolveAthleteSlugAliases переживает падение отдельного атлета", async () => {
+  const result = await resolveAthleteSlugAliases({
+    slugs: ["broken", "tom-aspinell"],
+    known: new Map(),
+    fetchHtml: async (slug) => {
+      if (slug === "broken") throw new Error("network down");
+      return htmlFor("tom-aspinall");
+    }
+  });
+
+  assert.equal(result.resolved.has("broken"), false);
+  assert.equal(result.resolved.get("tom-aspinell"), "tom-aspinall");
+});
+
+test("resolveAthleteSlugAliases пропускает страницу без hreflang", async () => {
+  const result = await resolveAthleteSlugAliases({
+    slugs: ["no-alternate"],
+    known: new Map(),
+    fetchHtml: async () => "<html><head></head></html>"
+  });
+
+  assert.equal(result.resolved.size, 0);
+  assert.deepEqual(result.discovered, []);
+});
+
+test("resolveAthleteSlugAliases останавливается по исчерпании бюджета", async () => {
+  let clock = 0;
+  const requested: string[] = [];
+
+  const result = await resolveAthleteSlugAliases({
+    slugs: ["a", "b", "c"],
+    known: new Map(),
+    concurrency: 1,
+    budgetMs: 100,
+    now: () => clock,
+    fetchHtml: async (slug) => {
+      requested.push(slug);
+      clock += 60; // каждый запрос «съедает» 60 мс
+      return htmlFor(`${slug}-en`);
+    }
+  });
+
+  // Бюджет проверяется перед каждым запросом: два успевают, третий уже нет.
+  assert.deepEqual(requested, ["a", "b"]);
+  assert.equal(result.resolved.size, 2);
 });

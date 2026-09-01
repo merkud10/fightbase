@@ -55,3 +55,78 @@ export function applyAthleteSlugAliases(
     }))
   }));
 }
+
+export type AthleteSlugAlias = {
+  officialSlug: string;
+  englishSlug: string;
+};
+
+export type ResolveAthleteSlugAliasesOptions = {
+  slugs: string[];
+  known: Map<string, string>;
+  fetchHtml: (slug: string) => Promise<string | null>;
+  budgetMs?: number;
+  concurrency?: number;
+  now?: () => number;
+};
+
+export type ResolveAthleteSlugAliasesResult = {
+  resolved: Map<string, string>;
+  discovered: AthleteSlugAlias[];
+};
+
+export const ATHLETE_SLUG_RESOLVE_BUDGET_MS = 90_000;
+export const ATHLETE_SLUG_RESOLVE_CONCURRENCY = 4;
+
+// Первый прогон встречает ~150 незнакомых слагов, а ufc.ru отвечает за 2-6
+// секунд. Бюджет по времени не даёт обновлению рейтинга растянуться: что не
+// успели — доедет следующим запуском крона, потому что соответствия копятся в
+// таблице. Ошибки намеренно проглатываются: непрорезолвленный слаг оставляет
+// строку в том же состоянии, в каком она была до этой фичи.
+export async function resolveAthleteSlugAliases({
+  slugs,
+  known,
+  fetchHtml,
+  budgetMs = ATHLETE_SLUG_RESOLVE_BUDGET_MS,
+  concurrency = ATHLETE_SLUG_RESOLVE_CONCURRENCY,
+  now = Date.now
+}: ResolveAthleteSlugAliasesOptions): Promise<ResolveAthleteSlugAliasesResult> {
+  const resolved = new Map<string, string>();
+  const discovered: AthleteSlugAlias[] = [];
+  const pending: string[] = [];
+
+  for (const slug of slugs) {
+    const cached = known.get(slug);
+    if (cached) {
+      resolved.set(slug, cached);
+    } else {
+      pending.push(slug);
+    }
+  }
+
+  if (pending.length === 0) return { resolved, discovered };
+
+  const deadline = now() + budgetMs;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < pending.length && now() < deadline) {
+      const slug = pending[cursor++]!;
+
+      try {
+        const html = await fetchHtml(slug);
+        const englishSlug = html ? extractEnglishAthleteSlug(html) : null;
+        if (!englishSlug) continue;
+
+        resolved.set(slug, englishSlug);
+        discovered.push({ officialSlug: slug, englishSlug });
+      } catch {
+        // Один недоступный атлет не должен ронять остальных.
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, pending.length) }, worker));
+
+  return { resolved, discovered };
+}
