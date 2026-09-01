@@ -13,42 +13,17 @@
 
 const { PrismaClient } = require("@prisma/client");
 
-const { parseArgs, normalizeCountry } = require("./fighter-import-utils");
+const { parseArgs } = require("./fighter-import-utils");
 const { findExactFighterMatch } = require("./fighter-name-matching");
-const { extractEspnAthleteProfile, collectScoreboardCompetitors } = require("./espn-roster-utils");
-const { persistImageLocally } = require("./local-image-store");
+const { collectScoreboardCompetitors } = require("./espn-roster-utils");
+const { enrichFighter, fetchJson, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
 
 const prisma = new PrismaClient();
 
 const SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard";
-const ATHLETE_URL = "https://site.web.api.espn.com/apis/common/v3/sports/mma/athletes";
 const DAYS_BACK = 45;
 const DAYS_FORWARD = 60;
 const CHUNK_DAYS = 30;
-const REQUEST_DELAY_MS = 200;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Встроенный fetch (undici), как в sync-upcoming-events.js: node https.get
-// ловит 403 от ESPN по TLS-фингерпринту, а undici проходит и локально, и с сервера.
-async function fetchJson(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-      Accept: "application/json"
-    },
-    signal: AbortSignal.timeout(30000)
-  });
-
-  if (!response.ok) {
-    throw new Error(`ESPN API HTTP ${response.status} for ${url}`);
-  }
-
-  return response.json();
-}
 
 function toDateStr(date) {
   return date.toISOString().slice(0, 10).replace(/-/g, "");
@@ -76,46 +51,6 @@ async function collectRecentCompetitors() {
   }
 
   return [...byId.values()];
-}
-
-function hasUsablePhoto(url) {
-  return Boolean(String(url || "").trim());
-}
-
-async function enrichFighter(fighter, espnId, dryRun) {
-  const payload = await fetchJson(`${ATHLETE_URL}/${espnId}`);
-  const profile = extractEspnAthleteProfile(payload);
-
-  const data = { espnId };
-
-  if (profile.record) data.record = profile.record;
-  if (profile.age) data.age = profile.age;
-  if (profile.heightCm) data.heightCm = profile.heightCm;
-  if (profile.reachCm) data.reachCm = profile.reachCm;
-  if (profile.koWins !== null) data.winsByKnockout = profile.koWins;
-  if (profile.subWins !== null) data.winsBySubmission = profile.subWins;
-  if (profile.team) data.team = profile.team;
-  if (profile.style) data.style = profile.style;
-  if (profile.weightClass) data.weightClass = profile.weightClass;
-  if (profile.country) data.country = normalizeCountry(profile.country);
-
-  if (!hasUsablePhoto(fighter.photoUrl) && profile.photoUrl && !dryRun) {
-    const localized = await persistImageLocally({
-      bucket: "fighters",
-      key: fighter.slug,
-      sourceUrl: profile.photoUrl
-    }).catch(() => null);
-    if (localized) {
-      data.photoUrl = localized;
-    }
-  }
-
-  if (dryRun) {
-    console.log(`[dry] ${fighter.slug}: ${JSON.stringify(data)}`);
-    return;
-  }
-
-  await prisma.fighter.update({ where: { id: fighter.id }, data });
 }
 
 async function main() {
@@ -166,7 +101,7 @@ async function main() {
 
   for (const { fighter, espnId } of batch) {
     try {
-      await enrichFighter(fighter, espnId, dryRun);
+      await enrichFighter(prisma, fighter, espnId, dryRun);
       ok += 1;
     } catch (error) {
       failed += 1;
