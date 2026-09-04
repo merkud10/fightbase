@@ -16,7 +16,7 @@ const { PrismaClient } = require("@prisma/client");
 const { parseArgs } = require("./fighter-import-utils");
 const { findExactFighterMatch } = require("./fighter-name-matching");
 const { collectScoreboardCompetitors } = require("./espn-roster-utils");
-const { enrichFighter, fetchJson, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
+const { enrichFighter, fetchJson, ESPN_FIGHTER_SELECT, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
 
 const prisma = new PrismaClient();
 
@@ -63,7 +63,7 @@ async function main() {
   console.log(`Found ${competitors.length} athletes on recent/upcoming cards`);
 
   const fighters = await prisma.fighter.findMany({
-    select: { id: true, slug: true, name: true, espnId: true, photoUrl: true, updatedAt: true }
+    select: ESPN_FIGHTER_SELECT
   });
   const byEspnId = new Map(fighters.filter((f) => f.espnId).map((f) => [f.espnId, f]));
   const candidates = fighters.map((f) => ({ id: f.id, name: f.name, slug: f.slug }));
@@ -96,13 +96,22 @@ async function main() {
 
   console.log(`Matched: ${matched.length}, unmatched (not in roster): ${unmatched}, enriching: ${batch.length}`);
 
-  let ok = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let photoFailed = 0;
   let failed = 0;
 
   for (const { fighter, espnId } of batch) {
     try {
-      await enrichFighter(prisma, fighter, espnId, dryRun);
-      ok += 1;
+      const result = await enrichFighter(prisma, fighter, espnId, dryRun);
+      if (result.photoError) {
+        photoFailed += 1;
+        console.warn(`[photo failed] ${fighter.slug}: ${result.photoError}; changed fields: ${result.changedFields.join(", ") || "none"}`);
+      } else if (result.changedFields.length > 0) {
+        updated += 1;
+      } else {
+        unchanged += 1;
+      }
     } catch (error) {
       failed += 1;
       console.warn(`[failed] ${fighter.slug}: ${error.message}`);
@@ -111,18 +120,18 @@ async function main() {
   }
 
   console.log("");
-  console.log(`Summary: enriched=${ok} failed=${failed}${dryRun ? " (dry run)" : ""}`);
+  console.log(`Summary: updated=${updated} unchanged=${unchanged} photoFailed=${photoFailed} failed=${failed}${dryRun ? " (dry run: planned results)" : ""}`);
 
   // Полный провал (например, ESPN недоступен) должен ронять job — там ретраи.
-  if (batch.length > 0 && ok === 0) {
-    process.exit(1);
+  if (batch.length > 0 && failed + photoFailed === batch.length) {
+    process.exitCode = 1;
   }
 }
 
 main()
   .catch((error) => {
     console.error(error.message || error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

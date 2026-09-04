@@ -5,10 +5,19 @@
 
 const { normalizeCountry } = require("./fighter-import-utils");
 const { extractEspnAthleteProfile } = require("./espn-roster-utils");
-const { persistImageLocally } = require("./local-image-store");
+const imageStore = require("./local-image-store");
 
 const ATHLETE_URL = "https://site.web.api.espn.com/apis/common/v3/sports/mma/athletes";
 const REQUEST_DELAY_MS = 200;
+
+// Оба скрипта читают текущие значения всех обновляемых полей: это позволяет
+// отличить заполнение пробелов от обновления рекорда и от холостого прогона.
+const ESPN_FIGHTER_SELECT = {
+  id: true, slug: true, name: true, espnId: true, photoUrl: true,
+  record: true, age: true, heightCm: true, reachCm: true,
+  winsByKnockout: true, winsBySubmission: true, team: true, style: true,
+  weightClass: true, country: true, updatedAt: true
+};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,20 +43,28 @@ async function fetchJson(url) {
 }
 
 function hasUsablePhoto(url) {
-  return Boolean(String(url || "").trim());
+  const raw = String(url || "").trim();
+  // Те же критерии, что у isUsablePhoto в lib/display.ts; соответствие проверяют тесты.
+  return Boolean(raw) && !/silhouette|logo_of_the_ultimate_fighting_championship|flag_of_|\/themes\/custom\/ufc\/assets\/img\//i.test(raw);
+}
+
+const BACKFILL_FIELD_CHECKS = {
+  photoUrl: hasUsablePhoto,
+  heightCm: (value) => Number(value) > 0,
+  reachCm: (value) => Number(value) > 0,
+  team: (value) => Boolean(String(value || "").trim()),
+  age: (value) => Number(value) > 0
+};
+
+function missingEspnFields(fighter) {
+  return Object.keys(BACKFILL_FIELD_CHECKS).filter((field) => !BACKFILL_FIELD_CHECKS[field](fighter[field]));
 }
 
 // Поля, которые ESPN действительно отдаёт. Ударной статистики UFC (SLpM,
 // точность, тейкдауны) у ESPN нет, поэтому её отсутствие не повод для прогона:
 // иначе одни и те же бойцы вечно считались бы недозаполненными.
 function needsEspnBackfill(fighter) {
-  return (
-    !hasUsablePhoto(fighter.photoUrl) ||
-    !fighter.heightCm ||
-    !fighter.reachCm ||
-    !String(fighter.team || "").trim() ||
-    !fighter.age
-  );
+  return missingEspnFields(fighter).length > 0;
 }
 
 async function enrichFighter(prisma, fighter, espnId, dryRun) {
@@ -62,33 +79,52 @@ async function enrichFighter(prisma, fighter, espnId, dryRun) {
   if (profile.reachCm) data.reachCm = profile.reachCm;
   if (profile.koWins !== null) data.winsByKnockout = profile.koWins;
   if (profile.subWins !== null) data.winsBySubmission = profile.subWins;
-  if (profile.team) data.team = profile.team;
+  if (profile.team?.trim()) data.team = profile.team.trim();
   if (profile.style) data.style = profile.style;
   if (profile.weightClass) data.weightClass = profile.weightClass;
   if (profile.country) data.country = normalizeCountry(profile.country);
 
-  if (!hasUsablePhoto(fighter.photoUrl) && profile.photoUrl && !dryRun) {
-    const localized = await persistImageLocally({
-      bucket: "fighters",
-      key: fighter.slug,
-      sourceUrl: profile.photoUrl
-    }).catch(() => null);
-    if (localized) {
-      data.photoUrl = localized;
+  let photoError = null;
+  if (!hasUsablePhoto(fighter.photoUrl) && hasUsablePhoto(profile.photoUrl)) {
+    if (dryRun) {
+      // В сухом прогоне показываем источник планируемого фото, ничего не скачивая.
+      data.photoUrl = profile.photoUrl;
+    } else {
+      try {
+        const localized = await imageStore.persistImageLocally({
+          bucket: "fighters",
+          key: fighter.slug,
+          sourceUrl: profile.photoUrl
+        });
+        if (!hasUsablePhoto(localized)) throw new Error("Photo was not saved");
+        data.photoUrl = localized;
+      } catch (error) {
+        photoError = error.message || String(error);
+      }
     }
   }
 
+  const changes = Object.fromEntries(Object.entries(data).filter(([field, value]) => fighter[field] !== value));
+  const changedFields = Object.keys(changes);
+  const filledFields = missingEspnFields(fighter).filter(
+    (field) => Object.hasOwn(changes, field) && BACKFILL_FIELD_CHECKS[field](changes[field])
+  );
+
   if (dryRun) {
-    console.log(`[dry] ${fighter.slug}: ${JSON.stringify(data)}`);
-    return;
+    console.log(`[dry] ${fighter.slug}: ${JSON.stringify({ changes, filledFields })}`);
+  } else {
+    // Сохраняем прежнее обновление updatedAt даже без новых данных: оба скрипта
+    // начинают со старых карточек, иначе холостые записи будут постоянно занимать лимит.
+    await prisma.fighter.update({ where: { id: fighter.id }, data: { ...changes, espnId } });
   }
 
-  await prisma.fighter.update({ where: { id: fighter.id }, data });
+  return { changedFields, filledFields, photoError };
 }
 
 module.exports = {
   ATHLETE_URL,
   REQUEST_DELAY_MS,
+  ESPN_FIGHTER_SELECT,
   enrichFighter,
   fetchJson,
   hasUsablePhoto,

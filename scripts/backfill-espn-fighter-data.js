@@ -11,7 +11,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
-const { enrichFighter, needsEspnBackfill, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
+const { enrichFighter, needsEspnBackfill, ESPN_FIGHTER_SELECT, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
 
 const prisma = new PrismaClient();
 
@@ -39,18 +39,7 @@ async function main() {
       status: { in: statuses },
       espnId: { not: null }
     },
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      espnId: true,
-      photoUrl: true,
-      heightCm: true,
-      reachCm: true,
-      team: true,
-      age: true,
-      updatedAt: true
-    }
+    select: ESPN_FIGHTER_SELECT
   });
 
   // Сначала самые залежавшиеся профили — чтобы лимит расходовался с пользой.
@@ -63,13 +52,23 @@ async function main() {
     `Статусы: ${statuses.join(", ")}. С espnId: ${fighters.length}, требуют обогащения: ${backlog.length}, в партии: ${batch.length}${dryRun ? " (сухой прогон)" : ""}`
   );
 
-  let ok = 0;
+  let enriched = 0;
+  let noData = 0;
+  let photoFailed = 0;
   let failed = 0;
 
   for (const fighter of batch) {
     try {
-      await enrichFighter(prisma, fighter, fighter.espnId, dryRun);
-      ok += 1;
+      const result = await enrichFighter(prisma, fighter, fighter.espnId, dryRun);
+      if (result.photoError) {
+        photoFailed += 1;
+        console.warn(`[ошибка фото] ${fighter.slug}: ${result.photoError}; заполнены поля: ${result.filledFields.join(", ") || "нет"}`);
+      } else if (result.filledFields.length > 0) {
+        enriched += 1;
+      } else {
+        noData += 1;
+        console.log(`[нет данных для заполнения] ${fighter.slug}`);
+      }
     } catch (error) {
       failed += 1;
       console.warn(`[ошибка] ${fighter.slug}: ${error.message || error}`);
@@ -78,18 +77,18 @@ async function main() {
   }
 
   console.log("");
-  console.log(`Итог: обогащено=${ok} ошибок=${failed}${dryRun ? " (сухой прогон)" : ""}`);
+  console.log(`Итог: обогащено=${enriched} без_заполнения=${noData} ошибок_фото=${photoFailed} ошибок=${failed}${dryRun ? " (сухой прогон: планируемые результаты)" : ""}`);
 
-  // Полный провал при непустой партии — повод уронить job: значит ESPN лёг.
-  if (batch.length > 0 && ok === 0) {
-    process.exit(1);
+  // Отсутствие данных у ESPN — не сбой. Ошибки всей партии, включая фото, — сбой.
+  if (batch.length > 0 && failed + photoFailed === batch.length) {
+    process.exitCode = 1;
   }
 }
 
 main()
   .catch((error) => {
     console.error(error.message || error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
