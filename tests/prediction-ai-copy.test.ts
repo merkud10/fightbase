@@ -190,7 +190,7 @@ test("generateAiPredictionCopy retries HTTP errors and gives up with null", asyn
   assert.equal(attempts, 3);
 });
 
-test("generateAiPredictionCopy returns null on invalid model JSON without retrying validation", async () => {
+test("generateAiPredictionCopy stops after bounded attempts to correct invalid content", async () => {
   let attempts = 0;
   const result = await generateAiPredictionCopy({
     fight: makeFight(),
@@ -201,7 +201,7 @@ test("generateAiPredictionCopy returns null on invalid model JSON without retryi
     }
   });
   assert.equal(result, null);
-  assert.equal(attempts, 1);
+  assert.equal(attempts, 3);
 });
 
 test("isPlaceholderFight detects TBA/TBD stubs and generation skips them", async () => {
@@ -237,4 +237,81 @@ test("computeAiContentHash is stable within a percent band and reacts to changes
 
   const h6 = computeAiContentHash(makeFight({ eventId: "event-2" }), { percentA: 71 });
   assert.notEqual(h1, h6);
+});
+
+test("prediction facts and cache react to updated profiles and corrected results", () => {
+  const original = makeFight();
+  const updated = makeFight({ fighterB: makeFighter({ id: "f-b", age: 28, heightCm: 178, reachCm: 185, team: "Atch Academy", style: "--" }) });
+  const facts = buildFightFactPack(updated).fighters[1];
+  assert.equal(facts.age, 28);
+  assert.equal(facts.heightCm, 178);
+  assert.equal(facts.team, "Atch Academy");
+  assert.equal(facts.style, null);
+  assert.notEqual(computeAiContentHash(original), computeAiContentHash(updated));
+  const corrected = makeFight({ fighterA: makeFighter({ recentFights: [{ opponentName: "Jack Della Maddalena", result: "loss", date: new Date("2026-01-31") }] }) });
+  assert.notEqual(computeAiContentHash(original), computeAiContentHash(corrected));
+  assert.equal(buildFightFactPack(corrected).fighters[0].recentFights[0].date, "2026-01-31");
+  assert.equal(buildFightFactPack(makeFight({ isMainEvent: false, stage: "main_card" })).cardSlot, "бой основного карда");
+});
+
+test("missing statistics cannot be used as evidence of weakness", () => {
+  const pack = buildFightFactPack(makeFight());
+  const bad = validateAiCopy({ ...validCopy(), pickReason: "Отсутствие данных о сопернике делает выбор очевидным." }, pack);
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, "missing_data_bias");
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики делает соперника аутсайдером." }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики не означает слабость соперника." }, pack).reason, "editorial_data_gap");
+});
+
+test("published prediction cannot justify a pick with a gap in our data", () => {
+  const pack = buildFightFactPack(makeFight());
+  for (const text of [
+    "Выбор предварительный: у Парнасса нет данных о выступлениях в UFC, поэтому опираемся на известный уровень Хукера и его антропометрию.",
+    "Боец выходит без статистики и истории боев в промоушене.",
+    "Статистика выступлений отсутствует, поэтому выбор осторожный.",
+    "История боев неизвестна редакции."
+  ]) {
+    assert.equal(validateAiCopy({ ...validCopy(), pickReason: text }, pack).reason, "editorial_data_gap", text);
+  }
+});
+
+test("verified UFC debut retains career achievements and other promotions' bouts", () => {
+  const fight = makeFight({
+    fighterB: makeFighter({
+      espnId: "4312859", name: "Salahdine Parnasse", nameRu: "Салахдин Парнасс",
+      recentFights: [{ opponentName: "Kenneth Cross", eventName: "MVP MMA: Rousey vs. Carano", result: "win", method: "TKO", round: 1, date: new Date("2026-05-16") }]
+    }),
+    event: { name: "UFC Fight Night: Hooker vs. Parnasse", date: new Date("2026-09-05") }
+  });
+  const pack = buildFightFactPack(fight);
+  assert.equal(pack.fighters[1].career.isUfcDebut, true);
+  assert.match(pack.fighters[1].career.achievements[0], /KSW/);
+  assert.equal(pack.fighters[1].recentFights[0].eventName, "MVP MMA: Rousey vs. Carano");
+  assert.equal(pack.fighters[1].recentFights[0].round, 1);
+  assert.equal(validateAiCopy({ ...validCopy(), overview: "Салахдин Парнасс дебютирует в UFC после чемпионской карьеры в KSW." }, pack).ok, true);
+  assert.equal(buildFightFactPack({ ...fight, event: { ...fight.event, date: new Date("2026-10-05") } }).fighters[1].career.isUfcDebut, false);
+  assert.equal(buildFightFactPack({ ...fight, event: { ...fight.event, date: new Date("2026-05-16") } }).fighters[1].career, null);
+  const differentPromotion = { ...fight, event: { ...fight.event, name: "KSW" } };
+  assert.equal(buildFightFactPack(differentPromotion).fighters[1].career.isUfcDebut, false);
+});
+
+test("empty history does not establish a UFC debut", () => {
+  const pack = buildFightFactPack(makeFight());
+  assert.equal(pack.fighters[1].career, null);
+  assert.equal(validateAiCopy({ ...validCopy(), overview: "Боец дебютирует в UFC и пока только начинает свой путь." }, pack).reason, "unverified_ufc_debut");
+});
+
+test("a record without recent results does not prove a winning streak or peak form", () => {
+  const pack = buildFightFactPack(makeFight());
+  const streak = validateAiCopy({ ...validCopy(), pickReason: "Он идет на серии побед и лучше подготовлен." }, pack);
+  assert.equal(streak.ok, false);
+  assert.equal(streak.reason, "unsupported_winning_streak");
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Он находится на пике формы." }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Он находится в лучшей форме." }, pack).ok, false);
+});
+
+test("known Latin athlete names do not count as untranslated prose", () => {
+  const pack = buildFightFactPack(makeFight({ fighterA: makeFighter({ nameRu: null, name: "Mehemmedeli Osmanli" }) }));
+  assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli должен удерживать дистанцию и сохранять темп." }, pack).ok, true);
+  assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli should keep his distance and maintain a high pace throughout this fight." }, pack).ok, false);
 });

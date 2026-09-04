@@ -32,14 +32,18 @@ function getAiCopyConfig() {
   return {
     apiKey,
     baseUrl: readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-    model: readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim()
+    model: readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim(),
+    timeoutMs: Number(readEnv("PREDICTION_AI_TIMEOUT_MS", "60000")) || 60000
   };
 }
 
 function parseArgs(argv) {
   const options = {
     limit: 500,
-    dryRun: false
+    dryRun: false,
+    regenerate: false,
+    eventSlug: null,
+    fightSlug: null
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -54,9 +58,26 @@ function parseArgs(argv) {
     if (arg === "--dry-run") {
       options.dryRun = true;
     }
+    if (arg === "--regenerate") {
+      options.regenerate = true;
+    }
+    if (arg === "--event-slug" && argv[index + 1]) {
+      options.eventSlug = argv[++index];
+    }
+    if (arg === "--fight-slug" && argv[index + 1]) {
+      options.fightSlug = argv[++index];
+    }
   }
 
   return options;
+}
+
+// Принудительная перегенерация меняет и выбор победителя: только до начала
+// турнира. Обычный запуск по-прежнему сохраняет первоначальный выбор.
+function canRegeneratePrediction(fight, now = new Date()) {
+  const event = fight.event;
+  const start = event?.earlyPrelimsAt || event?.prelimsAt || event?.mainCardAt || event?.date;
+  return fight.status === "scheduled" && event?.status === "upcoming" && new Date(start).getTime() > now.getTime();
 }
 
 function parseRecord(record) {
@@ -392,8 +413,10 @@ async function main() {
   const fights = await prisma.fight.findMany({
     where: {
       status: "scheduled",
+      ...(options.fightSlug ? { slug: options.fightSlug } : {}),
       event: {
-        status: { in: ["upcoming", "live"] }
+        status: { in: options.regenerate ? ["upcoming"] : ["upcoming", "live"] },
+        ...(options.eventSlug ? { slug: options.eventSlug } : {})
       }
     },
     include: {
@@ -459,13 +482,20 @@ async function main() {
   );
 
   const aiConfig = getAiCopyConfig();
+  if (options.regenerate && !aiConfig) throw new Error("AI configuration is required for --regenerate");
   let aiGeneratedCount = 0;
   let aiReusedCount = 0;
   let aiFallbackCount = 0;
 
   let upserted = 0;
+  let skipped = 0;
 
   for (const fight of fights) {
+    if (options.regenerate && !canRegeneratePrediction(fight)) {
+      skipped += 1;
+      console.log(`[skipped] event already started: ${fight.event.slug}`);
+      continue;
+    }
     const baseRu = normalizeRuSnapshot(buildSnapshotCopy("ru", fight));
     const en = buildSnapshotCopy("en", fight);
     let ru = baseRu;
@@ -490,7 +520,7 @@ async function main() {
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);
 
-      if (existing?.aiContentHash === nextHash && existing.aiGeneratedAt) {
+      if (!options.regenerate && existing?.aiContentHash === nextHash && existing.aiGeneratedAt) {
         ru = {
           ...baseRu,
           excerpt: existing.excerptRu,
@@ -517,13 +547,21 @@ async function main() {
           aiGeneratedAt = new Date();
           aiGeneratedCount += 1;
 
-          if (!aiPickFighterId) {
+          if (!aiPickFighterId || options.regenerate) {
             aiPickFighterId = generated.pick === "A" ? fight.fighterAId : fight.fighterBId;
             aiPickReasonRu = normalizeRussianMmaText(generated.pickReason);
             aiPickGeneratedAt = new Date();
+            if (options.regenerate) {
+              oddsAAtPick = null;
+              oddsBAtPick = null;
+            }
           }
         } else {
           aiFallbackCount += 1;
+          if (options.regenerate) {
+            console.warn(`[ai-copy] regeneration failed, snapshot preserved: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+            continue;
+          }
           console.warn(`[ai-copy] fallback to template: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
         }
       }
@@ -600,6 +638,15 @@ async function main() {
       continue;
     }
 
+    if (options.regenerate) {
+      const current = await prisma.fight.findUnique({ where: { id: fight.id }, include: { event: true } });
+      if (!current || !canRegeneratePrediction(current) || current.fighterAId !== fight.fighterAId || current.fighterBId !== fight.fighterBId) {
+        skipped += 1;
+        console.warn(`[skipped] fight changed during generation: ${fight.id}`);
+        continue;
+      }
+    }
+
     await prisma.fightPredictionSnapshot.upsert({
       where: { fightId: fight.id },
       create: {
@@ -616,6 +663,8 @@ async function main() {
   console.log("");
   console.log(`Eligible fights: ${fights.length}`);
   console.log(`Upserted snapshots: ${options.dryRun ? 0 : upserted}`);
+  console.log(`Skipped fights: ${skipped}`);
+  if (options.regenerate && aiFallbackCount > 0) process.exitCode = 1;
 
   const aiAttempted = aiGeneratedCount + aiFallbackCount;
   if (aiConfig) {
@@ -635,7 +684,9 @@ async function main() {
   }
 }
 
-main()
+module.exports = { parseArgs, canRegeneratePrediction, main };
+
+if (require.main === module) main()
   .catch((error) => {
     console.error(error.message || error);
     process.exit(1);

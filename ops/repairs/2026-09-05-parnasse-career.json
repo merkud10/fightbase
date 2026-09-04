@@ -1,0 +1,51 @@
+{
+  "fighterEspnId": "4312859",
+  "fighterName": "Salahdine Parnasse",
+  "verifiedAt": "2026-09-05",
+  "profile": {
+    "bio": "Салахдин Парнасс — французский боец легкого веса, бывший чемпион KSW в полулегкой и легкой категориях. До перехода в UFC выступал в KSW и MVP. В мае 2026 года победил Кеннета Кросса техническим нокаутом в первом раунде на MVP MMA: Rousey vs. Carano. Дебют в UFC назначен на 5 сентября 2026 года в бою с Дэном Хукером.",
+    "bioEn": "Salahdine Parnasse is a French lightweight and former KSW featherweight and lightweight champion. He competed in KSW and MVP before joining the UFC. In May 2026, he defeated Kenneth Cross by first-round TKO at MVP MMA: Rousey vs. Carano. His UFC debut is scheduled for September 5, 2026 against Dan Hooker."
+  },
+  "sources": [
+    "https://www.ufc.com/athlete/salahdine-parnasse",
+    "https://www.kswmma.com/en/news/ksw-bids-farewell-to-salahdine-parnasse"
+  ],
+  "recentFights": [
+    {
+      "opponentName": "Kenneth Cross",
+      "opponentNameRu": "Кеннет Кросс",
+      "eventName": "MVP MMA: Rousey vs. Carano",
+      "result": "Победа",
+      "method": "TKO (удары)",
+      "date": "2026-05-16T00:00:00.000Z",
+      "round": 1,
+      "time": "4:18",
+      "weightClass": "Легкий вес",
+      "notes": "Проверено 2026-09-05: https://www.mmafighting.com/mvp-mma/488650/salahdine-parnasse-vs-kenneth-cross-mvp-mma-live-blog ; https://www.sherdog.com/fighter/Salahdine-Parnasse-172169"
+    },
+    {
+      "opponentName": "Marcin Held",
+      "opponentNameRu": "Марцин Хелд",
+      "eventName": "XTB KSW 114: Parnasse vs. Held",
+      "result": "Победа",
+      "method": "TKO (удары)",
+      "date": "2026-01-17T00:00:00.000Z",
+      "round": 2,
+      "time": "3:35",
+      "weightClass": "Легкий вес",
+      "notes": "Защита титула KSW в легком весе. Проверено 2026-09-05: https://www.kswmma.com/en/fighter/marcin-held"
+    },
+    {
+      "opponentName": "Marian Ziolkowski",
+      "opponentNameRu": "Мариан Зюлковски",
+      "eventName": "XTB KSW 106: Parnasse vs. Ziolkowski",
+      "result": "Победа",
+      "method": "TKO (удары)",
+      "date": "2025-05-10T00:00:00.000Z",
+      "round": 2,
+      "time": "3:54",
+      "weightClass": "Легкий вес",
+      "notes": "Защита титула KSW в легком весе. Проверено 2026-09-05: https://www.kswmma.com/en/fighter/marian-ziolkowski"
+    }
+  ]
+}
