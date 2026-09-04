@@ -260,7 +260,45 @@ test("missing statistics cannot be used as evidence of weakness", () => {
   assert.equal(bad.ok, false);
   assert.equal(bad.reason, "missing_data_bias");
   assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики делает соперника аутсайдером." }, pack).ok, false);
-  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики не означает слабость соперника." }, pack).ok, true);
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики не означает слабость соперника." }, pack).reason, "editorial_data_gap");
+});
+
+test("published prediction cannot justify a pick with a gap in our data", () => {
+  const pack = buildFightFactPack(makeFight());
+  for (const text of [
+    "Выбор предварительный: у Парнасса нет данных о выступлениях в UFC, поэтому опираемся на известный уровень Хукера и его антропометрию.",
+    "Боец выходит без статистики и истории боев в промоушене.",
+    "Статистика выступлений отсутствует, поэтому выбор осторожный.",
+    "История боев неизвестна редакции."
+  ]) {
+    assert.equal(validateAiCopy({ ...validCopy(), pickReason: text }, pack).reason, "editorial_data_gap", text);
+  }
+});
+
+test("verified UFC debut retains career achievements and other promotions' bouts", () => {
+  const fight = makeFight({
+    fighterB: makeFighter({
+      espnId: "4312859", name: "Salahdine Parnasse", nameRu: "Салахдин Парнасс",
+      recentFights: [{ opponentName: "Kenneth Cross", eventName: "MVP MMA: Rousey vs. Carano", result: "win", method: "TKO", round: 1, date: new Date("2026-05-16") }]
+    }),
+    event: { name: "UFC Fight Night: Hooker vs. Parnasse", date: new Date("2026-09-05") }
+  });
+  const pack = buildFightFactPack(fight);
+  assert.equal(pack.fighters[1].career.isUfcDebut, true);
+  assert.match(pack.fighters[1].career.achievements[0], /KSW/);
+  assert.equal(pack.fighters[1].recentFights[0].eventName, "MVP MMA: Rousey vs. Carano");
+  assert.equal(pack.fighters[1].recentFights[0].round, 1);
+  assert.equal(validateAiCopy({ ...validCopy(), overview: "Салахдин Парнасс дебютирует в UFC после чемпионской карьеры в KSW." }, pack).ok, true);
+  assert.equal(buildFightFactPack({ ...fight, event: { ...fight.event, date: new Date("2026-10-05") } }).fighters[1].career.isUfcDebut, false);
+  assert.equal(buildFightFactPack({ ...fight, event: { ...fight.event, date: new Date("2026-05-16") } }).fighters[1].career, null);
+  const differentPromotion = { ...fight, event: { ...fight.event, name: "KSW" } };
+  assert.equal(buildFightFactPack(differentPromotion).fighters[1].career.isUfcDebut, false);
+});
+
+test("empty history does not establish a UFC debut", () => {
+  const pack = buildFightFactPack(makeFight());
+  assert.equal(pack.fighters[1].career, null);
+  assert.equal(validateAiCopy({ ...validCopy(), overview: "Боец дебютирует в UFC и пока только начинает свой путь." }, pack).reason, "unverified_ufc_debut");
 });
 
 test("a record without recent results does not prove a winning streak or peak form", () => {
