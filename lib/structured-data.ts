@@ -70,14 +70,18 @@ type SportsEventInput = {
 // must not leak into structured data.
 function knownLocationValue(value: string) {
   const normalized = String(value || "").trim();
-  return normalized && normalized !== "TBD" ? normalized : null;
+  return normalized && normalized.toUpperCase() !== "TBD" ? normalized : null;
 }
 
-export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, unknown> {
+export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, unknown> | null {
   const performers = (input.performers ?? []).filter((p) => p.name?.trim());
   const images = (input.images ?? []).filter(Boolean).map(toSearchImageUrl);
   const venue = knownLocationValue(input.venue);
   const city = knownLocationValue(input.city);
+
+  // Google requires location.address. Keep the page, but omit Event markup until
+  // an address is known; a venue name alone would still produce an invalid event.
+  if (!city) return null;
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -89,15 +93,11 @@ export function buildSportsEventJsonLd(input: SportsEventInput): Record<string, 
     endDate: new Date(input.date.getTime() + EVENT_DURATION_MS).toISOString(),
     eventStatus: eventStatusUrl(input.status),
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    ...(venue || city
-      ? {
-          location: {
-            "@type": "Place",
-            ...(venue ? { name: venue } : {}),
-            ...(city ? { address: city } : {})
-          }
-        }
-      : {}),
+    location: {
+      "@type": "Place",
+      ...(venue ? { name: venue } : {}),
+      address: city
+    },
     organizer: {
       "@type": "SportsOrganization",
       name: input.promotionName,

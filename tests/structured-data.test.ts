@@ -13,25 +13,55 @@ const baseInput = {
   siteOrigin: "https://fightbase.ru"
 };
 
-test("buildSportsEventJsonLd omits location when venue and city are TBD placeholders", () => {
-  const jsonLd = buildSportsEventJsonLd({ ...baseInput, venue: "TBD", city: "TBD" }) as Record<string, unknown>;
-  assert.equal("location" in jsonLd, false);
-});
+for (const location of [
+  { venue: "TBD", city: "TBD" },
+  { venue: "", city: "" },
+  { venue: "   ", city: "\t" },
+  { venue: " tbd ", city: " TbD " },
+  { venue: "Meta APEX", city: "TBD" },
+  { venue: "Meta APEX", city: "" }
+]) {
+  test(`buildSportsEventJsonLd omits the event without an address: ${JSON.stringify(location)}`, () => {
+    assert.equal(buildSportsEventJsonLd({ ...baseInput, ...location }), null);
+  });
+}
 
 test("buildSportsEventJsonLd keeps known location parts and drops TBD ones", () => {
   const full = buildSportsEventJsonLd({
     ...baseInput,
     venue: "Xfinity Mobile Arena",
     city: "Philadelphia, United States"
-  }) as { location?: { name?: string; address?: string } };
-  assert.equal(full.location?.name, "Xfinity Mobile Arena");
-  assert.equal(full.location?.address, "Philadelphia, United States");
+  });
+  assert.ok(full);
+  assert.equal(full["@type"], "SportsEvent");
+  assert.deepEqual(full.location, {
+    "@type": "Place",
+    name: "Xfinity Mobile Arena",
+    address: "Philadelphia, United States"
+  });
 
-  const partial = buildSportsEventJsonLd({ ...baseInput, venue: "TBD", city: "Philadelphia, United States" }) as {
-    location?: { name?: string; address?: string };
-  };
-  assert.equal(partial.location?.address, "Philadelphia, United States");
-  assert.equal("name" in (partial.location ?? {}), false);
+  const partial = buildSportsEventJsonLd({ ...baseInput, venue: " tbd ", city: " Philadelphia, United States " });
+  assert.ok(partial);
+  assert.deepEqual(partial.location, {
+    "@type": "Place",
+    address: "Philadelphia, United States"
+  });
+});
+
+test("buildSportsEventJsonLd restores event markup after its location is filled", () => {
+  const event = { ...baseInput, venue: "TBD", city: "TBD" };
+  assert.equal(buildSportsEventJsonLd(event), null);
+
+  const jsonLd = buildSportsEventJsonLd({ ...event, venue: " Meta APEX ", city: "Las Vegas, Nevada, United States" });
+  assert.ok(jsonLd);
+  assert.equal(jsonLd.name, event.name);
+  assert.equal(jsonLd.url, event.url);
+  assert.equal(jsonLd.startDate, event.date.toISOString());
+  assert.deepEqual(jsonLd.location, {
+    "@type": "Place",
+    name: "Meta APEX",
+    address: "Las Vegas, Nevada, United States"
+  });
 });
 
 test("buildBreadcrumbJsonLd нумерует позиции с единицы и сохраняет порядок", () => {

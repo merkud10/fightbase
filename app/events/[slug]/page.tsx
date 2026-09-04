@@ -140,7 +140,7 @@ export default async function EventPage({
   return (
     <main className="container">
       <JsonLd data={breadcrumbJsonLd} />
-      <JsonLd data={eventJsonLd} />
+      {eventJsonLd && <JsonLd data={eventJsonLd} />}
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow={event.promotion.shortName}

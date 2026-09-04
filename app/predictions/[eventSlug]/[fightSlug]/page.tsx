@@ -196,7 +196,7 @@ export default async function FightPredictionPage({
 
   return (
     <main className="container">
-      <JsonLd data={fightEventJsonLd} />
+      {fightEventJsonLd && <JsonLd data={fightEventJsonLd} />}
       <JsonLd
         data={{
           "@context": "https://schema.org",
