@@ -190,7 +190,7 @@ test("generateAiPredictionCopy retries HTTP errors and gives up with null", asyn
   assert.equal(attempts, 3);
 });
 
-test("generateAiPredictionCopy returns null on invalid model JSON without retrying validation", async () => {
+test("generateAiPredictionCopy stops after bounded attempts to correct invalid content", async () => {
   let attempts = 0;
   const result = await generateAiPredictionCopy({
     fight: makeFight(),
@@ -201,7 +201,7 @@ test("generateAiPredictionCopy returns null on invalid model JSON without retryi
     }
   });
   assert.equal(result, null);
-  assert.equal(attempts, 1);
+  assert.equal(attempts, 3);
 });
 
 test("isPlaceholderFight detects TBA/TBD stubs and generation skips them", async () => {
@@ -237,4 +237,43 @@ test("computeAiContentHash is stable within a percent band and reacts to changes
 
   const h6 = computeAiContentHash(makeFight({ eventId: "event-2" }), { percentA: 71 });
   assert.notEqual(h1, h6);
+});
+
+test("prediction facts and cache react to updated profiles and corrected results", () => {
+  const original = makeFight();
+  const updated = makeFight({ fighterB: makeFighter({ id: "f-b", age: 28, heightCm: 178, reachCm: 185, team: "Atch Academy", style: "--" }) });
+  const facts = buildFightFactPack(updated).fighters[1];
+  assert.equal(facts.age, 28);
+  assert.equal(facts.heightCm, 178);
+  assert.equal(facts.team, "Atch Academy");
+  assert.equal(facts.style, null);
+  assert.notEqual(computeAiContentHash(original), computeAiContentHash(updated));
+  const corrected = makeFight({ fighterA: makeFighter({ recentFights: [{ opponentName: "Jack Della Maddalena", result: "loss", date: new Date("2026-01-31") }] }) });
+  assert.notEqual(computeAiContentHash(original), computeAiContentHash(corrected));
+  assert.equal(buildFightFactPack(corrected).fighters[0].recentFights[0].date, "2026-01-31");
+  assert.equal(buildFightFactPack(makeFight({ isMainEvent: false, stage: "main_card" })).cardSlot, "бой основного карда");
+});
+
+test("missing statistics cannot be used as evidence of weakness", () => {
+  const pack = buildFightFactPack(makeFight());
+  const bad = validateAiCopy({ ...validCopy(), pickReason: "Отсутствие данных о сопернике делает выбор очевидным." }, pack);
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, "missing_data_bias");
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики делает соперника аутсайдером." }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Отсутствие статистики не означает слабость соперника." }, pack).ok, true);
+});
+
+test("a record without recent results does not prove a winning streak or peak form", () => {
+  const pack = buildFightFactPack(makeFight());
+  const streak = validateAiCopy({ ...validCopy(), pickReason: "Он идет на серии побед и лучше подготовлен." }, pack);
+  assert.equal(streak.ok, false);
+  assert.equal(streak.reason, "unsupported_winning_streak");
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Он находится на пике формы." }, pack).ok, false);
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: "Он находится в лучшей форме." }, pack).ok, false);
+});
+
+test("known Latin athlete names do not count as untranslated prose", () => {
+  const pack = buildFightFactPack(makeFight({ fighterA: makeFighter({ nameRu: null, name: "Mehemmedeli Osmanli" }) }));
+  assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli должен удерживать дистанцию и сохранять темп." }, pack).ok, true);
+  assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli should keep his distance and maintain a high pace throughout this fight." }, pack).ok, false);
 });
