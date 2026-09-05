@@ -224,8 +224,8 @@ function summarizeRecentForm(fighter, locale) {
   const recent = (fighter.recentFights || []).slice(0, 3);
   if (recent.length === 0) {
     return locale === "ru"
-      ? "В локальной базе пока мало данных по недавним выступлениям."
-      : "Recent form is limited in the local database.";
+      ? `${getDisplayName(fighter, locale)}: последние бои ещё не добавлены в профиль FightBase.`
+      : `${getDisplayName(fighter, locale)}: recent bouts have not been added to the FightBase profile yet.`;
   }
 
   const wins = recent.filter((fight) => /побед|win/i.test(fight.result)).length;
