@@ -1,0 +1,3 @@
+# Файлы для Linux-серверов должны оставаться с LF даже при autocrlf на Windows
+ops/codex-bridge/** text eol=lf
+scripts/*.sh text eol=lf
