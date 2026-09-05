@@ -37,6 +37,12 @@ rm -f /usr/local/bin/codex
 
 Amnezia, Docker, iptables, sshd этим не затрагиваются.
 
+## Мониторинг
+
+На проде крон `cron-tasks.sh bridge-check` (05:45, 11:45, 17:45 UTC) дёргает
+`/healthz` через туннель и шлёт алерт в Telegram, если мост недоступен или
+Codex разлогинился. Ручной запуск: `sudo -u fightbase bash /opt/fightbase/scripts/cron-tasks.sh bridge-check`.
+
 ## Туннель на проде
 
 Юнит `codex-bridge-tunnel.service`, ключ `/root/.ssh/codex_bridge_tunnel`.

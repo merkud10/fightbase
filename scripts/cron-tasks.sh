@@ -329,8 +329,33 @@ case "${TASK}" in
     fi
     ;;
 
+  bridge-check)
+    # Мост к Codex на VPS (ops/codex-bridge): прод ходит к нему через SSH-туннель
+    # на 127.0.0.1:8787. Если туннель или мост упали либо протух логин Codex,
+    # новости молча уходят на DeepSeek, а прогнозы не генерируются вовсе.
+    # Проверяем до утренних sync-odds и sync-news, чтобы успеть починить.
+    log "Starting bridge-check"
+    bridge_url="${BRIDGE_HEALTH_URL:-http://127.0.0.1:8787/healthz}"
+    body=$(curl -sf -m 30 "${bridge_url}") || {
+      log "bridge-check FAILED: ${bridge_url} недоступен"
+      send_tg_alert "❌ Мост Codex недоступен с прода: проверь codex-bridge-tunnel на проде и codex-bridge на VPS"
+      exit 1
+    }
+    if ! echo "$body" | grep -q '"ok": *true'; then
+      log "bridge-check unexpected body: ${body}"
+      send_tg_alert "❌ Мост Codex отвечает неожиданно: ${body}"
+      exit 1
+    fi
+    if ! echo "$body" | grep -q '"loggedIn": *true'; then
+      log "bridge-check: Codex не залогинен: ${body}"
+      send_tg_alert "❌ Codex на VPS разлогинился: sudo -H -u codexbridge codex login --device-auth"
+      exit 1
+    fi
+    log "bridge-check ok: ${body}"
+    ;;
+
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-fight-history|silence-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-fight-history|silence-check|bridge-check}"
     exit 1
     ;;
 esac

@@ -11,8 +11,9 @@ These run in production continuously or on a schedule. Touch carefully.
 
 - `cron-tasks.sh` — cron orchestrator. Entry point for `drip-social`, `sync-news`,
   `sync-odds`, `sync-roster`, `sync-roster-upcoming` (daily, incomplete profiles of
-  fighters on cards within 10 days), `sync-fight-history`, `silence-check`.
-  Uses flock + watchdog.
+  fighters on cards within 10 days), `sync-fight-history`, `silence-check`,
+  `bridge-check` (Codex bridge on the VPS reachable and logged in; alerts to
+  Telegram). Uses flock + watchdog.
 - `deploy.sh` — pulls, installs, builds, chowns, restarts systemd. Called by the
   Deploy GitHub Actions workflow.
 - `start-standalone.js` — systemd `ExecStart` target. Boots `.next/standalone/server.js`.
