@@ -16,6 +16,8 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 JSON_INSTRUCTION = "Ответь только валидным JSON без markdown-ограждений и пояснений."
+# Клиент сайта (postJson в lib/ai-localization.ts) шлёт на <baseUrl>/chat/completions, как DeepSeek без /v1.
+COMPLETION_PATHS = ("/v1/chat/completions", "/chat/completions")
 FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.S)
 STDERR_TAIL = 2000
 
@@ -160,7 +162,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         config = self.server.config
-        if self.path != "/v1/chat/completions":
+        if self.path not in COMPLETION_PATHS:
             return self._error(404, "not found")
         expected = f"Bearer {config['token']}"
         if not config["token"] or self.headers.get("Authorization", "") != expected:

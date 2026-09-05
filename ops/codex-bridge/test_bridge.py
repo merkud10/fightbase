@@ -106,6 +106,14 @@ class BridgeTest(unittest.TestCase):
         with open(self.prompt_file, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), "SYSTEM PROMPT\n\nUSER PROMPT")
 
+    def test_accepts_path_without_v1_prefix(self):
+        os.environ["FAKE_CODEX_ANSWER"] = "answer"
+        status, payload = post(f"{self.base}/chat/completions", {"messages": self.messages()})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["choices"][0]["message"]["content"], "answer")
+        status, _ = post(f"{self.base}/v2/other", {"messages": self.messages()})
+        self.assertEqual(status, 404)
+
     def test_returns_502_when_codex_fails(self):
         os.environ["FAKE_CODEX_MODE"] = "fail"
         status, payload = self.completions({"messages": self.messages()})
