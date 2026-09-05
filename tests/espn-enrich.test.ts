@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { isUsablePhoto } from "../lib/display";
 
-const { enrichFighter, hasUsablePhoto, needsEspnBackfill, ESPN_FIGHTER_SELECT } = require("../scripts/espn-enrich.js");
+const { enrichFighter, hasUsablePhoto, isProfileIncomplete, needsEspnBackfill, ESPN_FIGHTER_SELECT } = require("../scripts/espn-enrich.js");
 const imageStore: { persistImageLocally: (input: unknown) => Promise<string | null> } = require("../scripts/local-image-store.js");
 const { parseArgs } = require("../scripts/fighter-import-utils.js");
 
@@ -132,6 +132,41 @@ test("enrichFighter в dry-run показывает план фото и не п
   assert.ok(String(fixture.log.mock.calls[0]?.arguments[0]).includes(sourceUrl));
 });
 
+test("enrichFighter не перезаписывает заполненную страну гражданством из ESPN", async (context) => {
+  const fixture = mockEnrichment(context, { citizenship: "Brazil" });
+  const fighter = { ...completeFighter(), country: "США" };
+  const result = await enrichFighter(fixture.prisma, fighter, fighter.espnId, false);
+  assert.deepEqual(result.changedFields, []);
+  assert.deepEqual(fixture.update.mock.calls[0]?.arguments[0], {
+    where: { id: fighter.id }, data: { espnId: fighter.espnId }
+  });
+});
+
+test("enrichFighter заполняет пустую страну", async (context) => {
+  const fixture = mockEnrichment(context, { citizenship: "Moldova" });
+  const fighter = { ...completeFighter(), country: "" };
+  const result = await enrichFighter(fixture.prisma, fighter, fighter.espnId, false);
+  assert.deepEqual(result.changedFields, ["country"]);
+  assert.equal(fixture.update.mock.calls[0]?.arguments[0].data.country, "Молдова");
+});
+
+test("enrichFighter игнорирует стойку «--» и рекорд «0-0-0» из ESPN", async (context) => {
+  const fixture = mockEnrichment(context, {
+    displayFightingStyle: "--",
+    statsSummary: { statistics: [{ type: "wins-losses-draws", displayValue: "0-0-0" }] }
+  });
+  const fighter = { ...completeFighter(), style: "Orthodox" };
+  const result = await enrichFighter(fixture.prisma, fighter, fighter.espnId, false);
+  assert.deepEqual(result.changedFields, []);
+});
+
+test("isProfileIncomplete отбирает карточки без привязки к ESPN, без рекорда и с пробелами", () => {
+  assert.equal(isProfileIncomplete(completeFighter()), false);
+  assert.equal(isProfileIncomplete({ ...completeFighter(), espnId: null }), true);
+  assert.equal(isProfileIncomplete({ ...completeFighter(), record: "" }), true);
+  assert.equal(isProfileIncomplete({ ...completeFighter(), heightCm: 0 }), true);
+});
+
 test("enrichFighter не скрывает ошибку API", async (context) => {
   const fixture = mockEnrichment(context);
   context.mock.method(globalThis, "fetch", async () => new Response("unavailable", { status: 503 }));
@@ -142,10 +177,19 @@ test("enrichFighter не скрывает ошибку API", async (context) => 
 type EnrichmentResult = { changedFields: string[]; filledFields: string[]; photoError: string | null };
 
 // Запускаем реальные CLI-циклы с подменёнными внешними границами: без БД, сети и ожиданий.
-async function runCli(script: string, outcomes: Array<EnrichmentResult | Error>) {
-  const fighters = outcomes.map((_, index) => ({ ...completeFighter(), id: String(index), espnId: String(index + 1), team: "", updatedAt: new Date(0) }));
+type CliOptions = { argv?: string[]; complete?: number[] };
+
+async function runCli(script: string, outcomes: Array<EnrichmentResult | Error>, options: CliOptions = {}) {
+  // По умолчанию у всех бойцов пустой зал — карточка неполная; `complete` делает указанных полными.
+  const fighters = outcomes.map((_, index) => ({
+    ...completeFighter(),
+    id: String(index),
+    espnId: String(index + 1),
+    team: options.complete?.includes(index) ? "Eagles MMA" : "",
+    updatedAt: new Date(0)
+  }));
   const output: string[] = [];
-  const processStub = { argv: ["node", script], exitCode: 0 };
+  const processStub = { argv: ["node", script, ...(options.argv ?? [])], exitCode: 0 };
   let disconnected = false;
   const imports: Record<string, unknown> = {
     "@prisma/client": { PrismaClient: class {
@@ -156,7 +200,7 @@ async function runCli(script: string, outcomes: Array<EnrichmentResult | Error>)
     "./fighter-name-matching": { findExactFighterMatch: () => null },
     "./espn-roster-utils": { collectScoreboardCompetitors: () => fighters.map(f => ({ espnId: f.espnId, fullName: f.name })) },
     "./espn-enrich": {
-      ESPN_FIGHTER_SELECT, needsEspnBackfill, REQUEST_DELAY_MS: 0, sleep: async () => {}, fetchJson: async () => ({}),
+      ESPN_FIGHTER_SELECT, needsEspnBackfill, isProfileIncomplete, REQUEST_DELAY_MS: 0, sleep: async () => {}, fetchJson: async () => ({}),
       enrichFighter: async (_prisma: unknown, fighter: { id: string }) => {
         const result = outcomes[Number(fighter.id)];
         if (result instanceof Error) throw result;
@@ -193,6 +237,20 @@ test("sync-roster отличает обновления от холостых п
   ]);
   assert.match(result.output, /updated=1 unchanged=1 photoFailed=1 failed=0/);
   assert.equal(result.exitCode, 0);
+});
+
+test("sync-roster --only-missing пропускает полные карточки и сужает окно скорборда", async () => {
+  const result = await runCli(
+    "scripts/sync-espn-roster.js",
+    [
+      { changedFields: ["record"], filledFields: [], photoError: null },
+      { changedFields: ["record"], filledFields: [], photoError: null }
+    ],
+    { argv: ["--only-missing", "--days-back", "1", "--days-forward", "10"], complete: [0] }
+  );
+  assert.match(result.output, /−1\/\+10 days, only incomplete profiles/);
+  assert.match(result.output, /Matched: 2, unmatched \(not in roster\): 0, enriching: 1/);
+  assert.match(result.output, /updated=1 unchanged=0/);
 });
 
 for (const script of ["scripts/backfill-espn-fighter-data.js", "scripts/sync-espn-roster.js"]) {

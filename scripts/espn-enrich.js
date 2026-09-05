@@ -18,6 +18,7 @@ const ESPN_FIGHTER_SELECT = {
   winsByKnockout: true, winsBySubmission: true, team: true, style: true,
   weightClass: true, country: true, updatedAt: true
 };
+// country входит в выборку не только для сравнения: страну из ESPN пишем лишь в пустое поле.
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,22 +68,41 @@ function needsEspnBackfill(fighter) {
   return missingEspnFields(fighter).length > 0;
 }
 
+// Карточка, которую стоит догнать до турнира: без привязки к ESPN, без рекорда
+// или с пробелами в полях, которые ESPN отдаёт. Бойцы-замены на коротком
+// уведомлении создаются пустыми и попадают сюда (Павел Андруска, 09.2026).
+function isProfileIncomplete(fighter) {
+  return !fighter.espnId || !String(fighter.record || "").trim() || needsEspnBackfill(fighter);
+}
+
+// Что ESPN отдаёт заведомо мусорным: рекорд «0-0-0» у бойца с боями, стойка
+// «--», а гражданство у ESPN бывает просто неверным (Брендан Аллен — «Brazil»),
+// поэтому страну только заполняем, но никогда не перезаписываем.
+function isUsableRecord(record) {
+  return Boolean(record) && record !== "0-0-0";
+}
+
+function isUsableStyle(style) {
+  const value = String(style || "").trim();
+  return Boolean(value) && !/^-+$/.test(value);
+}
+
 async function enrichFighter(prisma, fighter, espnId, dryRun) {
   const payload = await fetchJson(`${ATHLETE_URL}/${espnId}`);
   const profile = extractEspnAthleteProfile(payload);
 
   const data = { espnId };
 
-  if (profile.record) data.record = profile.record;
+  if (isUsableRecord(profile.record)) data.record = profile.record;
   if (profile.age) data.age = profile.age;
   if (profile.heightCm) data.heightCm = profile.heightCm;
   if (profile.reachCm) data.reachCm = profile.reachCm;
   if (profile.koWins !== null) data.winsByKnockout = profile.koWins;
   if (profile.subWins !== null) data.winsBySubmission = profile.subWins;
   if (profile.team?.trim()) data.team = profile.team.trim();
-  if (profile.style) data.style = profile.style;
+  if (isUsableStyle(profile.style)) data.style = profile.style.trim();
   if (profile.weightClass) data.weightClass = profile.weightClass;
-  if (profile.country) data.country = normalizeCountry(profile.country);
+  if (profile.country && !String(fighter.country || "").trim()) data.country = normalizeCountry(profile.country);
 
   let photoError = null;
   if (!hasUsablePhoto(fighter.photoUrl) && hasUsablePhoto(profile.photoUrl)) {
@@ -128,6 +148,7 @@ module.exports = {
   enrichFighter,
   fetchJson,
   hasUsablePhoto,
+  isProfileIncomplete,
   needsEspnBackfill,
   sleep
 };

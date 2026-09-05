@@ -267,6 +267,24 @@ case "${TASK}" in
     fi
     ;;
 
+  sync-roster-upcoming)
+    log "Starting sync-roster-upcoming"
+    # Ежедневно, напрямую к скрипту: участники турниров ближайших 10 дней,
+    # только неполные карточки (без привязки к ESPN, рекорда, фото или
+    # антропометрии). Замены на коротком уведомлении иначе доходят до прогноза
+    # пустыми, а еженедельный sync-roster догоняет их уже после боя.
+    output=$(cd /opt/fightbase && node scripts/sync-espn-roster.js --days-back 1 --days-forward 10 --only-missing 2>&1) || {
+      log "sync-roster-upcoming FAILED: ${output}"
+      send_tg_alert "❌ Карточки к ближайшим турнирам: сбой синхронизации"
+      exit 1
+    }
+    log "sync-roster-upcoming: ${output}"
+    updated="$(echo "${output}" | sed -n 's/.*updated=\([0-9]*\).*/\1/p' | tail -n 1)"
+    if [ "${updated:-0}" != "0" ]; then
+      send_tg_alert "✅ Карточки к ближайшим турнирам: обновлено ${updated}"
+    fi
+    ;;
+
   sync-fight-history)
     log "Starting sync-fight-history"
     # Идёт напрямую к скрипту, а не через /api/cron: источник здесь ESPN, и

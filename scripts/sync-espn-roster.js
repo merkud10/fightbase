@@ -10,13 +10,19 @@
 // бойцам без фото.
 //
 // Запуск: node scripts/sync-espn-roster.js [--limit N] [--dry-run]
+//   [--days-back N] [--days-forward N] [--only-missing]
+// Еженедельный крон идёт с окном по умолчанию (−45/+60 дней) по всем
+// участникам. Ежедневный точечный прогон (cron-tasks.sh sync-roster-upcoming)
+// берёт узкое окно вперёд и только неполные карточки: так замены на коротком
+// уведомлении получают рекорд, антропометрию и фото до турнира, а не в
+// понедельник после него.
 
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
 const { findExactFighterMatch } = require("./fighter-name-matching");
 const { collectScoreboardCompetitors } = require("./espn-roster-utils");
-const { enrichFighter, fetchJson, ESPN_FIGHTER_SELECT, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
+const { enrichFighter, fetchJson, isProfileIncomplete, ESPN_FIGHTER_SELECT, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
 
 const prisma = new PrismaClient();
 
@@ -29,9 +35,9 @@ function toDateStr(date) {
   return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-async function collectRecentCompetitors() {
-  const from = new Date(Date.now() - DAYS_BACK * 24 * 60 * 60 * 1000);
-  const to = new Date(Date.now() + DAYS_FORWARD * 24 * 60 * 60 * 1000);
+async function collectRecentCompetitors({ daysBack = DAYS_BACK, daysForward = DAYS_FORWARD } = {}) {
+  const from = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+  const to = new Date(Date.now() + daysForward * 24 * 60 * 60 * 1000);
   const byId = new Map();
 
   for (let start = new Date(from); start < to; ) {
@@ -57,9 +63,12 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const limit = Number(args.limit || 0) || null;
   const dryRun = Boolean(args["dry-run"]) || String(args.dry || "") === "true";
+  const onlyMissing = Boolean(args["only-missing"]);
+  const daysBack = args["days-back"] === undefined ? DAYS_BACK : Math.max(0, Number(args["days-back"]) || 0);
+  const daysForward = args["days-forward"] === undefined ? DAYS_FORWARD : Math.max(1, Number(args["days-forward"]) || DAYS_FORWARD);
 
-  console.log("Collecting competitors from ESPN scoreboard...");
-  const competitors = await collectRecentCompetitors();
+  console.log(`Collecting competitors from ESPN scoreboard (−${daysBack}/+${daysForward} days${onlyMissing ? ", only incomplete profiles" : ""})...`);
+  const competitors = await collectRecentCompetitors({ daysBack, daysForward });
   console.log(`Found ${competitors.length} athletes on recent/upcoming cards`);
 
   const fighters = await prisma.fighter.findMany({
@@ -92,7 +101,8 @@ async function main() {
 
   // Сначала самые залежавшиеся профили — чтобы лимит расходовался с пользой.
   matched.sort((a, b) => new Date(a.fighter.updatedAt) - new Date(b.fighter.updatedAt));
-  const batch = limit ? matched.slice(0, limit) : matched;
+  const eligible = onlyMissing ? matched.filter(({ fighter }) => isProfileIncomplete(fighter)) : matched;
+  const batch = limit ? eligible.slice(0, limit) : eligible;
 
   console.log(`Matched: ${matched.length}, unmatched (not in roster): ${unmatched}, enriching: ${batch.length}`);
 
