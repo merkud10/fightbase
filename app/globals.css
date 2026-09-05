@@ -4210,3 +4210,15 @@ th {
     gap: 4px;
   }
 }
+
+/* Пик модели в таблице карда турнира */
+.event-table-pick {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.event-table-pick strong {
+  color: var(--text);
+}

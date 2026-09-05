@@ -10,6 +10,7 @@ import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData, resolveEventSlugRedirect } from "@/lib/db";
+import { describeFightPick, summarizeEventPicks } from "@/lib/event-picks";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
@@ -53,10 +54,22 @@ export async function generateMetadata({
         ? ` Главный кард — ${formatCardNightLabel(event.mainCardAt, "ru")}, в ${formatCardTime(event.mainCardAt, "ru")} мск.`
         : ` Main card starts ${formatCardNightLabel(event.mainCardAt, "en")} at ${formatCardTime(event.mainCardAt, "en")} UTC.`
       : "";
+  const mainEvent = orderedFights[0];
+  const mainEventLine = mainEvent
+    ? locale === "ru"
+      ? ` Главный бой: ${getDisplayName(mainEvent.fighterA, locale)} — ${getDisplayName(mainEvent.fighterB, locale)}.`
+      : ` Main event: ${getDisplayName(mainEvent.fighterA, locale)} vs ${getDisplayName(mainEvent.fighterB, locale)}.`
+    : "";
+  const dateLabel = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(event.date);
+  const location = formatEventLocation(event.city, event.venue, locale);
   const description =
     locale === "ru"
-      ? `${event.name}: турнир UFC, дата, место проведения, кард из ${fightCount} боев, прогнозы и связанные материалы FightBase Media.${startLine}`
-      : `${event.name}: UFC event page with date, venue, ${fightCount}-fight card, predictions, and related coverage from FightBase Media.${startLine}`;
+      ? isCompleted
+        ? `${event.name}: результаты всех ${fightCount} боёв, ${dateLabel}${location ? `, ${location}` : ""}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
+        : `${event.name}: ${dateLabel}${location ? `, ${location}` : ""}. Кард из ${fightCount} боёв, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
+      : isCompleted
+        ? `${event.name}: results of all ${fightCount} fights, ${dateLabel}${location ? `, ${location}` : ""}.${mainEventLine} FightBase AI pick tally and fight breakdowns.`
+        : `${event.name}: ${dateLabel}${location ? `, ${location}` : ""}. ${fightCount}-fight card, start times, FightBase picks for every bout.${mainEventLine}${startLine}`;
 
   const title = isCompleted
     ? locale === "ru"
@@ -129,6 +142,27 @@ export default async function EventPage({
       url: `${siteUrl}${localizePath(`/fighters/${fighter.slug}`, locale)}`
     }));
   const leadFight = orderedFights[0];
+  const isCompleted = event.status === "completed";
+  const picks = summarizeEventPicks(orderedFights);
+  const leadPick = leadFight ? describeFightPick(leadFight) : null;
+  const dateLabel = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(event.date);
+  const fightWord = (count: number) =>
+    locale === "ru" ? `${count} ${count % 10 === 1 && count % 100 !== 11 ? "бой" : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? "боя" : "боёв"}` : `${count} fights`;
+  const heroBits = [
+    dateLabel,
+    formatEventLocation(event.city, event.venue, locale),
+    leadFight
+      ? `${locale === "ru" ? "Главный бой" : "Main event"}: ${getDisplayName(leadFight.fighterA, locale)} vs ${getDisplayName(leadFight.fighterB, locale)}`
+      : null,
+    orderedFights.length > 0 ? fightWord(orderedFights.length) : null
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
   const cardImages = [leadFight?.fighterA?.photoUrl, leadFight?.fighterB?.photoUrl]
     .filter((url): url is string => isUsablePhoto(url))
     .map((url) => toAbsoluteUrl(url, siteUrl));
@@ -153,18 +187,25 @@ export default async function EventPage({
       <JsonLd data={breadcrumbJsonLd} />
       {eventJsonLd && <JsonLd data={eventJsonLd} />}
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero
-        eyebrow={event.promotion.shortName}
-        title={event.name}
-        description={[
-          event.promotion.shortName,
-          formatEventLocation(event.city, event.venue, locale),
-          (event.summary || "").replace(/\.\.+$/, ".")
-        ]
-          .map((part) => String(part || "").trim())
-          .filter(Boolean)
-          .join(" · ")}
-      />
+      <PageHero eyebrow={event.promotion.shortName} title={event.name} description={heroBits.join(" · ")} />
+
+      {isCompleted ? (
+        <section className="policy-card" aria-label={locale === "ru" ? "Итоги турнира" : "Event recap"}>
+          <p className="kicker">{locale === "ru" ? "Итоги турнира" : "Event recap"}</p>
+          <p className="copy">
+            {locale === "ru"
+              ? `Турнир завершён: ${fightWord(orderedFights.length)}, результаты в карде ниже.`
+              : `The event is over: ${fightWord(orderedFights.length)}, results are in the card below.`}
+            {picks.judged > 0
+              ? locale === "ru"
+                ? ` ИИ-модель FightBase угадала победителя в ${picks.correct} из ${picks.judged} боёв${picks.upsets > 0 ? `, включая ${picks.upsets} ${picks.upsets === 1 ? "апсет" : picks.upsets < 5 ? "апсета" : "апсетов"}` : ""}.`
+                : ` The FightBase AI model called ${picks.correct} of ${picks.judged} bouts${picks.upsets > 0 ? `, including ${picks.upsets} upset${picks.upsets === 1 ? "" : "s"}` : ""}.`
+              : ""}
+            {" "}
+            <Link href={localizePath("/predictions/accuracy", locale)}>{locale === "ru" ? "История точности →" : "Accuracy history →"}</Link>
+          </p>
+        </section>
+      ) : null}
 
       {event.status !== "completed" && hasCardTimes(event) ? (
         <section className="policy-card" aria-label={locale === "ru" ? "Во сколько начнётся" : "Start times"}>
@@ -206,9 +247,17 @@ export default async function EventPage({
             <div>
               <h3>{locale === "ru" ? "Кард турнира" : "Fight card"}</h3>
               <p className="copy">
-                {locale === "ru"
-                  ? "Готовая страница прогноза появляется после суточного обновления коэффициентов и snapshot-данных."
-                  : "A dedicated prediction page appears after the daily odds and snapshot update."}
+                {isCompleted
+                  ? locale === "ru"
+                    ? "Победитель, метод и раунд по каждому бою; у боёв с прогнозом отмечен пик ИИ-модели FightBase."
+                    : "Winner, method and round for every fight; bouts with a prediction show the FightBase AI pick."
+                  : picks.withPicks > 0
+                    ? locale === "ru"
+                      ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся после обновления карда.`
+                      : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest follow the next card update.`
+                    : locale === "ru"
+                      ? "Прогнозы появятся после объявления полного карда."
+                      : "Predictions appear once the full card is announced."}
               </p>
             </div>
             <Link href={localizePath("/predictions", locale)} className="button-secondary">
@@ -247,28 +296,50 @@ export default async function EventPage({
                     <td>{formatWeightClass(fight.weightClass, locale)}</td>
                     <td>{formatFightStatus(fight.status, locale)}</td>
                     <td>
-                      {fight.status === "completed" && fight.winnerFighterId ? (
-                        <span className="event-table-result">
-                          <strong>
-                            {fight.winnerFighterId === fight.fighterAId
-                              ? (locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name)
-                              : (locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name)}
-                          </strong>
-                          {fight.method ? ` — ${formatFightMethod(fight.method, locale)}` : ""}
-                          {fight.resultRound ? `, R${fight.resultRound}` : ""}
-                          {fight.resultTime ? ` ${fight.resultTime}` : ""}
-                        </span>
-                      ) : fight.status === "completed" ? (
-                        <span className="event-table-result">
-                          {formatWinnerlessFightResult(fight.resultType, locale)}
-                        </span>
-                      ) : fight.predictionSnapshot ? (
-                        <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
-                          {locale === "ru" ? "Открыть прогноз" : "Open prediction"}
-                        </Link>
-                      ) : (
+                      {(() => {
+                        const pick = describeFightPick(fight);
+                        const pickName = pick
+                          ? getDisplayName(pick.side === "A" ? fight.fighterA : fight.fighterB, locale)
+                          : null;
+                        const pickMark = pick?.verdict === "correct" ? " ✓" : pick?.verdict === "wrong" ? " ✗" : "";
+                        return fight.status === "completed" && fight.winnerFighterId ? (
+                          <span className="event-table-result">
+                            <strong>
+                              {fight.winnerFighterId === fight.fighterAId
+                                ? getDisplayName(fight.fighterA, locale)
+                                : getDisplayName(fight.fighterB, locale)}
+                            </strong>
+                            {fight.method ? ` — ${formatFightMethod(fight.method, locale)}` : ""}
+                            {fight.resultRound ? `, R${fight.resultRound}` : ""}
+                            {fight.resultTime ? ` ${fight.resultTime}` : ""}
+                            {pickName ? (
+                              <span className="event-table-pick">
+                                {locale === "ru" ? "пик" : "pick"}: {pickName}
+                                {pickMark}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : fight.status === "completed" ? (
+                          <span className="event-table-result">
+                            {formatWinnerlessFightResult(fight.resultType, locale)}
+                          </span>
+                        ) : fight.predictionSnapshot ? (
+                          <span className="event-table-result">
+                            {pickName ? (
+                              <span className="event-table-pick">
+                                {locale === "ru" ? "Пик" : "Pick"}: <strong>{pickName}</strong>
+                                {pick?.percent ? ` · ${pick.percent}%` : ""}
+                              </span>
+                            ) : null}
+                            <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
+                              {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
+                            </Link>
+                          </span>
+                        ) : null;
+                      })()}
+                      {fight.status !== "completed" && !fight.predictionSnapshot ? (
                         <span className="event-table-pending">{locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}</span>
-                      )}
+                      ) : null}
                       <Link
                         href={localizePath(
                           `/compare/${buildPairSlug(fight.fighterA.slug, fight.fighterB.slug)}`,
@@ -287,14 +358,38 @@ export default async function EventPage({
         </article>
 
         <aside className="stack">
-          <div className="policy-card">
-            <h3>{locale === "ru" ? "Фокус на главных матчапах" : "Focus on the key matchups"}</h3>
-            <p className="copy">
-              {locale === "ru"
-                ? "На странице турнира собран весь основной контекст: кард, готовые прогнозы и материалы, которые помогают быстро оценить важнейшие бои вечера."
-                : "The event page gathers the practical context that matters most: fight card, prediction pages, and coverage around the key matchups."}
-            </p>
-          </div>
+          {leadFight ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Главный бой" : "Main event"}</h3>
+              <p className="copy">
+                <strong>
+                  {getDisplayName(leadFight.fighterA, locale)} vs {getDisplayName(leadFight.fighterB, locale)}
+                </strong>
+                {" · "}
+                {formatWeightClass(leadFight.weightClass, locale)}
+                {leadPick ? (
+                  <>
+                    <br />
+                    {locale === "ru" ? "Пик ИИ-модели FightBase" : "FightBase AI pick"}:{" "}
+                    <strong>{getDisplayName(leadPick.side === "A" ? leadFight.fighterA : leadFight.fighterB, locale)}</strong>
+                    {leadPick.percent ? ` (${leadPick.percent}%)` : ""}
+                    {leadPick.verdict === "correct" ? (locale === "ru" ? " — угадан" : " — correct") : leadPick.verdict === "wrong" ? (locale === "ru" ? " — не угадан" : " — missed") : ""}
+                  </>
+                ) : null}
+              </p>
+              <p className="copy">
+                {leadFight.predictionSnapshot && leadFight.slug ? (
+                  <Link href={localizePath(`/predictions/${event.slug}/${leadFight.slug}`, locale)}>
+                    {locale === "ru" ? "Разбор и прогноз боя →" : "Breakdown and pick →"}
+                  </Link>
+                ) : (
+                  <Link href={localizePath(`/compare/${buildPairSlug(leadFight.fighterA.slug, leadFight.fighterB.slug)}`, locale)}>
+                    {locale === "ru" ? "Сравнить бойцов →" : "Compare fighters →"}
+                  </Link>
+                )}
+              </p>
+            </div>
+          ) : null}
           <div className="policy-card">
             <h3>{locale === "ru" ? "Быстрые переходы к прогнозам" : "Quick prediction links"}</h3>
             <ul className="event-side-list">
