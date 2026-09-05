@@ -10,9 +10,10 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
-import { getFighterPageData } from "@/lib/db";
+import { getFighterPageData, getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
+import { buildFighterSeo, findFighterRanking } from "@/lib/fighter-seo";
 import { getNamedCuratedComparisonPairs } from "@/lib/db/comparison";
-import { formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
+import { formatFightMethod, formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -156,7 +157,8 @@ function translateFightMethod(method: string | null | undefined, locale: "ru" | 
     return "Остановка ударами";
   }
 
-  return value;
+  // Общий словарь и развёрнутые строки вида «three round technical decision».
+  return formatFightMethod(value, locale);
 }
 
 function translateFightNote(note: string | null | undefined, locale: "ru" | "en", fighterName: string) {
@@ -331,6 +333,47 @@ function buildEnglishFighterBio(fighter: {
   return parts.join(" ");
 }
 
+// Заголовок, описание и строка под именем — под запрос-имя из поиска: рекорд,
+// позиция в рейтинге, страна, возраст, ближайший или последний бой.
+async function resolveFighterSeo(data: NonNullable<Awaited<ReturnType<typeof getFighterPageData>>>, locale: "ru" | "en") {
+  const { fighter, nextFight, profileRecentFights } = data;
+  const [snapshot, links] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
+  const ranking = findFighterRanking(
+    snapshot?.groups ?? [],
+    (officialSlug, name) => links.bySlug.get(officialSlug.toLowerCase())?.localSlug ?? links.byName.get(name.toLowerCase())?.localSlug ?? null,
+    fighter.slug
+  );
+  const opponent = nextFight ? (nextFight.fighterAId === fighter.id ? nextFight.fighterB : nextFight.fighterA) : null;
+  const lastFight = profileRecentFights[0] ?? null;
+
+  return buildFighterSeo({
+    fighter: {
+      name: fighter.name,
+      nameRu: fighter.nameRu,
+      nickname: fighter.nickname,
+      record: fighter.record,
+      weightClass: fighter.weightClass,
+      country: fighter.country,
+      age: fighter.age,
+      team: fighter.team,
+      status: fighter.status
+    },
+    ranking,
+    nextFight:
+      nextFight && opponent
+        ? { opponentName: getDisplayName(opponent, locale), eventName: nextFight.event.name, dateLabel: formatDate(nextFight.event.date, locale) }
+        : null,
+    lastFight: lastFight
+      ? {
+          opponentName: cleanOpponentName(locale === "ru" ? lastFight.opponentNameRu ?? lastFight.opponentName : lastFight.opponentName),
+          result: lastFight.result,
+          dateLabel: formatDate(lastFight.date, locale)
+        }
+      : null,
+    locale
+  });
+}
+
 export async function generateMetadata({
   params
 }: {
@@ -347,13 +390,11 @@ export async function generateMetadata({
 
   const { fighter } = data;
   const title = fighter.nameRu ? `${fighter.nameRu} (${fighter.name})` : fighter.name;
-  const description =
-    locale === "ru"
-      ? `${title}: профиль бойца UFC, рекорд ${fighter.record || "не указан"}, весовая категория ${formatWeightClass(fighter.weightClass, locale).toLowerCase()}, статистика, последние бои и связанные материалы.`
-      : `${title}: UFC fighter profile with record ${fighter.record || "not listed"}, weight class, statistics, recent fights, and related coverage.`;
+  const seo = await resolveFighterSeo(data, locale);
+  const description = seo.description;
 
   return {
-    title: locale === "ru" ? `${title}: статистика и профиль UFC` : `${title}: UFC stats and profile`,
+    title: seo.title,
     description,
     alternates: {
       ...buildLocaleAlternates(`/fighters/${fighter.slug}`),
@@ -441,12 +482,8 @@ export default async function FighterPage({
         : hasCyrillic(fighter.bio)
         ? buildEnglishFighterBio(fighter)
         : fighter.bio;
-  const descriptionBits = [
-    fighter.record || null,
-    formatWeightClass(fighter.weightClass, locale),
-    fighter.style || null,
-    fighter.team || null
-  ].filter(Boolean);
+  const seo = await resolveFighterSeo(data, locale);
+  const descriptionBits = seo.heroBits;
 
   const hasVitals = Boolean(fighter.age || fighter.heightCm || fighter.reachCm || fighter.country);
   const hasProfileRecentFights = profileRecentFights.length > 0;
@@ -483,7 +520,7 @@ export default async function FighterPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={personJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" - ")} />
+      <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" · ")} />
 
       {nextFight && nextFightOpponent ? (
         <section className="policy-card" aria-label={locale === "ru" ? "Следующий бой" : "Next fight"}>

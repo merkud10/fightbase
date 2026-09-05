@@ -232,9 +232,33 @@ export function formatWeightClass(value: string, locale: Locale) {
   return localized;
 }
 
+const ROUND_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+const DECISION_KINDS: Record<string, { ru: string; en: string }> = {
+  unanimous: { ru: "Единогласное решение", en: "Unanimous decision" },
+  split: { ru: "Раздельное решение", en: "Split decision" },
+  majority: { ru: "Решение большинства", en: "Majority decision" },
+  technical: { ru: "Техническое решение", en: "Technical decision" }
+};
+
+function roundsLabel(rounds: number, locale: Locale) {
+  if (locale !== "ru") return `${rounds} rounds`;
+  return `${rounds} ${rounds === 1 ? "раунд" : rounds >= 2 && rounds <= 4 ? "раунда" : "раундов"}`;
+}
+
 export function formatFightMethod(value: string | null | undefined, locale: Locale) {
   if (!value) return "";
-  return localizeFromMap(fightMethodMap, value, locale);
+  const mapped = localizeFromMap(fightMethodMap, value, locale);
+  if (mapped !== value) return mapped;
+  // Источник Q&A отдаёт развёрнутые строки вида «three round technical decision».
+  const verbose = value.trim().toLowerCase().match(/^(one|two|three|four|five)\s+round\s+(unanimous|split|majority|technical)\s+decision$/);
+  if (verbose) {
+    const rounds = ROUND_WORDS[verbose[1] ?? ""] ?? 0;
+    const kind = DECISION_KINDS[verbose[2] ?? ""];
+    if (rounds && kind) {
+      return `${kind[locale]} (${roundsLabel(rounds, locale)})`;
+    }
+  }
+  return value;
 }
 
 export function formatFighterStatus(value: string, locale: Locale) {
