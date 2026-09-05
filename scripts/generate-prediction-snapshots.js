@@ -22,23 +22,17 @@ function readEnv(name, fallback = "") {
   return process.env[name] || readEnvValueFromFile(name) || fallback;
 }
 
-const { computeAiContentHash, generateAiPredictionCopy, isPlaceholderFight } = require("./prediction-ai-copy");
+const {
+  computeAiContentHash,
+  generateAiPredictionCopy,
+  isPlaceholderFight,
+  resolvePredictionAiConfig
+} = require("./prediction-ai-copy");
 
-// Прогнозы (пик и тексты) остаются на DeepSeek и при AI_PROVIDER=codex: смена модели
-// пика меняет отслеживаемую точность «модели FightBase», это отдельное решение.
-const PREDICTION_AI_PROVIDERS = new Set(["deepseek", "codex"]);
-
+// Провайдер и модель прогнозов задаются отдельно от новостей: PREDICTION_AI_PROVIDER,
+// PREDICTION_AI_MODEL (см. resolvePredictionAiConfig).
 function getAiCopyConfig() {
-  if (readEnv("PREDICTION_AI_COPY", "1").trim() === "0") return null;
-  if (!PREDICTION_AI_PROVIDERS.has(readEnv("AI_PROVIDER", "").trim().toLowerCase())) return null;
-  const apiKey = readEnv("DEEPSEEK_API_KEY", "").trim();
-  if (!apiKey) return null;
-  return {
-    apiKey,
-    baseUrl: readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-    model: readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim(),
-    timeoutMs: Number(readEnv("PREDICTION_AI_TIMEOUT_MS", "60000")) || 60000
-  };
+  return resolvePredictionAiConfig(readEnv);
 }
 
 function parseArgs(argv) {

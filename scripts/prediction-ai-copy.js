@@ -284,11 +284,55 @@ async function generateAiPredictionCopy({ fight, config, fetchImpl = fetch }) {
   return null;
 }
 
+/**
+ * Конфиг провайдера для пика и текстов прогноза. Отдельные переменные, чтобы прогнозы
+ * могли жить на другой модели, чем новости:
+ *   PREDICTION_AI_COPY=0 — выключить генерацию;
+ *   PREDICTION_AI_PROVIDER — codex | deepseek, по умолчанию AI_PROVIDER;
+ *   PREDICTION_AI_MODEL — модель, по умолчанию CODEX_BRIDGE_MODEL / DEEPSEEK_MODEL;
+ *   PREDICTION_AI_TIMEOUT_MS — таймаут одного запроса.
+ * Фолбэка между провайдерами намеренно нет: пик должен приходить от одной модели.
+ */
+function resolvePredictionAiConfig(readEnv) {
+  if (readEnv("PREDICTION_AI_COPY", "1").trim() === "0") return null;
+  const provider = readEnv("PREDICTION_AI_PROVIDER", "").trim().toLowerCase() || readEnv("AI_PROVIDER", "").trim().toLowerCase();
+  const timeoutMs = Number(readEnv("PREDICTION_AI_TIMEOUT_MS", "60000")) || 60000;
+  const modelOverride = readEnv("PREDICTION_AI_MODEL", "").trim();
+
+  if (provider === "codex") {
+    const baseUrl = readEnv("CODEX_BRIDGE_URL", "").trim();
+    const apiKey = readEnv("CODEX_BRIDGE_TOKEN", "").trim();
+    if (!baseUrl || !apiKey) return null;
+    return {
+      provider,
+      baseUrl,
+      apiKey,
+      model: modelOverride || readEnv("CODEX_BRIDGE_MODEL", "gpt-5.3-codex-spark").trim(),
+      timeoutMs
+    };
+  }
+
+  if (provider === "deepseek") {
+    const apiKey = readEnv("DEEPSEEK_API_KEY", "").trim();
+    if (!apiKey) return null;
+    return {
+      provider,
+      baseUrl: readEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+      apiKey,
+      model: modelOverride || readEnv("DEEPSEEK_MODEL", "deepseek-chat").trim(),
+      timeoutMs
+    };
+  }
+
+  return null;
+}
+
 module.exports = {
   buildFightFactPack,
   computeAiContentHash,
   buildPrompt,
   isPlaceholderFight,
   validateAiCopy,
-  generateAiPredictionCopy
+  generateAiPredictionCopy,
+  resolvePredictionAiConfig
 };

@@ -315,3 +315,57 @@ test("known Latin athlete names do not count as untranslated prose", () => {
   assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli должен удерживать дистанцию и сохранять темп." }, pack).ok, true);
   assert.equal(validateAiCopy({ ...validCopy(), pathA: "Mehemmedeli Osmanli should keep his distance and maintain a high pace throughout this fight." }, pack).ok, false);
 });
+
+const { resolvePredictionAiConfig } = require("../scripts/prediction-ai-copy.js");
+
+function envReader(values: Record<string, string>) {
+  return (name: string, fallback = "") => values[name] || fallback;
+}
+
+const bridgeEnv = {
+  AI_PROVIDER: "codex",
+  CODEX_BRIDGE_URL: "http://127.0.0.1:8787",
+  CODEX_BRIDGE_TOKEN: "bridge-token",
+  CODEX_BRIDGE_MODEL: "gpt-5.6-terra",
+  DEEPSEEK_API_KEY: "ds-key",
+  DEEPSEEK_MODEL: "deepseek-chat"
+};
+
+test("resolvePredictionAiConfig: PREDICTION_AI_COPY=0 disables generation", () => {
+  assert.equal(resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_COPY: "0" })), null);
+});
+
+test("resolvePredictionAiConfig: provider inherits AI_PROVIDER=codex and uses the bridge", () => {
+  const config = resolvePredictionAiConfig(envReader(bridgeEnv));
+  assert.deepEqual(config, {
+    provider: "codex",
+    baseUrl: "http://127.0.0.1:8787",
+    apiKey: "bridge-token",
+    model: "gpt-5.6-terra",
+    timeoutMs: 60000
+  });
+});
+
+test("resolvePredictionAiConfig: PREDICTION_AI_MODEL overrides the provider default model", () => {
+  const config = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_MODEL: "gpt-6-astra", PREDICTION_AI_TIMEOUT_MS: "90000" }));
+  assert.equal(config?.model, "gpt-6-astra");
+  assert.equal(config?.timeoutMs, 90000);
+});
+
+test("resolvePredictionAiConfig: PREDICTION_AI_PROVIDER=deepseek keeps predictions on DeepSeek", () => {
+  const config = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_PROVIDER: "deepseek" }));
+  assert.deepEqual(config, {
+    provider: "deepseek",
+    baseUrl: "https://api.deepseek.com",
+    apiKey: "ds-key",
+    model: "deepseek-chat",
+    timeoutMs: 60000
+  });
+});
+
+test("resolvePredictionAiConfig: missing credentials or unknown provider yield null", () => {
+  assert.equal(resolvePredictionAiConfig(envReader({ AI_PROVIDER: "codex", DEEPSEEK_API_KEY: "ds-key" })), null);
+  assert.equal(resolvePredictionAiConfig(envReader({ AI_PROVIDER: "deepseek" })), null);
+  assert.equal(resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_PROVIDER: "alibaba" })), null);
+  assert.equal(resolvePredictionAiConfig(envReader({ ...bridgeEnv, AI_PROVIDER: "" })), null);
+});
