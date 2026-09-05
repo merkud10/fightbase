@@ -63,6 +63,8 @@ export function getEnvironmentReport() {
   const cronSecret = readEnv(process.env.INGEST_CRON_SECRET);
   const openAiKey = readEnv(process.env.OPENAI_API_KEY);
   const ollamaUrl = readEnv(process.env.OLLAMA_URL);
+  const codexBridgeUrl = readEnv(process.env.CODEX_BRIDGE_URL);
+  const codexBridgeToken = readEnv(process.env.CODEX_BRIDGE_TOKEN);
   const deployment = getDeploymentEnvironment();
   const databaseKind = detectDatabaseKind(databaseUrl);
 
@@ -74,6 +76,7 @@ export function getEnvironmentReport() {
     hasCronSecret: Boolean(cronSecret && cronSecret !== "change-me"),
     hasOpenAiKey: Boolean(openAiKey),
     hasOllama: Boolean(ollamaUrl),
+    hasCodexBridge: Boolean(codexBridgeUrl && codexBridgeToken),
     readyForPublicDeploy:
       deployment === "production"
         ? databaseKind !== "missing" && databaseKind !== "sqlite" && Boolean(siteUrl) && Boolean(cronSecret && cronSecret !== "change-me")
