@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 export const revalidate = 3600;
 
@@ -9,7 +9,7 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
-import { getEventPageData } from "@/lib/db";
+import { getEventPageData, resolveEventSlugRedirect } from "@/lib/db";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
@@ -18,6 +18,13 @@ import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 import { buildTrailBreadcrumbJsonLd, buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
+
+async function redirectRenamedEvent(slug: string, locale: Awaited<ReturnType<typeof getLocale>>) {
+  const target = await resolveEventSlugRedirect(slug);
+  if (target) {
+    permanentRedirect(localizePath(`/events/${target}`, locale));
+  }
+}
 
 export async function generateMetadata({
   params
@@ -29,7 +36,10 @@ export async function generateMetadata({
   const data = await getEventPageData(slug);
 
   if (!data) {
-    // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
+    // Турнир переименовали (объявили главный бой) — старый адрес из выдачи
+    // ведём на новый. Иначе real HTTP 404: metadata resolves before the
+    // streamed shell commits a 200.
+    await redirectRenamedEvent(slug, locale);
     notFound();
   }
 
@@ -92,6 +102,7 @@ export default async function EventPage({
   const data = await getEventPageData(slug);
 
   if (!data) {
+    await redirectRenamedEvent(slug, locale);
     notFound();
   }
 

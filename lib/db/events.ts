@@ -5,6 +5,7 @@ import { eventNightWindowBounds } from "@/lib/event-night";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { addToRoiBucket, emptyRoiBucket, resolvePickRoiUnits, roiPercent } from "@/lib/prediction-roi";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
+import { eventSlugPrefixCandidates, pickFightSlugByTokens } from "@/lib/event-slug-redirect";
 import { predictionStatsDateFilter } from "@/lib/prediction-stats-window";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
@@ -611,4 +612,56 @@ export const getPredictionFightsForFighters = cache(async function getPrediction
       predictionSnapshot: { select: { percentA: true, percentB: true, aiPickFighterId: true } }
     }
   });
+});
+
+// Старый адрес турнира после переименования: алиас из базы, затем расширение
+// старого слага («ufc-330» → «ufc-330-makhachev-…», «…-horiguchi» → «…-2»),
+// затем номер турнира. Возвращает актуальный слаг или null.
+export const resolveEventSlugRedirect = cache(async function resolveEventSlugRedirect(slug: string): Promise<string | null> {
+  const alias = await prisma.eventSlugAlias.findUnique({ where: { slug }, select: { event: { select: { slug: true } } } });
+  if (alias?.event.slug && alias.event.slug !== slug) {
+    return alias.event.slug;
+  }
+
+  for (const prefix of eventSlugPrefixCandidates(slug)) {
+    const matches = await prisma.event.findMany({
+      where: { slug: { startsWith: prefix } },
+      select: { slug: true },
+      take: 2
+    });
+    if (matches.length === 1 && matches[0]?.slug && matches[0].slug !== slug) {
+      return matches[0].slug;
+    }
+  }
+
+  return null;
+});
+
+// Старый адрес прогноза: актуальный турнир (по алиасу или префиксу) и в нём бой
+// с тем же составом по токенам слага. Если бой не нашёлся — страница турнира.
+export const resolvePredictionRedirect = cache(async function resolvePredictionRedirect(
+  eventSlug: string,
+  fightSlug: string
+): Promise<{ eventSlug: string; fightSlug: string | null } | null> {
+  const exact = await prisma.event.findUnique({ where: { slug: eventSlug }, select: { slug: true } });
+  const targetEventSlug = exact?.slug ?? (await resolveEventSlugRedirect(eventSlug));
+  if (!targetEventSlug) {
+    // Турнир не нашёлся, но сам бой мог переехать в другой турнир (перенос карда).
+    const fight = await prisma.fight.findUnique({
+      where: { slug: fightSlug },
+      select: { slug: true, event: { select: { slug: true } }, predictionSnapshot: { select: { fightId: true } } }
+    });
+    return fight ? { eventSlug: fight.event.slug, fightSlug: fight.predictionSnapshot ? fight.slug : null } : null;
+  }
+
+  const fights = await prisma.fight.findMany({
+    where: { event: { slug: targetEventSlug }, slug: { not: null }, predictionSnapshot: { isNot: null } },
+    select: { slug: true }
+  });
+  const candidateSlugs = fights.map((fight) => fight.slug).filter((slug): slug is string => Boolean(slug));
+  const matched = pickFightSlugByTokens(fightSlug, candidateSlugs);
+  if (matched === fightSlug && targetEventSlug === eventSlug) {
+    return null; // адрес и так актуален, значит страницы нет по другой причине
+  }
+  return { eventSlug: targetEventSlug, fightSlug: matched };
 });

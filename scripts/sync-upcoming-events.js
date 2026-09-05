@@ -262,6 +262,16 @@ async function main() {
         await prisma.event.update({ where: { id: matchedEvent.id }, data });
         updated += 1;
         const oldSlug = matchedEvent.slug !== slug ? ` ${matchedEvent.slug} ->` : "";
+        if (matchedEvent.slug !== slug) {
+          // Старый адрес уже мог попасть в выдачу: оставляем алиас для 308-редиректа.
+          await prisma.eventSlugAlias.upsert({
+            where: { slug: matchedEvent.slug },
+            create: { slug: matchedEvent.slug, eventId: matchedEvent.id },
+            update: { eventId: matchedEvent.id }
+          });
+          // Алиас, совпадающий с новым слагом, больше не нужен.
+          await prisma.eventSlugAlias.deleteMany({ where: { slug } });
+        }
         console.log(`[updated]${oldSlug} ${slug}`);
         continue;
       }

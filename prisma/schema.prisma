@@ -196,6 +196,7 @@ model Event {
   fights      Fight[]
   predictionSnapshots FightPredictionSnapshot[]
   articles    Article[]
+  slugAliases EventSlugAlias[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -507,4 +508,14 @@ model UfcAthleteSlugAlias {
   resolvedAt   DateTime @default(now())
 
   @@index([englishSlug])
+}
+
+// Прежние слаги турниров для 308-редиректов после переименования (см. postgres-схему).
+model EventSlugAlias {
+  slug      String   @id
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
 }

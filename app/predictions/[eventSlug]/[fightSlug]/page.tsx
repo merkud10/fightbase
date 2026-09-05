@@ -8,7 +8,12 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
-import { getFightPredictionPageData, getPredictionFallbackEventSlug, getPredictionPageParams } from "@/lib/db";
+import {
+  getFightPredictionPageData,
+  getPredictionFallbackEventSlug,
+  getPredictionPageParams,
+  resolvePredictionRedirect
+} from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -68,13 +73,21 @@ function hasUsablePhoto(url?: string | null) {
   );
 }
 
-// Снимок прогноза удаляется после турнира — адрес, который был в выдаче, не
-// должен превращаться в 404: сам бой остаётся описан на странице события.
+// Адрес из выдачи не должен превращаться в 404: снимок могли удалить после
+// турнира, турнир или бой — переименовать (главный бой объявлен, дубль бойца
+// склеен). Ведём на актуальный прогноз, иначе на страницу турнира.
 async function redirectToEventFallback(eventSlug: string, fightSlug: string, locale: Locale) {
   const fallback = await getPredictionFallbackEventSlug(eventSlug, fightSlug);
-
   if (fallback) {
     permanentRedirect(localizePath(`/events/${fallback}`, locale));
+  }
+
+  const moved = await resolvePredictionRedirect(eventSlug, fightSlug);
+  if (moved?.fightSlug) {
+    permanentRedirect(localizePath(`/predictions/${moved.eventSlug}/${moved.fightSlug}`, locale));
+  }
+  if (moved) {
+    permanentRedirect(localizePath(`/events/${moved.eventSlug}`, locale));
   }
 }
 

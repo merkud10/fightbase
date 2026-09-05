@@ -195,6 +195,7 @@ model Event {
   fights      Fight[]
   predictionSnapshots FightPredictionSnapshot[]
   articles    Article[]
+  slugAliases EventSlugAlias[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -509,4 +510,16 @@ model UfcAthleteSlugAlias {
   resolvedAt   DateTime @default(now())
 
   @@index([englishSlug])
+}
+
+// Прежние слаги турниров: синк переименовывает событие, когда объявляют главный
+// бой («ufc-330» → «ufc-330-makhachev-vs-machado-garry»), а старый адрес уже в
+// выдаче. Страница события и прогнозов ведут по алиасу 308-редиректом.
+model EventSlugAlias {
+  slug      String   @id
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
 }
