@@ -9,8 +9,13 @@ export function PageHero({
 }) {
   const showEyebrow = Boolean(eyebrow && !eyebrow.startsWith("/"));
   const descriptionParts = (description ?? "").split(/\s+(?:В·|·)\s+/).filter(Boolean);
-  const normalizedDescription =
-    descriptionParts.length >= 3 ? descriptionParts.slice(1).join(" · ") : (description ?? "").replace(/\s+В·\s+/g, " · ");
+  // Первую часть убираем только если она дублирует eyebrow («UFC · …»): раньше
+  // она отбрасывалась всегда, и карточка бойца теряла рекорд и позицию в рейтинге.
+  const duplicatesEyebrow =
+    descriptionParts.length >= 3 && Boolean(eyebrow) && descriptionParts[0]?.trim().toLowerCase() === eyebrow?.trim().toLowerCase();
+  const normalizedDescription = duplicatesEyebrow
+    ? descriptionParts.slice(1).join(" · ")
+    : (description ?? "").replace(/\s+В·\s+/g, " · ");
 
   return (
     <section className="page-hero">

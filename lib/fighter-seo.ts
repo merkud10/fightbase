@@ -132,9 +132,8 @@ export function buildFighterSeo({ fighter, ranking, nextFight, lastFight, locale
     if (nextFight) {
       lead.push(`Следующий бой: ${nextFight.opponentName}, ${nextFight.eventName}, ${nextFight.dateLabel}.`);
     } else if (lastFight) {
-      const result = lastFight.result.toLowerCase();
-      const verb = /побед/.test(result) ? "победа над" : /пораж/.test(result) ? "поражение от" : `${result} против`;
-      lead.push(`Последний бой: ${verb} ${lastFight.opponentName}, ${lastFight.dateLabel}.`);
+      // Имя соперника не склоняем: «поражение, Шон О'Мэлли» вместо «от Шон О'Мэлли».
+      lead.push(`Последний бой: ${lastFight.opponentName}, ${lastFight.result.toLowerCase()}, ${lastFight.dateLabel}.`);
     }
     lead.push("Статистика UFC, последние бои, параметры и прогнозы FightBase.");
   } else {

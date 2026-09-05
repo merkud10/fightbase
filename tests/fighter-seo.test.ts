@@ -68,7 +68,7 @@ test("buildFighterSeo handles a champion without next fight and falls back to th
   });
   assert.equal(seo.title, "Мераб Двалишвили (Merab Dvalishvili): рекорд 20-4-0, статистика и бои UFC");
   assert.match(seo.description, /чемпион UFC в легчайшем весе/);
-  assert.match(seo.description, /Последний бой: победа над Шон О'Мэлли, 25 января 2026\./);
+  assert.match(seo.description, /Последний бой: Шон О'Мэлли, победа, 25 января 2026\./);
   assert.equal(seo.heroBits[0], "Чемпион UFC");
 });
 
