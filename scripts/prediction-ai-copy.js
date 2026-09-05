@@ -152,9 +152,14 @@ function validateAiCopy(parsed, pack) {
 
   const combined = [...COPY_FIELDS.map((field) => copy[field]), pickReason].join("\n");
   // У проспектов имя пока может быть только латиницей. Имя из факт-пакета
-  // не является непереведённым текстом, остальная проза проверяется целиком.
-  const proseLatinShare = (text) => latinShare(pack.fighters.reduce(
-    (value, fighter) => fighter.name ? value.split(fighter.name).join("") : value, text
+  // не является непереведённым текстом: вырезаем и полное имя, и каждое его
+  // слово по отдельности (модель пишет «Moreno», «Isaac Moreno's»), остальная
+  // проза проверяется целиком.
+  const nameTokens = pack.fighters.flatMap((fighter) =>
+    [fighter.name, ...String(fighter.name || "").split(/\s+/)].filter((token) => token && token.length >= 2)
+  ).sort((a, b) => b.length - a.length);
+  const proseLatinShare = (text) => latinShare(nameTokens.reduce(
+    (value, token) => value.split(token).join(""), text
   ));
   const worstLatinShare = Math.max(...COPY_FIELDS.map((field) => proseLatinShare(copy[field])), proseLatinShare(pickReason));
   if (worstLatinShare > 0.2) return { ok: false, reason: "latin_share" };

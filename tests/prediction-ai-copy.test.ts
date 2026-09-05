@@ -369,3 +369,30 @@ test("resolvePredictionAiConfig: missing credentials or unknown provider yield n
   assert.equal(resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_PROVIDER: "alibaba" })), null);
   assert.equal(resolvePredictionAiConfig(envReader({ ...bridgeEnv, AI_PROVIDER: "" })), null);
 });
+
+test("validateAiCopy tolerates Latin fighter names used whole or as separate words", () => {
+  const pack = buildFightFactPack(
+    makeFight({
+      isMainEvent: false,
+      stage: "prelim",
+      fighterA: makeFighter({ id: "f-a", name: "Isaac Moreno", nameRu: null, record: "9-1-0", recentFights: [] }),
+      fighterB: makeFighter({ id: "f-b", name: "Reginaldo Junior", nameRu: null, record: "8-2-0", recentFights: [] })
+    })
+  );
+  const copy = {
+    pick: "A",
+    pickReason: "Moreno сохраняет более чистый рекорд и стабильнее защищается от переводов в партер.",
+    overview: "Isaac Moreno и Reginaldo Junior встречаются в предварительном карде, где Moreno подходит с более чистым рекордом и надежной защитой.",
+    keyEdge: "Главное преимущество Moreno заключается в защите от переводов и точности ударов на средней дистанции против Junior.",
+    fightScript: "Junior будет искать перевод в партер, а Moreno постарается удерживать бой в стойке и работать первым номером на дистанции.",
+    pathA: "Isaac Moreno побеждает, если удержит дистанцию, отобьет переводы и наберет очки точными ударами по ходу раундов.",
+    pathB: "Reginaldo Junior побеждает, если переведет бой в партер и удержит контроль до финиша или решения судей."
+  };
+  assert.equal(validateAiCopy(copy, pack).ok, true);
+
+  const englishProse = {
+    ...copy,
+    overview: "Isaac Moreno is the sharper striker here and should control the distance for the whole fight against Reginaldo Junior."
+  };
+  assert.equal(validateAiCopy(englishProse, pack).reason, "latin_share");
+});
