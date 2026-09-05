@@ -147,7 +147,8 @@ test("enrichFighter заполняет пустую страну", async (contex
   const fighter = { ...completeFighter(), country: "" };
   const result = await enrichFighter(fixture.prisma, fighter, fighter.espnId, false);
   assert.deepEqual(result.changedFields, ["country"]);
-  assert.equal(fixture.update.mock.calls[0]?.arguments[0].data.country, "Молдова");
+  const call = fixture.update.mock.calls[0]?.arguments[0] as { data: { country?: string } } | undefined;
+  assert.equal(call?.data.country, "Молдова");
 });
 
 test("enrichFighter игнорирует стойку «--» и рекорд «0-0-0» из ESPN", async (context) => {
