@@ -24,9 +24,13 @@ function readEnv(name, fallback = "") {
 
 const { computeAiContentHash, generateAiPredictionCopy, isPlaceholderFight } = require("./prediction-ai-copy");
 
+// Прогнозы (пик и тексты) остаются на DeepSeek и при AI_PROVIDER=codex: смена модели
+// пика меняет отслеживаемую точность «модели FightBase», это отдельное решение.
+const PREDICTION_AI_PROVIDERS = new Set(["deepseek", "codex"]);
+
 function getAiCopyConfig() {
   if (readEnv("PREDICTION_AI_COPY", "1").trim() === "0") return null;
-  if (readEnv("AI_PROVIDER", "").trim().toLowerCase() !== "deepseek") return null;
+  if (!PREDICTION_AI_PROVIDERS.has(readEnv("AI_PROVIDER", "").trim().toLowerCase())) return null;
   const apiKey = readEnv("DEEPSEEK_API_KEY", "").trim();
   if (!apiKey) return null;
   return {
