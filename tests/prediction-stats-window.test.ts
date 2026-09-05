@@ -18,8 +18,8 @@ test("getPredictionStatsSince parses an ISO date as UTC midnight", () => {
 
 test("predictionStatsSinceNote names the FightBase AI model, never a vendor model", () => {
   const since = new Date("2026-09-05T00:00:00.000Z");
-  const ru = predictionStatsSinceNote(since, "ru");
-  const en = predictionStatsSinceNote(since, "en");
+  const ru = predictionStatsSinceNote(since, "ru") ?? "";
+  const en = predictionStatsSinceNote(since, "en") ?? "";
   assert.match(ru, /с 5 сентября 2026 года/);
   assert.match(ru, /ИИ-модель FightBase/);
   assert.match(en, /since September 5, 2026/);
