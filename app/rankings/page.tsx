@@ -30,11 +30,11 @@ export async function generateMetadata({ searchParams }: RankingsPageProps): Pro
   // рейтинга. Держим его вне индекса так же, как фильтры в /news и /fighters.
   const hasFilters = Boolean(readParam(params.division));
   const canonical = localizePath("/rankings", locale);
-  const title = locale === "ru" ? "Рейтинги UFC" : "UFC Rankings";
+  const title = locale === "ru" ? "Рейтинг UFC по весовым категориям — официальный рейтинг бойцов" : "UFC rankings by weight class — official fighter rankings";
   const description =
     locale === "ru"
-      ? "Официальные рейтинги UFC по дивизионам, чемпионам и претендентам."
-      : "Official UFC rankings by division, champions, and contenders.";
+      ? "Официальный рейтинг бойцов UFC (ЮФС) по всем весовым категориям: чемпионы, топ-15 каждого дивизиона и pound-for-pound, с переходом к профилям бойцов. Обновляется после каждого турнира."
+      : "Official UFC fighter rankings for every weight class: champions, the top 15 of each division and pound-for-pound, with links to fighter profiles. Updated after every event.";
 
   return {
     title,
@@ -132,11 +132,11 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/rankings"
-        title={locale === "ru" ? "Рейтинги" : "Rankings"}
+        title={locale === "ru" ? "Рейтинг UFC по весовым категориям" : "UFC rankings by weight class"}
         description={
           locale === "ru"
-            ? "Официальные рейтинги UFC, а также таблицы по дивизионам с быстрым переходом к профилям бойцов."
-            : "Official UFC rankings, plus divisional tables with quick links to fighter profiles."
+            ? `Официальный рейтинг бойцов UFC (ЮФС): чемпионы и топ-15 в ${allGroups.filter((group) => !isPoundForPoundRankingGroup(group.title)).length} дивизионах плюс pound-for-pound. Каждая строка ведёт в профиль бойца с рекордом, статистикой и ближайшим боем.`
+            : `Official UFC fighter rankings: champions and the top 15 in ${allGroups.filter((group) => !isPoundForPoundRankingGroup(group.title)).length} divisions plus pound-for-pound. Every row links to the fighter profile with record, stats and next fight.`
         }
       />
 

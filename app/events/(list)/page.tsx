@@ -34,8 +34,8 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   const title = locale === "ru" ? `Расписание турниров UFC ${year} — даты, карды и результаты` : `UFC ${year} event schedule`;
   const description =
     locale === "ru"
-      ? `Полное расписание турниров UFC ${year}: даты, время, составы кардов, результаты боёв и отдельные страницы каждого события.`
-      : `The full UFC ${year} schedule with dates, fight cards, results, and dedicated event pages.`;
+      ? `Ближайшие турниры UFC (ЮФС) и полное расписание ${year}: даты, время по Москве, карды, прогнозы FightBase на каждый бой и результаты прошедших событий.`
+      : `Upcoming UFC events and the full ${year} schedule: dates, start times, fight cards, FightBase picks for every bout, and results of past events.`;
 
   return {
     title,
@@ -115,11 +115,17 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       <PageHero
         eyebrow="/events"
         title={locale === "ru" ? "Расписание турниров UFC" : "UFC event schedule"}
-        description={
-          locale === "ru"
-            ? "Даты и время предстоящих турниров UFC, полные карды, результаты прошедших событий и ссылки на связанные материалы."
-            : "Dates and times for upcoming UFC events, full fight cards, results, and links to related coverage."
-        }
+        description={(() => {
+          const nearest = !filters.status && currentPage === 1 ? events.find((event) => event.status !== "completed") : undefined;
+          const nearestLine = nearest
+            ? locale === "ru"
+              ? `Ближайший турнир UFC (ЮФС): ${nearest.name}, ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(nearest.date))}${nearest.mainCardAt ? `, главный кард в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(nearest.mainCardAt))} мск` : ""}. `
+              : `Next UFC event: ${nearest.name}, ${new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(nearest.date))}. `
+            : "";
+          return locale === "ru"
+            ? `${nearestLine}Даты и время по Москве всех предстоящих турниров, полные карды с прогнозами FightBase, результаты прошедших событий.`
+            : `${nearestLine}Dates and start times of upcoming UFC events, full fight cards with FightBase picks, and results of past events.`;
+        })()}
       />
 
       <section className="page-grid">
