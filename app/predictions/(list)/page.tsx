@@ -190,7 +190,6 @@ export default async function PredictionsPage() {
                           className="prediction-match-photo"
                           width={50}
                           height={72}
-                          sizes="50px"
                         />
                       ) : (
                         <div className="prediction-match-photo prediction-match-photo--placeholder">{fighterAName.charAt(0)}</div>
@@ -202,7 +201,6 @@ export default async function PredictionsPage() {
                           className="prediction-match-photo"
                           width={50}
                           height={72}
-                          sizes="50px"
                         />
                       ) : (
                         <div className="prediction-match-photo prediction-match-photo--placeholder">{fighterBName.charAt(0)}</div>

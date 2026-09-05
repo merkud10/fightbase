@@ -211,7 +211,6 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                           className="ranking-champion-photo"
                           width={120}
                           height={120}
-                          sizes="120px"
                           loading="lazy"
                         />
                       ) : null}
@@ -262,7 +261,6 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                                     className="ranking-fighter-photo"
                                     width={52}
                                     height={52}
-                                    sizes="52px"
                                     loading="lazy"
                                   />
                                 ) : (
