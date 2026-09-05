@@ -277,14 +277,16 @@ export async function getAdminArticleEditorData(articleId: string) {
 
 export async function getHomePageData() {
   const [articles, leadArticle, events, fallbackFighters, totalArticles, totalEvents, totalFighters] = await Promise.all([
+    // Главная показывает всю ленту (новости, интервью, аналитику), а не только
+    // рубрику «Новости»: интервью выходят чаще и иначе лента на главной отстаёт.
     prisma.article.findMany({
-      where: { status: "published", category: "news", ...buildPublicArticleImageWhere() },
+      where: { status: "published", ...buildPublicArticleImageWhere() },
       orderBy: { publishedAt: "desc" },
       include: {
         promotion: true,
         tagMap: { include: { tag: true } }
       },
-      take: 12
+      take: 16
     }),
     prisma.article.findFirst({
       where: {
@@ -331,12 +333,14 @@ export async function getHomePageData() {
     prisma.event.count(),
     prisma.fighter.count()
   ]);
-  const visibleArticles = articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 3);
+  const visibleArticles = articles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 6);
   const visibleLeadArticle = leadArticle && hasRenderablePublicArticleImage(leadArticle.coverImageUrl) ? leadArticle : null;
   const orderedEvents = events.map((event) => ({
     ...event,
     fights: sortFightsForCard(event.fights).slice(0, 4)
   }));
+  // Пики на главный кард ближайшего турнира: бои со снапшотом в порядке карда.
+  const leadEventFights = events[0] ? sortFightsForCard(events[0].fights).slice(0, 8) : [];
 
   const leadEvent = orderedEvents[0];
   const eventFighterIds = new Set<string>();
@@ -365,6 +369,7 @@ export async function getHomePageData() {
     articles: visibleArticles,
     leadArticle: visibleLeadArticle,
     events: orderedEvents,
+    leadEventFights,
     fighters: dedupeFightersForPublicList(fighters).slice(0, 4),
     totalArticles,
     totalEvents,
