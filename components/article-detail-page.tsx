@@ -10,7 +10,8 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleRouteBase, resolveMovedArticlePath } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
-import { getArticlePageData, getRelatedArticles } from "@/lib/db";
+import { selectArticleFights } from "@/lib/article-fights";
+import { getArticlePageData, getPredictionFightsForFighters, getRelatedArticles } from "@/lib/db";
 import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -160,12 +161,24 @@ export async function ArticleDetailPage({
     notFound();
   }
 
-  const relatedArticles = await getRelatedArticles({
-    articleId: article.id,
-    category,
-    eventId: article.eventId,
-    fighterIds: article.fighterMap.map(({ fighter }) => fighter.id)
-  });
+  const articleFighterIds = article.fighterMap.map(({ fighter }) => fighter.id);
+  const [relatedArticles, fightCandidates] = await Promise.all([
+    getRelatedArticles({
+      articleId: article.id,
+      category,
+      eventId: article.eventId,
+      fighterIds: articleFighterIds
+    }),
+    getPredictionFightsForFighters(articleFighterIds)
+  ]);
+  // Бои бойцов из материала со снапшотом прогноза: главная перекрёстная ссылка
+  // из новостей на уникальный контент сайта.
+  const articleFights = selectArticleFights(
+    fightCandidates.map((fight) => ({ ...fight, eventDate: fight.event.date })),
+    articleFighterIds
+  );
+  // Турнир, к которому ингест не привязал статью, восстанавливаем по ближайшему бою.
+  const linkedEvent = article.event ?? articleFights.find((fight) => fight.status === "scheduled")?.event ?? null;
 
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const articlePath = `${getArticleRouteBase(category)}/${article.slug}`;
@@ -292,6 +305,56 @@ export async function ArticleDetailPage({
             })()}
           </div>
 
+          {articleFights.length > 0 ? (
+            <div className="policy-card" aria-label={locale === "ru" ? "Прогнозы на бои из материала" : "Picks for fights in this story"}>
+              <h3>{locale === "ru" ? "Прогноз FightBase на этот бой" : "FightBase pick for this fight"}</h3>
+              <ul className="event-side-list">
+                {articleFights.map((fight) => {
+                  const displayName = (fighter: { name: string; nameRu: string | null }) =>
+                    (locale === "ru" ? fighter.nameRu : null) ?? fighter.name;
+                  const snapshot = fight.predictionSnapshot;
+                  const pickFighter =
+                    snapshot?.aiPickFighterId === fight.fighterA.id
+                      ? fight.fighterA
+                      : snapshot?.aiPickFighterId === fight.fighterB.id
+                        ? fight.fighterB
+                        : null;
+                  const pickPercent = pickFighter
+                    ? pickFighter.id === fight.fighterA.id
+                      ? snapshot?.percentA
+                      : snapshot?.percentB
+                    : null;
+                  const winner =
+                    fight.status === "completed"
+                      ? fight.winnerFighterId === fight.fighterA.id
+                        ? fight.fighterA
+                        : fight.winnerFighterId === fight.fighterB.id
+                          ? fight.fighterB
+                          : null
+                      : null;
+                  const details = [
+                    `${fight.event.name} · ${formatDate(fight.event.date)}`,
+                    pickFighter
+                      ? `${locale === "ru" ? "пик" : "pick"}: ${displayName(pickFighter)}${pickPercent ? ` (${pickPercent}%)` : ""}`
+                      : null,
+                    fight.status === "completed"
+                      ? `${locale === "ru" ? "итог" : "result"}: ${winner ? displayName(winner) : locale === "ru" ? "без победителя" : "no winner"}`
+                      : null
+                  ].filter(Boolean);
+                  return (
+                    <li key={fight.id}>
+                      <Link href={localizePath(`/predictions/${fight.event.slug}/${fight.slug}`, locale)}>
+                        {displayName(fight.fighterA)} — {displayName(fight.fighterB)}
+                      </Link>
+                      <br />
+                      <span className="copy">{details.join(" · ")}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
           <ShareButtons url={articleUrl} title={article.title} locale={locale} />
         </article>
 
@@ -316,8 +379,8 @@ export async function ArticleDetailPage({
           <div className="policy-card">
             <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
             <p className="copy">
-              {article.event ? (
-                <Link href={localizePath(`/events/${article.event.slug}`, locale)}>{article.event.name}</Link>
+              {linkedEvent ? (
+                <Link href={localizePath(`/events/${linkedEvent.slug}`, locale)}>{linkedEvent.name}</Link>
               ) : locale === "ru" ? (
                 "Для этого материала отдельный турнир не указан."
               ) : (

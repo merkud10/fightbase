@@ -580,3 +580,35 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
     fightPredictionArticle
   };
 });
+
+// Бои бойцов из статьи, у которых есть снапшот прогноза: предстоящие и
+// завершённые за последние две недели. Ранжирует lib/article-fights.ts.
+export const getPredictionFightsForFighters = cache(async function getPredictionFightsForFighters(fighterIds: string[]) {
+  if (fighterIds.length === 0) {
+    return [];
+  }
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  return prisma.fight.findMany({
+    where: {
+      OR: [{ fighterAId: { in: fighterIds } }, { fighterBId: { in: fighterIds } }],
+      slug: { not: null },
+      predictionSnapshot: { isNot: null },
+      event: { date: { gte: since } }
+    },
+    orderBy: { event: { date: "asc" } },
+    take: 40,
+    select: {
+      id: true,
+      slug: true,
+      status: true,
+      fighterAId: true,
+      fighterBId: true,
+      winnerFighterId: true,
+      event: { select: { slug: true, name: true, date: true } },
+      fighterA: { select: { id: true, name: true, nameRu: true } },
+      fighterB: { select: { id: true, name: true, nameRu: true } },
+      predictionSnapshot: { select: { percentA: true, percentB: true, aiPickFighterId: true } }
+    }
+  });
+});
