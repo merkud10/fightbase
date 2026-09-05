@@ -5,6 +5,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionAccuracyHistory } from "@/lib/db";
 import { emptyRoiBucket, formatUnits, roiPercent, type RoiBucket } from "@/lib/prediction-roi";
+import { getPredictionStatsSince, predictionStatsSinceNote } from "@/lib/prediction-stats-window";
 import { getLocale } from "@/lib/i18n";
 import { localizePath } from "@/lib/locale-path";
 import { buildPageMetadata } from "@/lib/page-metadata";
@@ -45,6 +46,7 @@ function formatScore(bucket: Bucket, locale: "ru" | "en") {
 export default async function PredictionAccuracyPage() {
   const locale = await getLocale();
   const history = await getPredictionAccuracyHistory();
+  const sinceNote = predictionStatsSinceNote(getPredictionStatsSince(), locale);
 
   const totalModel: Bucket = { correct: 0, judged: 0 };
   const totalFavorite: Bucket = { correct: 0, judged: 0 };
@@ -97,6 +99,12 @@ export default async function PredictionAccuracyPage() {
             : "An open track record: picks are locked in a snapshot before each event and checked against the results. The full history lives here — misses included."
         }
       />
+
+      {sinceNote ? (
+        <section className="policy-card" aria-label={locale === "ru" ? "Начало серии" : "Series start"}>
+          <p className="copy">{sinceNote}</p>
+        </section>
+      ) : null}
 
       {history.length === 0 ? (
         <section className="filter-empty-state">

@@ -11,6 +11,7 @@ import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/di
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { localizePath } from "@/lib/locale-path";
+import { getPredictionStatsSince, predictionStatsSinceNote } from "@/lib/prediction-stats-window";
 import { buildPageMetadata } from "@/lib/page-metadata";
 import { getSiteUrl } from "@/lib/site";
 import { buildTrailBreadcrumbJsonLd } from "@/lib/structured-data";
@@ -44,6 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PredictionsPage() {
   const locale = await getLocale();
   const [events, accuracy] = await Promise.all([getPredictionsPageData(), getPredictionAccuracy()]);
+  const sinceNote = predictionStatsSinceNote(getPredictionStatsSince(), locale);
   const siteUrl = getSiteUrl();
   const collectionUrl = new URL(localizePath("/predictions", locale), siteUrl).toString();
   const eventsWithSnapshots = events.map((event) => ({
@@ -127,6 +129,7 @@ export default async function PredictionsPage() {
                 : `Virtual bankroll (1 unit per pick at publication-time odds): ${formatUnits(accuracy.modelRoi.units, "en")} across ${accuracy.modelRoi.staked} picks, ROI ${accuracy.modelRoi.percent > 0 ? "+" : ""}${accuracy.modelRoi.percent}% · "always the favorite": ${accuracy.favoriteRoi.percent === null ? "—" : `${accuracy.favoriteRoi.percent > 0 ? "+" : ""}${accuracy.favoriteRoi.percent}%`}.`}
             </p>
           ) : null}
+          {sinceNote ? <p className="copy">{sinceNote}</p> : null}
           <p className="copy">
             <Link href={localizePath("/predictions/accuracy", locale)}>
               {locale === "ru" ? "Полная история точности по турнирам →" : "Full accuracy history by event →"}

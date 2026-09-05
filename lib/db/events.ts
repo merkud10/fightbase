@@ -5,6 +5,7 @@ import { eventNightWindowBounds } from "@/lib/event-night";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { addToRoiBucket, emptyRoiBucket, resolvePickRoiUnits, roiPercent } from "@/lib/prediction-roi";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
+import { predictionStatsDateFilter } from "@/lib/prediction-stats-window";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -152,6 +153,7 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
   const completedEvents = await prisma.event.findMany({
     where: {
       status: "completed",
+      date: predictionStatsDateFilter(),
       fights: {
         some: {
           status: "completed",
@@ -279,6 +281,7 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
   const completedEvents = await prisma.event.findMany({
     where: {
       status: "completed",
+      date: predictionStatsDateFilter(),
       fights: {
         some: {
           status: "completed",
