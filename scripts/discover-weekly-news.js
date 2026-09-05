@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const fs = require("node:fs");
 const { URL } = require("node:url");
 const { PrismaClient } = require("@prisma/client");
 
@@ -111,7 +112,8 @@ function parseArgs(argv) {
     days: 7,
     limitPerSource: 8,
     target: "all",
-    sourceLabel: ""
+    sourceLabel: "",
+    dumpFile: ""
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -134,6 +136,10 @@ function parseArgs(argv) {
     }
     if (arg === "--source-label" && argv[index + 1]) {
       options.sourceLabel = argv[++index];
+      continue;
+    }
+    if (arg === "--dump" && argv[index + 1]) {
+      options.dumpFile = argv[++index];
       continue;
     }
     if (arg === "--dry-run") {
@@ -643,7 +649,7 @@ async function processSource(source, options, taxonomyContext, jobId) {
 
   stats.collected = items.length;
 
-  if (!options.dryRun) {
+  if (!options.dryRun && !options.dumpFile) {
     for (const item of items) {
       try {
         const payload = await postDraft(options.baseUrl, item);
@@ -663,26 +669,28 @@ async function processSource(source, options, taxonomyContext, jobId) {
 
   const finishedAt = new Date();
 
-  try {
-    await prisma.sourceDiscoveryRun.create({
-      data: {
-        sourceLabel: stats.sourceLabel,
-        jobId: jobId || null,
-        startedAt: stats.startedAt,
-        finishedAt,
-        candidates: stats.candidates,
-        fetched: stats.fetched,
-        fetchFailed: stats.fetchFailed,
-        filteredOut: stats.filteredOut,
-        collected: stats.collected,
-        created: stats.created,
-        duplicates: stats.duplicates,
-        ingestFailed: stats.ingestFailed,
-        errorMessage: stats.errorMessage
-      }
-    });
-  } catch (error) {
-    console.error(`[STATS] failed to record SourceDiscoveryRun for ${source.label}: ${error.message || error}`);
+  if (!options.dumpFile) {
+    try {
+      await prisma.sourceDiscoveryRun.create({
+        data: {
+          sourceLabel: stats.sourceLabel,
+          jobId: jobId || null,
+          startedAt: stats.startedAt,
+          finishedAt,
+          candidates: stats.candidates,
+          fetched: stats.fetched,
+          fetchFailed: stats.fetchFailed,
+          filteredOut: stats.filteredOut,
+          collected: stats.collected,
+          created: stats.created,
+          duplicates: stats.duplicates,
+          ingestFailed: stats.ingestFailed,
+          errorMessage: stats.errorMessage
+        }
+      });
+    } catch (error) {
+      console.error(`[STATS] failed to record SourceDiscoveryRun for ${source.label}: ${error.message || error}`);
+    }
   }
 
   return { items, stats };
@@ -751,6 +759,21 @@ async function main() {
 
   console.log(`Target: ${options.target}`);
   console.log(`Discovered items: ${discovered.length}`);
+
+  if (options.dumpFile) {
+    const items = discovered.map((item) => ({
+      headline: item.headline,
+      body: item.body,
+      sourceLabel: item.sourceLabel,
+      sourceUrl: item.sourceUrl,
+      publishedAt: item.publishedAt,
+      category: item.category
+    }));
+    fs.writeFileSync(options.dumpFile, JSON.stringify(items, null, 2), "utf8");
+    console.log(`Dumped ${items.length} items to ${options.dumpFile}`);
+    await prisma.$disconnect();
+    return;
+  }
 
   if (options.dryRun) {
     discovered.forEach((item, index) => {

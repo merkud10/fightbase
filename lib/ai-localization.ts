@@ -35,7 +35,17 @@ const defaultOllamaUrl = "http://127.0.0.1:11434/api/generate";
 const defaultOllamaModel = "aya:8b-23";
 const defaultAlibabaBaseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 const defaultAlibabaModel = "qwen-flash";
+const defaultCodexBridgeModel = "gpt-5.3-codex-spark";
 const execFileAsync = promisify(execFile);
+
+type OpenAiCompatibleProvider = {
+  name: "deepseek" | "codex";
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
+export type LocalizationProviderOverride = "deepseek" | "codex";
 
 function readEnvValueFromFile(name: string) {
   try {
@@ -70,6 +80,73 @@ function getDeepSeekBaseUrl() {
 
 function getDeepSeekModel() {
   return getEnvValue("DEEPSEEK_MODEL", defaultDeepSeekModel);
+}
+
+function getCodexBridgeUrl() {
+  return getEnvValue("CODEX_BRIDGE_URL");
+}
+
+function getCodexBridgeToken() {
+  return getEnvValue("CODEX_BRIDGE_TOKEN");
+}
+
+function getCodexBridgeModel() {
+  return getEnvValue("CODEX_BRIDGE_MODEL", defaultCodexBridgeModel);
+}
+
+function getDeepSeekProvider(): OpenAiCompatibleProvider | null {
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) {
+    return null;
+  }
+  return { name: "deepseek", baseUrl: getDeepSeekBaseUrl(), apiKey, model: getDeepSeekModel() };
+}
+
+function getCodexBridgeProvider(): OpenAiCompatibleProvider | null {
+  const baseUrl = getCodexBridgeUrl();
+  const apiKey = getCodexBridgeToken();
+  if (!baseUrl || !apiKey) {
+    return null;
+  }
+  return { name: "codex", baseUrl, apiKey, model: getCodexBridgeModel() };
+}
+
+/** Имя модели для записи в результат: у моста с префиксом, чтобы отличать от DeepSeek в отчётах. */
+function providerModelLabel(provider: OpenAiCompatibleProvider) {
+  return provider.name === "codex" ? `codex:${provider.model}` : provider.model;
+}
+
+/**
+ * Порядок провайдеров. Явное переопределение — ровно один провайдер без фолбэка
+ * (нужно скрипту сравнения). Без него: AI_PROVIDER=codex → мост, затем DeepSeek;
+ * AI_PROVIDER=deepseek или пусто → DeepSeek.
+ */
+function resolveOpenAiCompatibleProviders(override?: LocalizationProviderOverride): OpenAiCompatibleProvider[] {
+  const deepSeek = getDeepSeekProvider();
+  const codex = getCodexBridgeProvider();
+
+  if (override === "codex") {
+    if (!codex) {
+      throw new Error("Codex bridge is not configured (CODEX_BRIDGE_URL / CODEX_BRIDGE_TOKEN)");
+    }
+    return [codex];
+  }
+  if (override === "deepseek") {
+    if (!deepSeek) {
+      throw new Error("DeepSeek is not configured (DEEPSEEK_API_KEY)");
+    }
+    return [deepSeek];
+  }
+
+  const provider = getAiProvider();
+  const order: OpenAiCompatibleProvider[] = [];
+  if (provider === "codex" && codex) {
+    order.push(codex);
+  }
+  if ((provider === "codex" || provider === "deepseek" || !provider) && deepSeek) {
+    order.push(deepSeek);
+  }
+  return order;
 }
 
 function getOllamaUrl() {
@@ -730,14 +807,11 @@ async function localizeWithOllama(input: IngestDraftInput): Promise<LocalizedIng
   };
 }
 
-async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
-  const apiKey = getDeepSeekApiKey();
-  if (!apiKey) {
-    throw new Error("DEEPSEEK_API_KEY is not configured");
-  }
-
-  const model = getDeepSeekModel();
-  const baseUrl = getDeepSeekBaseUrl();
+async function localizeWithOpenAiCompatible(
+  provider: OpenAiCompatibleProvider,
+  input: IngestDraftInput
+): Promise<LocalizedIngestionResult> {
+  const { apiKey, model, baseUrl } = provider;
   const initialResponse = await sendOpenAiCompatibleJsonPrompt({
     baseUrl,
     apiKey,
@@ -784,7 +858,7 @@ async function localizeWithDeepSeek(input: IngestDraftInput): Promise<LocalizedI
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model,
+    model: providerModelLabel(provider),
     interestScore: interestScore ?? null
   };
 }
@@ -841,14 +915,11 @@ async function rewriteWithOllama(input: IngestDraftInput): Promise<LocalizedInge
   };
 }
 
-async function rewriteWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
-  const apiKey = getDeepSeekApiKey();
-  if (!apiKey) {
-    throw new Error("DEEPSEEK_API_KEY is not configured");
-  }
-
-  const model = getDeepSeekModel();
-  const baseUrl = getDeepSeekBaseUrl();
+async function rewriteWithOpenAiCompatible(
+  provider: OpenAiCompatibleProvider,
+  input: IngestDraftInput
+): Promise<LocalizedIngestionResult> {
+  const { apiKey, model, baseUrl } = provider;
   const { narrative, results } = splitNarrativeAndResults(input.body);
 
   const rewriteInput = {
@@ -897,7 +968,7 @@ async function rewriteWithDeepSeek(input: IngestDraftInput): Promise<LocalizedIn
     headline: localized.headline,
     body: localized.body,
     localized: true,
-    model,
+    model: providerModelLabel(provider),
     interestScore: interestScore ?? null
   };
 }
@@ -1036,50 +1107,57 @@ async function localizeWithAlibaba(input: IngestDraftInput): Promise<LocalizedIn
   };
 }
 
-export async function localizeIngestionInput(input: IngestDraftInput): Promise<LocalizedIngestionResult> {
+export async function localizeIngestionInput(
+  input: IngestDraftInput,
+  options: { provider?: LocalizationProviderOverride } = {}
+): Promise<LocalizedIngestionResult> {
   const sourceText = `${input.headline}\n${input.body}`.trim();
-  const provider = getAiProvider();
-  const hasDeepSeek = Boolean(getDeepSeekApiKey());
-  const hasOpenAi = Boolean(getOpenAiApiKey());
-  const hasAlibaba = Boolean(getAlibabaApiKey());
+  const strict = Boolean(options.provider);
+  const unlocalized: LocalizedIngestionResult = {
+    headline: input.headline,
+    body: input.body,
+    localized: false,
+    model: null,
+    interestScore: null
+  };
 
   if (!sourceText) {
-    return {
-      headline: input.headline,
-      body: input.body,
-      localized: false,
-      model: null,
-      interestScore: null
-    };
+    return unlocalized;
   }
+
+  const providers = resolveOpenAiCompatibleProviders(options.provider);
 
   if (looksRussian(sourceText) && isPredominantlyRussian(sourceText)) {
-    if ((provider === "deepseek" || !provider) && hasDeepSeek) {
+    for (const provider of providers) {
       try {
-        return await rewriteWithDeepSeek(input);
+        return await rewriteWithOpenAiCompatible(provider, input);
       } catch (error) {
-        console.error("DeepSeek Russian rewrite failed, saving original text", error);
+        if (strict) {
+          throw error;
+        }
+        console.error(`${provider.name} Russian rewrite failed, trying next provider or saving original text`, error);
       }
     }
-
-    return {
-      headline: input.headline,
-      body: input.body,
-      localized: false,
-      model: null,
-      interestScore: null
-    };
+    return unlocalized;
   }
 
-  if ((provider === "deepseek" || !provider) && hasDeepSeek) {
+  for (const provider of providers) {
     try {
-      return await localizeWithDeepSeek(input);
+      return await localizeWithOpenAiCompatible(provider, input);
     } catch (error) {
-      console.error("DeepSeek localization failed, falling back to OpenAI/source language", error);
+      if (strict) {
+        throw error;
+      }
+      console.error(`${provider.name} localization failed, falling back to next provider/OpenAI/source language`, error);
     }
   }
 
-  if (provider === "alibaba" && hasAlibaba) {
+  if (strict) {
+    return unlocalized;
+  }
+
+  const legacyProvider = getAiProvider();
+  if (legacyProvider === "alibaba" && getAlibabaApiKey()) {
     try {
       return await localizeWithAlibaba(input);
     } catch (error) {
@@ -1087,7 +1165,7 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
     }
   }
 
-  if (hasOpenAi) {
+  if (getOpenAiApiKey()) {
     try {
       return await localizeWithOpenAi(input);
     } catch (error) {
@@ -1095,12 +1173,6 @@ export async function localizeIngestionInput(input: IngestDraftInput): Promise<L
     }
   }
 
-  return {
-    headline: input.headline,
-    body: input.body,
-    localized: false,
-    model: null,
-    interestScore: null
-  };
+  return unlocalized;
 }
 

@@ -25,3 +25,9 @@ public/media/
 
 # Файл подтверждения домена для Дзена живёт только на сервере (/opt/fightbase/public)
 public/zen_*.html
+
+# Python
+__pycache__/
+
+# Отчёты сравнения AI-провайдеров содержат тексты статей
+ops/reports/

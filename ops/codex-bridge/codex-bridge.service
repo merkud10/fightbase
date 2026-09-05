@@ -1,0 +1,21 @@
+[Unit]
+Description=Codex bridge (OpenAI-compatible chat completions over codex exec)
+After=network.target
+
+[Service]
+User=codexbridge
+Group=codexbridge
+EnvironmentFile=/etc/codex-bridge/env
+Environment=HOME=/home/codexbridge
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/home/codexbridge
+ExecStart=/usr/bin/python3 /opt/codex-bridge/bridge.py
+Restart=always
+RestartSec=3
+MemoryMax=400M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
