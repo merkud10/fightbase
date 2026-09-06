@@ -9,6 +9,7 @@
 #   sync-odds      — sync events + fights + odds
 #   sync-roster    — sync fighter roster
 #   sync-fight-history — восстановить историю боёв из архива ESPN
+#   sync-photos-upcoming — фото из Sherdog бойцам ближайших турниров без портрета
 # =============================================================
 set -euo pipefail
 
@@ -285,6 +286,23 @@ case "${TASK}" in
     fi
     ;;
 
+  sync-photos-upcoming)
+    log "Starting sync-photos-upcoming"
+    # Запасной источник фото: у новичков DWCS и замен портрета в ESPN нет, а
+    # Sherdog отвечает с прода. Идёт после sync-roster-upcoming, чтобы ESPN
+    # успел заполнить всё, что может.
+    output=$(cd /opt/fightbase && node scripts/fill-fighter-photos-from-sherdog.js --days-back 1 --days-forward 10 --apply 2>&1) || {
+      log "sync-photos-upcoming FAILED: ${output}"
+      send_tg_alert "❌ Фото к ближайшим турнирам: сбой добора из Sherdog"
+      exit 1
+    }
+    log "sync-photos-upcoming: ${output}"
+    updated="$(echo "${output}" | sed -n 's/.*updated=\([0-9]*\).*/\1/p' | tail -n 1)"
+    if [ "${updated:-0}" != "0" ]; then
+      send_tg_alert "✅ Фото к ближайшим турнирам: добавлено ${updated} из Sherdog"
+    fi
+    ;;
+
   sync-fight-history)
     log "Starting sync-fight-history"
     # Идёт напрямую к скрипту, а не через /api/cron: источник здесь ESPN, и
@@ -355,7 +373,7 @@ case "${TASK}" in
     ;;
 
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-fight-history|silence-check|bridge-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|silence-check|bridge-check}"
     exit 1
     ;;
 esac

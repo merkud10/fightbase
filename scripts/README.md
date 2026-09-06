@@ -11,7 +11,9 @@ These run in production continuously or on a schedule. Touch carefully.
 
 - `cron-tasks.sh` — cron orchestrator. Entry point for `drip-social`, `sync-news`,
   `sync-odds`, `sync-roster`, `sync-roster-upcoming` (daily, incomplete profiles of
-  fighters on cards within 10 days), `sync-fight-history`, `silence-check`,
+  fighters on cards within 10 days), `sync-photos-upcoming` (daily, Sherdog photos
+  for fighters on cards within 10 days who still have none after ESPN),
+  `sync-fight-history`, `silence-check`,
   `bridge-check` (Codex bridge on the VPS reachable and logged in; alerts to
   Telegram). Uses flock + watchdog.
 - `deploy.sh` — pulls, installs, builds, chowns, restarts systemd. Called by the
