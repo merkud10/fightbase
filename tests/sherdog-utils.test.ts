@@ -82,6 +82,23 @@ test("pickSearchCandidate matches names ignoring diacritics and case", () => {
   assert.deepEqual(pickSearchCandidate({ name: "jose aldo" }, rows), { row: rows[0] });
 });
 
+test("pickSearchCandidate and verifyFighterPage accept the same tokens in another order", () => {
+  // ESPN: «Kwon Won Il», Sherdog: «Won Il Kwon» — корейский порядок имени.
+  const rows = [{ name: "Won Il Kwon", path: "/fighter/Won-Il-Kwon-161997", heightCm: 178 }];
+  assert.deepEqual(pickSearchCandidate({ name: "Kwon Won Il" }, rows), { row: rows[0] });
+  assert.equal(
+    verifyFighterPage(
+      { name: "Kwon Won Il", record: "14-6-0" },
+      { name: "Won Il Kwon", photoPath: "/image_crop/200/300/_images/fighter/kwon.jpg", wins: 14, losses: 6, heightCm: 178 }
+    ),
+    null
+  );
+  // Но частичное совпадение токенов — другой человек.
+  assert.deepEqual(pickSearchCandidate({ name: "Reginaldo Junior" }, [{ name: "Reginaldo Geraldo Jr.", path: "/fighter/x", heightCm: 178 }]), {
+    reason: "unmatched"
+  });
+});
+
 test("pickSearchCandidate reports unmatched when no row has the same name", () => {
   const rows = parseSearchResults(SEARCH_HTML);
   assert.deepEqual(pickSearchCandidate({ name: "Reginaldo Junior" }, rows), { reason: "unmatched" });

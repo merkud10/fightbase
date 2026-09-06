@@ -59,9 +59,20 @@ function parseFighterPage(html) {
   };
 }
 
+// Точное совпадение имени без учёта порядка слов: ESPN пишет «Kwon Won Il»,
+// Sherdog — «Won Il Kwon». Частичное совпадение («Reginaldo Junior» и
+// «Reginaldo Geraldo Jr.») намеренно не считается совпадением.
+function nameKey(value) {
+  return normalizeFighterName(value).split(" ").filter(Boolean).sort().join(" ");
+}
+
+function sameFighterName(a, b) {
+  const keyA = nameKey(a);
+  return Boolean(keyA) && keyA === nameKey(b);
+}
+
 function pickSearchCandidate(fighter, rows) {
-  const target = normalizeFighterName(fighter?.name);
-  const byName = (rows || []).filter((row) => normalizeFighterName(row.name) === target);
+  const byName = (rows || []).filter((row) => sameFighterName(row.name, fighter?.name));
 
   if (byName.length === 1) {
     return { row: byName[0] };
@@ -89,7 +100,7 @@ function parseRecordWins(record) {
 }
 
 function verifyFighterPage(fighter, page) {
-  if (normalizeFighterName(page?.name) !== normalizeFighterName(fighter?.name)) {
+  if (!sameFighterName(page?.name, fighter?.name)) {
     return "name mismatch";
   }
   if (!page?.photoPath || /default/i.test(page.photoPath)) {
