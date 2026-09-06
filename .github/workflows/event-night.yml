@@ -36,9 +36,13 @@ jobs:
           FORCE: ${{ github.event.inputs.force }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 ${USER}@${HOST}"
-          # Окно активности: от 6 часов до даты турнира до 16 часов после
-          # (покрывает и ночные американские карды, и дневные европейско-азиатские).
-          SLUGS=$($SSH "cd /opt/fightbase && set -a && . ./.env && set +a && psql \"\${DATABASE_URL%%\\?*}\" -t -A -c \"SELECT slug FROM \\\"Event\\\" WHERE status IN ('upcoming','live') AND now() BETWEEN date - interval '6 hours' AND date + interval '16 hours';\"")
+          # Окно активности — то же, что в lib/event-night.ts: по временам
+          # сегментов карда от первого сегмента −3ч до главного карда +6ч, а
+          # без них от даты турнира −6ч до +30ч. date — полночь UTC, и
+          # европейский вечерний кард (UFC Paris: главный кард 19:00 UTC)
+          # заканчивается почти через сутки после неё; прежнее окно −6ч/+16ч
+          # закрывалось ровно к его началу.
+          SLUGS=$($SSH "cd /opt/fightbase && set -a && . ./.env && set +a && psql \"\${DATABASE_URL%%\\?*}\" -t -A -c \"SELECT slug FROM \\\"Event\\\" WHERE status IN ('upcoming','live') AND now() BETWEEN coalesce(\\\"earlyPrelimsAt\\\", \\\"prelimsAt\\\", \\\"mainCardAt\\\", date - interval '3 hours') - interval '3 hours' AND coalesce(\\\"mainCardAt\\\", \\\"prelimsAt\\\", \\\"earlyPrelimsAt\\\", date + interval '24 hours') + interval '6 hours';\"")
           SLUGS=$(echo "$SLUGS" | tr -d '\r' | grep -v '^$' || true)
           if [ -n "$SLUGS" ] || [ "$FORCE" = "true" ]; then
             echo "active=true" >> "$GITHUB_OUTPUT"

@@ -1,7 +1,7 @@
 import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
-import { eventNightWindowBounds } from "@/lib/event-night";
+import { eventNightWindowBounds, isWithinEventNightWindow } from "@/lib/event-night";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { addToRoiBucket, emptyRoiBucket, resolvePickRoiUnits, roiPercent } from "@/lib/prediction-roi";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
@@ -261,9 +261,12 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
 // Событие «турнирной ночи» для live-баннера на главной: окно то же, что у
 // event-night workflow, поэтому баннер живёт ровно пока идут синк и ревалидация.
 export const getEventNightEvent = cache(async function getEventNightEvent() {
-  const { minDate, maxDate } = eventNightWindowBounds(new Date());
+  const now = new Date();
+  const { minDate, maxDate } = eventNightWindowBounds(now);
 
-  return prisma.event.findFirst({
+  // Диапазон по date — только грубый отбор кандидатов; точное окно зависит от
+  // времён сегментов карда, поэтому фильтруем в коде.
+  const candidates = await prisma.event.findMany({
     where: {
       status: { in: ["upcoming", "live"] },
       date: { gte: minDate, lte: maxDate }
@@ -273,9 +276,13 @@ export const getEventNightEvent = cache(async function getEventNightEvent() {
       slug: true,
       name: true,
       date: true,
+      earlyPrelimsAt: true,
+      prelimsAt: true,
       mainCardAt: true
     }
   });
+
+  return candidates.find((event) => isWithinEventNightWindow(event, now)) ?? null;
 });
 
 export const getPredictionAccuracyHistory = cache(async function getPredictionAccuracyHistory() {
