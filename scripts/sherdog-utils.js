@@ -130,8 +130,14 @@ function buildPhotoSourceUrls(photoPath) {
   return urls;
 }
 
+// Поиск Sherdog не находит имена с диакритикой («Martin Kozák» → пусто,
+// «Martin Kozak» → есть), поэтому запрос идёт без надстрочных знаков.
 function buildSearchUrl(name) {
-  return `${SHERDOG_ORIGIN}/stats/fightfinder?SearchTxt=${encodeURIComponent(String(name || "").trim())}`;
+  const folded = String(name || "")
+    .normalize("NFKD")
+    .replace(/\p{Mark}+/gu, "")
+    .trim();
+  return `${SHERDOG_ORIGIN}/stats/fightfinder?SearchTxt=${encodeURIComponent(folded)}`;
 }
 
 module.exports = {

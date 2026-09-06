@@ -33,6 +33,8 @@ const REQUEST_DELAY_MS = 1500;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const FIGHTER_SELECT = { id: true, slug: true, name: true, record: true, heightCm: true, photoUrl: true };
+// Заглушки неанонсированных соперников (DWCS на несколько недель вперёд).
+const PLACEHOLDER_SLUGS = new Set(["tba", "opponent-tba"]);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -63,7 +65,7 @@ async function selectFighters({ daysBack, daysForward, eventSlug, fighterSlug, l
   for (const event of events) {
     for (const fight of event.fights) {
       for (const fighter of [fight.fighterA, fight.fighterB]) {
-        if (!fighter || seen.has(fighter.id)) {
+        if (!fighter || seen.has(fighter.id) || PLACEHOLDER_SLUGS.has(fighter.slug)) {
           continue;
         }
         seen.add(fighter.id);

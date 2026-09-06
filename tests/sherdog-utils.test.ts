@@ -150,6 +150,8 @@ test("buildPhotoSourceUrls prefers the CDN original and falls back to the crop",
   assert.deepEqual(buildPhotoSourceUrls(null), []);
 });
 
-test("buildSearchUrl encodes the fighter name", () => {
-  assert.equal(buildSearchUrl("José Aldo"), "https://www.sherdog.com/stats/fightfinder?SearchTxt=Jos%C3%A9%20Aldo");
+test("buildSearchUrl folds diacritics and encodes the fighter name", () => {
+  // Sherdog по «Martin Kozák» ничего не находит, по «Martin Kozak» — находит.
+  assert.equal(buildSearchUrl("Martin Kozák"), "https://www.sherdog.com/stats/fightfinder?SearchTxt=Martin%20Kozak");
+  assert.equal(buildSearchUrl("José Aldo"), "https://www.sherdog.com/stats/fightfinder?SearchTxt=Jose%20Aldo");
 });
