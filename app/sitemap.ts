@@ -2,9 +2,10 @@ import type { MetadataRoute } from "next";
 
 import { getArticleRouteBase } from "@/lib/article-routes";
 import { isIndexableComparisonPair } from "@/lib/compare-curation";
-import { getQuotesPageData } from "@/lib/db";
+import { getQuotesPageData, getUfcRankingSnapshot } from "@/lib/db";
 import { getCuratedComparisonPairs } from "@/lib/db/comparison";
 import { prisma } from "@/lib/prisma";
+import { findRankingDivision } from "@/lib/ranking-divisions";
 import { getSiteUrl } from "@/lib/site";
 import {
   getArticleFreshness,
@@ -36,7 +37,7 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const now = Date.now();
-  const [articles, events, fighters, predictionSnapshots, quotes, comparisonPairs] = await Promise.all([
+  const [articles, events, fighters, predictionSnapshots, quotes, comparisonPairs, rankingSnapshot] = await Promise.all([
     prisma.article.findMany({
       where: {
         status: "published"
@@ -97,8 +98,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     }),
     getQuotesPageData(),
-    getCuratedComparisonPairs()
+    getCuratedComparisonPairs(),
+    getUfcRankingSnapshot()
   ]);
+  const rankingDivisionSlugs = [
+    ...new Set((rankingSnapshot?.groups ?? []).map((group) => findRankingDivision(group.title)?.slug).filter(Boolean))
+  ];
   const fighterEntries = fighters.filter((fighter) => !looksLikeLowQualitySlug(fighter.slug));
   const staticEntries: MetadataRoute.Sitemap = staticRoutes
     .filter((path) => path !== "/quotes" || quotes.totalCount > 0)
@@ -110,6 +115,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticEntries,
+    ...rankingDivisionSlugs.map((slug) => ({
+      url: `${siteUrl}/ru/rankings/${slug}`,
+      lastModified: rankingSnapshot?.fetchedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.7
+    })),
     ...articles.map((article) => ({
       url: `${siteUrl}/ru${getArticleRouteBase(article.category)}/${article.slug}`,
       lastModified: article.updatedAt,

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { permanentRedirect } from "next/navigation";
 
 export const revalidate = 3600;
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
@@ -14,6 +14,7 @@ import { isPoundForPoundRankingGroup } from "@/lib/ufc-rankings";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
+import { findRankingDivision, RANKING_DIVISIONS } from "@/lib/ranking-divisions";
 import { readParam } from "@/lib/search-params";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
@@ -23,9 +24,19 @@ type RankingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+// Фильтр ?division= заменили отдельными страницами /rankings/<дивизион>:
+// старые адреса из выдачи и закладок ведём туда постоянным редиректом.
+function redirectDivisionFilter(value: string, locale: Awaited<ReturnType<typeof getLocale>>) {
+  const division = value ? findRankingDivision(value) : null;
+  if (division) {
+    permanentRedirect(localizePath(`/rankings/${division.slug}`, locale));
+  }
+}
+
 export async function generateMetadata({ searchParams }: RankingsPageProps): Promise<Metadata> {
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
+  redirectDivisionFilter(readParam(params.division), locale);
   // Фильтр по дивизиону не создаёт новую страницу — это подмножество того же
   // рейтинга. Держим его вне индекса так же, как фильтры в /news и /fighters.
   const hasFilters = Boolean(readParam(params.division));
@@ -68,6 +79,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   ];
   const params = (await searchParams) ?? {};
   const divisionParam = readParam(params.division);
+  redirectDivisionFilter(divisionParam, locale);
   const [rankingSnapshot, rankingLinks] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
   const allGroups = rankingSnapshot?.groups ?? [];
   const fetchedAtLabel = rankingSnapshot
@@ -161,15 +173,20 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                 </>
               ) : null}
             </p>
-            <FilterSection
-              title={locale === "ru" ? "Дивизион" : "Division"}
-              items={divisionOptions.map((d) => ({ value: d, label: formatWeightClass(d, locale) }))}
-              activeValue={activeDivision}
-              basePath={localizePath("/rankings", locale)}
-              current={{ division: activeDivision }}
-              param="division"
-              allLabel={locale === "ru" ? "Все" : "All"}
-            />
+            <nav aria-label={locale === "ru" ? "Дивизионы" : "Divisions"}>
+              <p className="copy">
+                {RANKING_DIVISIONS.filter((item) => allGroups.some((g) => findRankingDivision(g.title)?.slug === item.slug)).map(
+                  (item, index) => (
+                    <span key={item.slug}>
+                      {index > 0 ? " · " : null}
+                      <Link href={localizePath(`/rankings/${item.slug}`, locale)}>
+                        {locale === "ru" ? item.ruTitle : item.enTitle}
+                      </Link>
+                    </span>
+                  )
+                )}
+              </p>
+            </nav>
           </section>
 
           {allGroups.length === 0 ? (
@@ -194,7 +211,15 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
               <section key={group.title} className="table-card ranking-table-card editorial-card">
                 <div className="ranking-table-head">
                   <div className="ranking-head-copy">
-                    <h3>{formatWeightClass(group.title, locale)}</h3>
+                    <h3>
+                      {findRankingDivision(group.title) ? (
+                        <Link href={localizePath(`/rankings/${findRankingDivision(group.title)?.slug}`, locale)}>
+                          {formatWeightClass(group.title, locale)}
+                        </Link>
+                      ) : (
+                        formatWeightClass(group.title, locale)
+                      )}
+                    </h3>
                     <p className="table-note">
                       {locale === "ru"
                         ? `Официальных позиций в таблице: ${group.rows.length}`
