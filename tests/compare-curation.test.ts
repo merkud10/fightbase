@@ -271,3 +271,54 @@ test("в индекс идут пары с реальным боем и верх
   // Комбинаторика рейтинга ниже топа: своего содержания у страницы нет.
   assert.equal(isIndexableComparisonPair(deepRanked), false);
 });
+
+test("закреплённая пара попадает в индекс без боя и вне топа рейтинга", () => {
+  const pairs = buildCuratedPairs({
+    groups: [],
+    fightPairs: [],
+    pinnedPairs: [{ slugA: "yaroslav-amosov", slugB: "dzhek-della-maddalena" }],
+    resolveSlug: RESOLVE
+  });
+  const pair = pairs.find((item) => item.pairSlug === "dzhek-della-maddalena-vs-yaroslav-amosov");
+
+  assert.ok(pair);
+  assert.equal(pair.pinned, true);
+  assert.equal(pair.hasFight, false);
+  assert.equal(isIndexableComparisonPair(pair), true);
+});
+
+test("закрепление не теряется, если пара пришла ещё и из рейтинга", () => {
+  const pairs = buildCuratedPairs({
+    groups: GROUPS,
+    fightPairs: [],
+    pinnedPairs: [{ slugA: "charles-oliveira", slugB: "arman-tsarukyan" }],
+    resolveSlug: RESOLVE
+  });
+  const pair = pairs.find((item) => item.pairSlug === "arman-tsarukyan-vs-charles-oliveira");
+
+  assert.equal(pair?.pinned, true);
+  assert.equal(pair?.rankDepth, 2);
+  assert.equal(pairs.filter((item) => item.pinned).length, 1);
+});
+
+test("закреплённая пара с дублем-слагом -N не проходит", () => {
+  const pairs = buildCuratedPairs({
+    groups: [],
+    fightPairs: [],
+    pinnedPairs: [{ slugA: "kori-makkenna-6", slugB: "yaroslav-amosov" }],
+    resolveSlug: RESOLVE
+  });
+
+  assert.equal(pairs.length, 0);
+});
+
+test("закреплённая пара с заглушкой TBA не проходит", () => {
+  const pairs = buildCuratedPairs({
+    groups: [],
+    fightPairs: [],
+    pinnedPairs: [{ slugA: "opponent-tba", slugB: "yaroslav-amosov" }],
+    resolveSlug: RESOLVE
+  });
+
+  assert.equal(pairs.length, 0);
+});

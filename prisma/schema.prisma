@@ -148,6 +148,8 @@ model Fighter {
   fightsA     Fight[]          @relation("FightA")
   fightsB     Fight[]          @relation("FightB")
   recentFights FighterRecentFight[]
+  pinnedPairsA PinnedComparePair[] @relation("PinnedPairA")
+  pinnedPairsB PinnedComparePair[] @relation("PinnedPairB")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -518,4 +520,21 @@ model EventSlugAlias {
   createdAt DateTime @default(now())
 
   @@index([eventId])
+}
+
+// Пары бойцов, чья страница сравнения остаётся в индексе вне общего правила
+// (очный бой или верх рейтинга). Синк пишет сюда пару, когда снимает
+// запланированный бой с карда: иначе сравнение, уже собравшее поисковый спрос
+// под анонс, в тот же час уходило в noindex (Маддалена — Амосов, сентябрь 2026).
+// reason: "cancelled-fight" | "search-demand". Пара хранится в порядке id.
+model PinnedComparePair {
+  fighterAId String
+  fighterBId String
+  fighterA   Fighter  @relation("PinnedPairA", fields: [fighterAId], references: [id], onDelete: Cascade)
+  fighterB   Fighter  @relation("PinnedPairB", fields: [fighterBId], references: [id], onDelete: Cascade)
+  reason     String
+  createdAt  DateTime @default(now())
+
+  @@id([fighterAId, fighterBId])
+  @@index([fighterBId])
 }

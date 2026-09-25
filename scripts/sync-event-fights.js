@@ -335,6 +335,25 @@ async function syncEventFightCard(event) {
     .map((fight) => fight.id);
 
   if (staleFightIds.length > 0) {
+    // Сравнение пары под анонсированный бой успевает собрать поисковый спрос;
+    // без боя оно ушло бы в noindex — закрепляем пару до удаления боя.
+    const isPlaceholder = (slug) => String(slug || "").split("-").some((part) => part === "tba" || part === "tbd");
+    const staleScheduled = existingFights.filter(
+      (fight) =>
+        staleFightIds.includes(fight.id) &&
+        fight.status === "scheduled" &&
+        !isPlaceholder(fight.fighterA.slug) &&
+        !isPlaceholder(fight.fighterB.slug)
+    );
+    for (const fight of staleScheduled) {
+      const [fighterAId, fighterBId] = [fight.fighterAId, fight.fighterBId].sort();
+      await prisma.pinnedComparePair.upsert({
+        where: { fighterAId_fighterBId: { fighterAId, fighterBId } },
+        create: { fighterAId, fighterBId, reason: "cancelled-fight" },
+        update: {}
+      });
+    }
+
     await prisma.fight.deleteMany({
       where: {
         id: { in: staleFightIds },

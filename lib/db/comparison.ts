@@ -144,13 +144,19 @@ export const getComparisonPageData = cache(async function getComparisonPageData(
 // час кеша достаточно; cache() сверху дедуплицирует вызовы внутри одного запроса.
 const loadCuratedComparisonPairs = unstable_cache(
   async function loadCuratedComparisonPairs(): Promise<CuratedPair[]> {
-    const [snapshot, links, fights] = await Promise.all([
+    const [snapshot, links, fights, pins] = await Promise.all([
       getUfcRankingSnapshot(),
       getUfcOfficialRankingLinks(),
       prisma.fight.findMany({
         select: {
           status: true,
           weightClass: true,
+          fighterA: { select: { slug: true } },
+          fighterB: { select: { slug: true } }
+        }
+      }),
+      prisma.pinnedComparePair.findMany({
+        select: {
           fighterA: { select: { slug: true } },
           fighterB: { select: { slug: true } }
         }
@@ -165,10 +171,11 @@ const loadCuratedComparisonPairs = unstable_cache(
         isScheduled: fight.status === "scheduled",
         weightClass: normalizeCuratedWeightClass(fight.weightClass)
       })),
+      pinnedPairs: pins.map((pin) => ({ slugA: pin.fighterA.slug, slugB: pin.fighterB.slug })),
       resolveSlug: (name) => links.byName.get(name.toLowerCase())?.localSlug ?? null
     });
   },
-  ["compare:curated-pairs:v1"],
+  ["compare:curated-pairs:v2"],
   { revalidate: 3600, tags: ["compare-curated-pairs"] }
 );
 

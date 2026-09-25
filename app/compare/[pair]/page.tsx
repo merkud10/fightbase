@@ -47,11 +47,11 @@ export async function generateMetadata({ params }: ComparePageProps): Promise<Me
   const nameB = getDisplayName(fighterB, locale);
   const title =
     locale === "ru"
-      ? `${nameA} против ${nameB}: сравнение бойцов UFC`
+      ? `${nameA} — ${nameB}: сравнение бойцов UFC`
       : `${nameA} vs ${nameB}: UFC fighter comparison`;
   const description =
     locale === "ru"
-      ? `${nameA} против ${nameB}: сравнение рекордов, физических данных и официальной статистики UFC — удары, тейкдауны, защита и активность.`
+      ? `${nameA} — ${nameB}: сравнение рекордов, физических данных и официальной статистики UFC — удары, тейкдауны, защита и активность.`
       : `${nameA} vs ${nameB}: comparison of records, physical measurements and official UFC statistics — striking, takedowns, defense and activity.`;
 
   const metadata = buildPageMetadata({
@@ -97,7 +97,7 @@ export default async function ComparePage({ params }: ComparePageProps) {
   const isRu = locale === "ru";
   const nameA = getDisplayName(fighterA, locale);
   const nameB = getDisplayName(fighterB, locale);
-  const heroTitle = isRu ? `${nameA} против ${nameB}` : `${nameA} vs ${nameB}`;
+  const heroTitle = isRu ? `${nameA} — ${nameB}` : `${nameA} vs ${nameB}`;
   const sharedWeightClass = resolveSharedWeightClass(fighterA.weightClass, fighterB.weightClass);
   const eyebrow = sharedWeightClass ? formatWeightClass(sharedWeightClass, locale) : undefined;
   const dateFormatter = new Intl.DateTimeFormat(isRu ? "ru-RU" : "en-US", {

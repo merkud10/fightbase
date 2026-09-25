@@ -1,6 +1,6 @@
 import { buildPairSlug, sortSlugPair } from "@/lib/compare-pairs";
 import { getBaseWeightClass } from "@/lib/display";
-import { looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
+import { isPlaceholderFightSlug, looksLikeLowQualitySlug } from "@/lib/sitemap-entries";
 import { isPoundForPoundRankingGroup, type UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
 
 // У части боёв вес записан заглушкой. Такое значение не должно становиться
@@ -23,6 +23,9 @@ export type CuratedPair = {
   // Худшая из двух рейтинговых позиций: чемпион — 0, боец под номером N — N.
   // null означает, что пара пришла не из рейтинга, а из карточки боя.
   rankDepth: number | null;
+  // Пара закреплена в индексе (таблица PinnedComparePair): бой сняли с карда
+  // или сравнение уже собирает клики из поиска.
+  pinned?: true;
 };
 
 // До какой позиции рейтинга пара считается достаточно интересной для индекса.
@@ -45,7 +48,11 @@ export const COMPARE_INDEX_RANK_DEPTH = 5;
 // по парам с прошедшим боем и бойцами вне топа рейтинга — по запросам вида
 // «X vs Y», то есть ровно по назначению раздела.
 export function isIndexableComparisonPair(pair: CuratedPair) {
-  return pair.hasFight || (pair.rankDepth !== null && pair.rankDepth <= COMPARE_INDEX_RANK_DEPTH);
+  return (
+    pair.hasFight ||
+    Boolean(pair.pinned) ||
+    (pair.rankDepth !== null && pair.rankDepth <= COMPARE_INDEX_RANK_DEPTH)
+  );
 }
 
 export type FightPairInput = {
@@ -58,6 +65,7 @@ export type FightPairInput = {
 type BuildCuratedPairsInput = {
   groups: UfcOfficialRankingGroup[];
   fightPairs: FightPairInput[];
+  pinnedPairs?: ReadonlyArray<{ slugA: string; slugB: string }>;
   resolveSlug: (name: string) => string | null;
 };
 
@@ -65,7 +73,7 @@ function isUsableSlug(slug: string | null | undefined): slug is string {
   return Boolean(slug) && !looksLikeLowQualitySlug(slug as string);
 }
 
-export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCuratedPairsInput): CuratedPair[] {
+export function buildCuratedPairs({ groups, fightPairs, pinnedPairs = [], resolveSlug }: BuildCuratedPairsInput): CuratedPair[] {
   const byPairSlug = new Map<string, CuratedPair>();
 
   // Канонический порядок получаем той же сортировкой, что buildPairSlug,
@@ -158,6 +166,24 @@ export function buildCuratedPairs({ groups, fightPairs, resolveSlug }: BuildCura
     }
 
     add(fight.slugA, fight.slugB, fight.weightClass, fight, null);
+  }
+
+  for (const pin of pinnedPairs) {
+    if (
+      !isUsableSlug(pin.slugA) ||
+      !isUsableSlug(pin.slugB) ||
+      isPlaceholderFightSlug(pin.slugA) ||
+      isPlaceholderFightSlug(pin.slugB) ||
+      pin.slugA === pin.slugB
+    ) {
+      continue;
+    }
+
+    add(pin.slugA, pin.slugB, null, null, null);
+    const pair = byPairSlug.get(buildPairSlug(...sortSlugPair(pin.slugA, pin.slugB)));
+    if (pair) {
+      pair.pinned = true;
+    }
   }
 
   return [...byPairSlug.values()];
