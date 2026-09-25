@@ -19,6 +19,7 @@ const {
   stripTags,
   titleCase,
   transliterateName,
+  getManualRussianName,
   getPreferredRussianName,
   hasMeaningfulRecord,
   localizeUfcFighterProfileWithDeepSeek
@@ -483,7 +484,7 @@ async function enrichProfileWithDeepSeek(profile) {
 
   return {
     ...profile,
-    nameRu: localized.nameRu,
+    nameRu: getManualRussianName(profile.name) || localized.nameRu,
     bio: localized.bioRu
   };
 }

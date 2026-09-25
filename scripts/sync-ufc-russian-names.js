@@ -2,7 +2,7 @@
 
 const { PrismaClient } = require("@prisma/client");
 
-const { buildGenericBio, fetchText, parseArgs, stripTags } = require("./fighter-import-utils");
+const { buildGenericBio, fetchText, getManualRussianName, parseArgs, stripTags } = require("./fighter-import-utils");
 
 const prisma = new PrismaClient();
 
@@ -127,7 +127,8 @@ async function main() {
 
   for (const fighter of scoped) {
     const officialNameRu = officialNames.get(fighter.name);
-    if (!officialNameRu || fighter.nameRu === officialNameRu) {
+    // Ручное имя (китайские фамилией вперёд и т.п.) ufc.ru не перезаписывает.
+    if (!officialNameRu || fighter.nameRu === officialNameRu || getManualRussianName(fighter.name)) {
       continue;
     }
 

@@ -10,6 +10,7 @@
 #   sync-roster    — sync fighter roster
 #   sync-fight-history — восстановить историю боёв из архива ESPN
 #   sync-photos-upcoming — фото из Sherdog бойцам ближайших турниров без портрета
+#   sync-bio-records — цифры рекорда в биографиях бойцов по текущему рекорду
 # =============================================================
 set -euo pipefail
 
@@ -321,6 +322,18 @@ case "${TASK}" in
     if [ "${new_rows:-0}" != "0" ] || [ "${fixed:-0}" != "0" ]; then
       send_tg_alert "✅ История боёв: +${new_rows:-0} боёв, исправлено исходов: ${fixed:-0}"
     fi
+    ;;
+
+  sync-bio-records)
+    log "Starting sync-bio-records"
+    # После синков, обновляющих рекорд (история боёв 05:00, ростер ближайших
+    # турниров 05:30, еженедельный ростер по понедельникам 04:00).
+    output=$(cd /opt/fightbase && node scripts/sync-bio-records.js --apply 2>&1) || {
+      log "sync-bio-records FAILED: ${output}"
+      send_tg_alert "❌ Биографии: сбой сверки рекордов"
+      exit 1
+    }
+    log "sync-bio-records: ${output}"
     ;;
 
   silence-check)

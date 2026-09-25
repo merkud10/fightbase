@@ -830,7 +830,13 @@ function transliterateName(name) {
     .join(" ");
 }
 
+// Ручные русские имена имеют приоритет и над словарём UFC, и над ИИ-локализацией.
+// Китайские имена по-русски пишутся фамилией вперёд — ufc.ru и модель
+// переворачивали их вслед за английским «Ce Liu».
 const preferredRussianNameMap = {
+  "Ce Liu": "Лю Цэ",
+  "Xiong Jingnan": "Сюн Цзиннань",
+  "Pingyuan Liu": "Лю Пиньюань",
   "Alexander Volkov": "Александр Волков",
   "Ariane da Silva": "Ариане да Силва",
   "Charles Oliveira": "Чарльз Оливейра",
@@ -852,6 +858,10 @@ const preferredRussianNameMap = {
   "Valentina Shevchenko": "Валентина Шевченко",
   "Jon Jones": "Джон Джонс"
 };
+
+function getManualRussianName(name) {
+  return preferredRussianNameMap[stripTags(name)] || null;
+}
 
 function getPreferredRussianName(name, existingNameRu) {
   const cleanName = stripTags(name);
@@ -1100,6 +1110,7 @@ module.exports = {
   stripTags,
   titleCase,
   translateWeightClass,
+  getManualRussianName,
   getPreferredRussianName,
   transliterateName
 };
