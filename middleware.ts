@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { adminSessionCookieName, verifyAdminSessionToken } from "@/lib/auth/session";
 import { localeCookieName } from "@/lib/locale-config";
 import { localizePath, stripLocalePrefix } from "@/lib/locale-path";
+import { findRankingDivision } from "@/lib/ranking-divisions";
 
 function isSecureContext(request: NextRequest) {
   return request.nextUrl.protocol === "https:";
@@ -122,6 +123,19 @@ export async function middleware(request: NextRequest) {
     });
 
     return response;
+  }
+
+  // Фильтр ?division= заменили страницами /rankings/<дивизион>. Редирект здесь,
+  // а не в странице: у /rankings есть loading.tsx, и оттуда вместо 308 уходит
+  // 200 с meta refresh.
+  if (prefixed.locale && prefixed.pathname === "/rankings") {
+    const division = findRankingDivision(request.nextUrl.searchParams.get("division") ?? "");
+    if (division) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = localizePath(`/rankings/${division.slug}`, "ru");
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl, 308);
+    }
   }
 
   if (prefixed.locale) {
