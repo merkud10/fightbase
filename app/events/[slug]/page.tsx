@@ -62,14 +62,18 @@ export async function generateMetadata({
     : "";
   const dateLabel = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(event.date);
   const location = formatEventLocation(event.city, event.venue, locale);
+  // «12 августа 2026 г.» уже кончается точкой — без места проведения вышло бы «г..».
+  const whenWhere = `${dateLabel}${location ? `, ${location}` : ""}`.replace(/\.$/, "");
+  // После «всех»/«из» нужен родительный падеж: «из 1 боя», «из 5 боёв».
+  const fightsGenitive = `${fightCount} ${fightCount % 10 === 1 && fightCount % 100 !== 11 ? "боя" : "боёв"}`;
   const description =
     locale === "ru"
       ? isCompleted
-        ? `${event.name}: результаты всех ${fightCount} боёв, ${dateLabel}${location ? `, ${location}` : ""}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
-        : `${event.name}: ${dateLabel}${location ? `, ${location}` : ""}. Кард из ${fightCount} боёв, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
+        ? `${event.name}: результаты ${fightCount === 1 ? "боя" : `всех ${fightsGenitive}`}, ${whenWhere}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
+        : `${event.name}: ${whenWhere}. Кард из ${fightsGenitive}, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
       : isCompleted
-        ? `${event.name}: results of all ${fightCount} fights, ${dateLabel}${location ? `, ${location}` : ""}.${mainEventLine} FightBase AI pick tally and fight breakdowns.`
-        : `${event.name}: ${dateLabel}${location ? `, ${location}` : ""}. ${fightCount}-fight card, start times, FightBase picks for every bout.${mainEventLine}${startLine}`;
+        ? `${event.name}: results of all ${fightCount} fights, ${whenWhere}.${mainEventLine} FightBase AI pick tally and fight breakdowns.`
+        : `${event.name}: ${whenWhere}. ${fightCount}-fight card, start times, FightBase picks for every bout.${mainEventLine}${startLine}`;
 
   const title = isCompleted
     ? locale === "ru"

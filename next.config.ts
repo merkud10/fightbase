@@ -36,13 +36,22 @@ const nextConfig: NextConfig = {
       "lyudovit-klayn-1": "daniel-barez"
     };
 
-    return Object.entries(renamedFighterSlugs).flatMap(([from, to]) =>
+    const fighterRedirects = Object.entries(renamedFighterSlugs).flatMap(([from, to]) =>
       ["/ru", "/en", ""].map((prefix) => ({
         source: `${prefix}/fighters/${from}`,
         destination: `${prefix}/fighters/${to}`,
         permanent: true
       }))
     );
+
+    // Google нашёл где-то ссылку на /policy/ и держит её в отчёте как 404.
+    const policyRedirects = ["/ru", "/en", ""].map((prefix) => ({
+      source: `${prefix}/policy`,
+      destination: "/ru/privacy-policy",
+      permanent: true
+    }));
+
+    return [...fighterRedirects, ...policyRedirects];
   },
   async headers() {
     const isDev = process.env.NODE_ENV === "development";
