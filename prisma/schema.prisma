@@ -150,6 +150,7 @@ model Fighter {
   recentFights FighterRecentFight[]
   pinnedPairsA PinnedComparePair[] @relation("PinnedPairA")
   pinnedPairsB PinnedComparePair[] @relation("PinnedPairB")
+  slugAliases  FighterSlugAlias[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -537,4 +538,16 @@ model PinnedComparePair {
 
   @@id([fighterAId, fighterBId])
   @@index([fighterBId])
+}
+
+// Старые слаги склеенных бойцов (scripts/merge-fighters.js): карточка и
+// сравнения по старому адресу отдают 308 на живой профиль, чтобы показы из
+// выдачи не терялись.
+model FighterSlugAlias {
+  slug      String   @id
+  fighterId String
+  fighter   Fighter  @relation(fields: [fighterId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([fighterId])
 }

@@ -84,13 +84,26 @@ export const getComparisonPageData = cache(async function getComparisonPageData(
       continue;
     }
 
-    const fighters = await prisma.fighter.findMany({
+    // Сторона пары могла быть склеенным дублем: подставляем живой профиль,
+    // а страница по разнице слагов отдаст 308 на канонический адрес пары.
+    const aliases = await prisma.fighterSlugAlias.findMany({
       where: { slug: { in: [candidate.a, candidate.b] } },
+      select: { slug: true, fighter: { select: { slug: true } } }
+    });
+    const canonical = (slug: string) => aliases.find((alias) => alias.slug === slug)?.fighter.slug ?? slug;
+    const slugA = canonical(candidate.a);
+    const slugB = canonical(candidate.b);
+    if (slugA === slugB) {
+      continue;
+    }
+
+    const fighters = await prisma.fighter.findMany({
+      where: { slug: { in: [slugA, slugB] } },
       select: comparisonFighterSelect
     });
 
-    const fighterA = fighters.find((fighter) => fighter.slug === candidate.a);
-    const fighterB = fighters.find((fighter) => fighter.slug === candidate.b);
+    const fighterA = fighters.find((fighter) => fighter.slug === slugA);
+    const fighterB = fighters.find((fighter) => fighter.slug === slugB);
 
     // Найдены оба — значит разрез верный; остальные кандидаты уже не проверяем.
     if (!fighterA || !fighterB) {

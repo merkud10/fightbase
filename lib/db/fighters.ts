@@ -514,6 +514,15 @@ export const getFightersPageData = cache(async function getFightersPageData(filt
   };
 });
 
+// Слаг склеенного дубля (FighterSlugAlias) → слаг живого профиля.
+export const resolveFighterSlugAlias = cache(async function resolveFighterSlugAlias(slug: string) {
+  const alias = await prisma.fighterSlugAlias.findUnique({
+    where: { slug },
+    select: { fighter: { select: { slug: true } } }
+  });
+  return alias?.fighter.slug ?? null;
+});
+
 export const getFighterPageData = cache(async function getFighterPageData(slug: string) {
   const fighter = await prisma.fighter.findUnique({
     where: { slug },

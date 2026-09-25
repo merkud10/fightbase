@@ -37,7 +37,31 @@ function findExactFighterMatch(fighter, candidates) {
   return null;
 }
 
+// Ключ имени без диакритики, суффиксов (Jr., III) и порядка слов: «Michael
+// Aswell Jr.» = «Michael Aswell», «Liu Ce» = «Ce Liu», «Jan Błachowicz» =
+// «Jan Blachowicz». Из-за буквального сравнения синки заводили такие имена
+// вторыми профилями (12 дублей на проде, сентябрь 2026).
+const NAME_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
+
+function fighterNameKey(value) {
+  return normalizeFighterName(String(value || "").replace(/ł/gi, "l"))
+    .split(" ")
+    .filter((token) => token && !NAME_SUFFIXES.has(token))
+    .sort()
+    .join(" ");
+}
+
+// Боец из списка кандидатов с тем же ключом имени — только если он один.
+function findFighterByNameKey(name, candidates) {
+  const key = fighterNameKey(name);
+  if (!key) return null;
+  const matches = (Array.isArray(candidates) ? candidates : []).filter((candidate) => fighterNameKey(candidate.name) === key);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 module.exports = {
+  fighterNameKey,
+  findFighterByNameKey,
   findExactFighterMatch,
   normalizeFighterName,
   normalizeFighterSlug

@@ -15,12 +15,13 @@ type FighterNameMatchingModule = {
   ) => FighterCandidate | null;
   normalizeFighterName: (value: string) => string;
   normalizeFighterSlug: (value: string) => string;
+  fighterNameKey: (value: string) => string;
+  findFighterByNameKey: (name: string, candidates: FighterCandidate[]) => FighterCandidate | null;
 };
 
 const require = createRequire(import.meta.url);
-const { findExactFighterMatch, normalizeFighterName, normalizeFighterSlug } = require(
-  "../scripts/fighter-name-matching.js"
-) as FighterNameMatchingModule;
+const requireScript = () => require("../scripts/fighter-name-matching.js") as FighterNameMatchingModule;
+const { findExactFighterMatch, normalizeFighterName, normalizeFighterSlug } = requireScript();
 
 test("normalizes complete fighter names and slugs", () => {
   assert.equal(normalizeFighterName("  José   Aldo Jr. "), "jose aldo jr");
@@ -78,4 +79,26 @@ test("does not choose arbitrarily between duplicate exact full names", () => {
     findExactFighterMatch({ name: "Alex Smith", slug: "missing-source-slug" }, duplicateNames),
     null
   );
+});
+
+test("fighterNameKey склеивает варианты написания одного бойца", () => {
+  const { fighterNameKey } = requireScript();
+  assert.equal(fighterNameKey("Michael Aswell Jr."), fighterNameKey("Michael Aswell"));
+  assert.equal(fighterNameKey("Kai Kamaka III"), fighterNameKey("Kai Kamaka"));
+  assert.equal(fighterNameKey("Liu Ce"), fighterNameKey("Ce Liu"));
+  assert.equal(fighterNameKey("Jan Błachowicz"), fighterNameKey("Jan Blachowicz"));
+  assert.notEqual(fighterNameKey("Sim Kai Xiong"), fighterNameKey("Xiong Jingnan"));
+  assert.notEqual(fighterNameKey("Cam Rowston"), fighterNameKey("Cameron Rowston"));
+});
+
+test("findFighterByNameKey возвращает бойца только при однозначном совпадении", () => {
+  const { findFighterByNameKey } = requireScript();
+  const candidates = [
+    { id: "1", slug: "michael-aswell", name: "Michael Aswell" },
+    { id: "2", slug: "kai-kamaka-iii", name: "Kai Kamaka III" },
+    { id: "3", slug: "kai-kamaka-2", name: "Kai Kamaka" }
+  ];
+  assert.equal(findFighterByNameKey("Michael Aswell Jr.", candidates)?.id, "1");
+  assert.equal(findFighterByNameKey("Kai Kamaka", candidates), null);
+  assert.equal(findFighterByNameKey("Nobody Here", candidates), null);
 });

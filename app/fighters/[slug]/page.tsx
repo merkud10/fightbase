@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 export const revalidate = 3600;
 
@@ -10,7 +10,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
-import { getFighterPageData, getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
+import { getFighterPageData, getUfcOfficialRankingLinks, getUfcRankingSnapshot, resolveFighterSlugAlias } from "@/lib/db";
 import { buildFighterSeo, findFighterRanking } from "@/lib/fighter-seo";
 import { getNamedCuratedComparisonPairs } from "@/lib/db/comparison";
 import { formatFightMethod, formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
@@ -335,6 +335,14 @@ function buildEnglishFighterBio(fighter: {
 
 // Заголовок, описание и строка под именем — под запрос-имя из поиска: рекорд,
 // позиция в рейтинге, страна, возраст, ближайший или последний бой.
+// Профиль склеили с дублем — старый адрес ведём на живой профиль.
+async function redirectMergedFighter(slug: string, locale: "ru" | "en") {
+  const target = await resolveFighterSlugAlias(slug);
+  if (target) {
+    permanentRedirect(localizePath(`/fighters/${target}`, locale));
+  }
+}
+
 async function resolveFighterSeo(data: NonNullable<Awaited<ReturnType<typeof getFighterPageData>>>, locale: "ru" | "en") {
   const { fighter, nextFight, profileRecentFights } = data;
   const [snapshot, links] = await Promise.all([getUfcRankingSnapshot(), getUfcOfficialRankingLinks()]);
@@ -384,6 +392,7 @@ export async function generateMetadata({
   const data = await getFighterPageData(slug);
 
   if (!data) {
+    await redirectMergedFighter(slug, locale);
     // Real HTTP 404: metadata resolves before the streamed shell commits a 200.
     notFound();
   }
@@ -431,6 +440,7 @@ export default async function FighterPage({
   const data = await getFighterPageData(slug);
 
   if (!data) {
+    await redirectMergedFighter(slug, locale);
     notFound();
   }
 

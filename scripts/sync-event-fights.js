@@ -3,7 +3,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
-const { findExactFighterMatch } = require("./fighter-name-matching");
+const { fighterNameKey, findExactFighterMatch, findFighterByNameKey } = require("./fighter-name-matching");
 
 const prisma = new PrismaClient();
 
@@ -163,11 +163,13 @@ function parseFightsFromEspn(data) {
       weightClass: weightClass || "Unknown",
       fighterA: {
         name: fighterA.athlete?.displayName || fighterA.athlete?.fullName || "Unknown",
-        slug: slugify(fighterA.athlete?.displayName || "unknown")
+        slug: slugify(fighterA.athlete?.displayName || "unknown"),
+        espnId: fighterA.athlete?.id ? String(fighterA.athlete.id) : null
       },
       fighterB: {
         name: fighterB.athlete?.displayName || fighterB.athlete?.fullName || "Unknown",
-        slug: slugify(fighterB.athlete?.displayName || "unknown")
+        slug: slugify(fighterB.athlete?.displayName || "unknown"),
+        espnId: fighterB.athlete?.id ? String(fighterB.athlete.id) : null
       },
       hasResult: isCompleted,
       winnerOrder,
@@ -198,8 +200,31 @@ async function findFighterByName(name) {
   return findExactFighterMatch(fighterToMatch, byName);
 }
 
-async function ensureFighter(name) {
-  const existing = await findFighterByName(name);
+// «Michael Aswell Jr.» при живом профиле «Michael Aswell», «Liu Ce» при «Ce Liu»:
+// буквальное сравнение имён таких бойцов не находило и заводило пустой дубль.
+async function findFighterByNameVariants(name) {
+  const longest = fighterNameKey(name)
+    .split(" ")
+    .sort((a, b) => b.length - a.length)[0];
+  if (!longest || longest.length < 3) return null;
+
+  const candidates = await prisma.fighter.findMany({
+    where: { name: { contains: longest, mode: "insensitive" } },
+    select: { id: true, slug: true, name: true }
+  });
+  return findFighterByNameKey(name, candidates);
+}
+
+async function ensureFighter(name, espnId = null) {
+  if (espnId) {
+    const byEspnId = await prisma.fighter.findUnique({
+      where: { espnId },
+      select: { id: true, slug: true, name: true }
+    });
+    if (byEspnId) return byEspnId;
+  }
+
+  const existing = (await findFighterByName(name)) ?? (await findFighterByNameVariants(name));
   if (existing) return existing;
 
   const slug = slugify(name);
@@ -216,6 +241,7 @@ async function ensureFighter(name) {
     data: {
       slug: uniqueSlug,
       name,
+      espnId,
       status: "active",
       country: "",
       record: "",
@@ -286,8 +312,8 @@ async function syncEventFightCard(event) {
   let updated = 0;
 
   for (const parsedFight of parsedFights) {
-    const fighterA = await ensureFighter(parsedFight.fighterA.name);
-    const fighterB = await ensureFighter(parsedFight.fighterB.name);
+    const fighterA = await ensureFighter(parsedFight.fighterA.name, parsedFight.fighterA.espnId);
+    const fighterB = await ensureFighter(parsedFight.fighterB.name, parsedFight.fighterB.espnId);
     const key = buildFightKey(fighterA.id, fighterB.id);
     seenKeys.add(key);
 

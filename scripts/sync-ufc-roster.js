@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require("@prisma/client");
+const { fighterNameKey, findFighterByNameKey } = require("./fighter-name-matching");
 const { persistImageLocally } = require("./local-image-store");
 
 const {
@@ -714,16 +715,40 @@ async function main() {
   console.log(`UFC sync complete. Created: ${created}. Updated: ${updated}.`);
 }
 
+async function findRosterFighterByName(prismaClient, name) {
+  const longest = fighterNameKey(name)
+    .split(" ")
+    .sort((a, b) => b.length - a.length)[0];
+  if (!longest || longest.length < 3) return null;
+
+  const candidates = await prismaClient.fighter.findMany({
+    where: { name: { contains: longest, mode: "insensitive" } },
+    include: { recentFights: true }
+  });
+  return findFighterByNameKey(name, candidates);
+}
+
 async function syncUfcRosterEntry(prismaClient, promotion, entry, options = {}) {
   const { slug, url } = entry;
   const useDeepSeek = options.useDeepSeek !== false;
-  const existing = await prismaClient.fighter.findUnique({
+  let existing = await prismaClient.fighter.findUnique({
     where: { slug },
     include: { recentFights: true }
   });
 
   const html = await fetchText(url);
   let profile = parseUfcProfile(html, slug, existing);
+
+  // UFC.com отдаёт серверу ufc.ru с транслитерированными слагами
+  // («dzhek-della-maddalena»): по слагу живой профиль не находится, и синк
+  // заводил второй. Ищем по имени и обновляем найденный профиль, не трогая слаг.
+  if (!existing) {
+    const byName = await findRosterFighterByName(prismaClient, profile.name);
+    if (byName) {
+      existing = byName;
+      profile = parseUfcProfile(html, slug, existing);
+    }
+  }
 
   if (useDeepSeek) {
     try {
@@ -740,7 +765,7 @@ async function syncUfcRosterEntry(prismaClient, promotion, entry, options = {}) 
   }).catch(() => profile.photoUrl || entry.rosterPhotoUrl || existing?.photoUrl || null);
 
   const data = {
-    slug: profile.slug,
+    slug: existing ? existing.slug : profile.slug,
     name: profile.name,
     nameRu: profile.nameRu,
     nickname: profile.nickname,
