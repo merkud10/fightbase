@@ -11,6 +11,7 @@ import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData, resolveEventSlugRedirect } from "@/lib/db";
 import { describeFightPick, summarizeEventPicks } from "@/lib/event-picks";
+import { buildEventSeoName, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
@@ -55,7 +56,14 @@ export async function generateMetadata({
         : ` Main card starts ${formatCardNightLabel(event.mainCardAt, "en")} at ${formatCardTime(event.mainCardAt, "en")} UTC.`
       : "";
   const mainEvent = orderedFights[0];
-  const mainEventLine = mainEvent
+  const main: MainEvent = mainEvent
+    ? {
+        a: { slug: mainEvent.fighterA.slug, name: getDisplayName(mainEvent.fighterA, "ru") },
+        b: { slug: mainEvent.fighterB.slug, name: getDisplayName(mainEvent.fighterB, "ru") }
+      }
+    : null;
+  const seoName = locale === "ru" ? buildEventSeoName(event.name, main) : event.name;
+  const mainEventLine = mainEvent && isRealMainEvent(main)
     ? locale === "ru"
       ? ` Главный бой: ${getDisplayName(mainEvent.fighterA, locale)} — ${getDisplayName(mainEvent.fighterB, locale)}.`
       : ` Main event: ${getDisplayName(mainEvent.fighterA, locale)} vs ${getDisplayName(mainEvent.fighterB, locale)}.`
@@ -69,18 +77,18 @@ export async function generateMetadata({
   const description =
     locale === "ru"
       ? isCompleted
-        ? `${event.name}: результаты ${fightCount === 1 ? "боя" : `всех ${fightsGenitive}`}, ${whenWhere}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
-        : `${event.name}: ${whenWhere}. Кард из ${fightsGenitive}, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
+        ? `${seoName}: результаты ${fightCount === 1 ? "боя" : `всех ${fightsGenitive}`}, ${whenWhere}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
+        : `${seoName}: ${whenWhere}. Кард из ${fightsGenitive}, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
       : isCompleted
         ? `${event.name}: results of all ${fightCount} fights, ${whenWhere}.${mainEventLine} FightBase AI pick tally and fight breakdowns.`
         : `${event.name}: ${whenWhere}. ${fightCount}-fight card, start times, FightBase picks for every bout.${mainEventLine}${startLine}`;
 
   const title = isCompleted
     ? locale === "ru"
-      ? `${event.name} — результаты и кард турнира`
+      ? `${seoName}: результаты и кард турнира`
       : `${event.name} — results and card`
     : locale === "ru"
-      ? `${event.name} — дата, время по Москве и кард`
+      ? `${seoName}: кард участников, дата и время по Москве`
       : `${event.name} — date, start time, and card`;
   const ogTitle = locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`;
   const leadPhoto = orderedFights[0]?.fighterA?.photoUrl ?? orderedFights[0]?.fighterB?.photoUrl;
@@ -160,8 +168,8 @@ export default async function EventPage({
   const heroBits = [
     dateLabel,
     formatEventLocation(event.city, event.venue, locale),
-    leadFight
-      ? `${locale === "ru" ? "Главный бой" : "Main event"}: ${getDisplayName(leadFight.fighterA, locale)} vs ${getDisplayName(leadFight.fighterB, locale)}`
+    leadFight && isRealMainEvent({ a: leadFight.fighterA, b: leadFight.fighterB })
+      ? `${locale === "ru" ? "Главный бой" : "Main event"}:${getDisplayName(leadFight.fighterA, locale)} vs ${getDisplayName(leadFight.fighterB, locale)}`
       : null,
     orderedFights.length > 0 ? fightWord(orderedFights.length) : null
   ]
