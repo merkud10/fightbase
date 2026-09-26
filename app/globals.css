@@ -3463,6 +3463,10 @@ th {
     text-align: left;
   }
 
+}
+
+/* Keep fixed controls outside the 1220px content area, with room for the scrollbar. */
+@media (max-width: 1440px) {
   .floating-social-rail {
     position: static;
     display: flex;
