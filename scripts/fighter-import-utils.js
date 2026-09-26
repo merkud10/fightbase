@@ -860,7 +860,7 @@ const preferredRussianNameMap = {
 };
 
 function getManualRussianName(name) {
-  return preferredRussianNameMap[stripTags(name)] || null;
+  return preferredRussianNameMap[stripTags(name)] || ufcNameDictionary.fullNames?.[stripTags(name)] || null;
 }
 
 function getPreferredRussianName(name, existingNameRu) {

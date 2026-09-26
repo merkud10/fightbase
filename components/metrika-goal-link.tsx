@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { reachMetrikaGoal } from "@/lib/metrika";
 
@@ -27,4 +28,8 @@ export function MetrikaGoalLink({ href, goal, className, ariaLabel, title, child
       {children}
     </a>
   );
+}
+
+export function MetrikaInternalLink({ href, goal, className, children }: MetrikaGoalLinkProps) {
+  return <Link href={href} className={className} onClick={() => reachMetrikaGoal(goal)}>{children}</Link>;
 }

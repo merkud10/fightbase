@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/locale-config";
+import nameDictionary from "@/lib/ufc-name-dictionary.json";
 
 const weightClassMap: Record<string, { ru: string; en: string }> = {
   strawweight: { ru: "Минимальный вес", en: "Strawweight" },
@@ -274,7 +275,9 @@ export function formatFightStage(value: string, locale: Locale) {
 }
 
 export function getDisplayName(fighter: { name: string; nameRu?: string | null }, locale: Locale) {
-  return locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
+  return locale === "ru"
+    ? fighter.nameRu?.trim() || (nameDictionary.fullNames as Record<string, string>)[fighter.name] || fighter.name
+    : fighter.name;
 }
 
 // Фото есть не у всех бойцов, а профили без него теперь тоже уходят в индекс,

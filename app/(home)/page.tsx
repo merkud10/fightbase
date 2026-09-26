@@ -8,7 +8,7 @@ export const revalidate = 1800;
 import { ArticleCard } from "@/components/cards";
 import { getArticleHref } from "@/lib/article-routes";
 import { JsonLd } from "@/components/json-ld";
-import { MetrikaGoalLink } from "@/components/metrika-goal-link";
+import { MetrikaGoalLink, MetrikaInternalLink } from "@/components/metrika-goal-link";
 import { PushSubscribeButton } from "@/components/push-subscribe-button";
 import {
   getEventNightEvent,
@@ -227,6 +227,42 @@ export default async function HomePage() {
                 )}
               </div>
 
+              {leadFight && leadPick ? (
+                <div className="hero-verdict">
+                  <p className="eyebrow">{isRu ? "Пик ИИ-модели FightBase" : "FightBase AI pick"}</p>
+                  <strong>{getDisplayName(leadPick.fighter, locale)} · {leadPick.percent}%</strong>
+                  <span>
+                    {isRu
+                      ? `Предматчевая оценка: ${getDisplayName(leadFight.fighterA, locale)} — ${leadFight.predictionSnapshot?.percentA}%; ${getDisplayName(leadFight.fighterB, locale)} — ${leadFight.predictionSnapshot?.percentB}%.`
+                      : `Pre-fight rating: ${getDisplayName(leadFight.fighterA, locale)} — ${leadFight.predictionSnapshot?.percentA}%; ${getDisplayName(leadFight.fighterB, locale)} — ${leadFight.predictionSnapshot?.percentB}%.`}
+                  </span>
+                  {leadPick.underdog ? (
+                    <span>{isRu ? "ИИ выбирает андердога по предматчевой оценке." : "The AI pick is the underdog by the pre-fight rating."}</span>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="hero-action-row">
+                {leadFight?.predictionSnapshot && leadEvent ? (
+                  <MetrikaInternalLink
+                    href={localizePath(`/predictions/${leadEvent.slug}/${leadFight.slug ?? ""}`, locale)}
+                    goal="home_prediction_click"
+                    className="button"
+                  >
+                    {isRu ? "Разбор и прогноз боя" : "Fight breakdown and pick"}
+                  </MetrikaInternalLink>
+                ) : null}
+                {leadEvent ? (
+                  <MetrikaInternalLink href={localizePath(`/events/${leadEvent.slug}`, locale)} goal="home_event_click" className="button-secondary">
+                    {isRu ? "Полный кард" : "Full card"}
+                  </MetrikaInternalLink>
+                ) : (
+                  <Link href={localizePath("/news", locale)} className="button-secondary">
+                    {isRu ? "Лента новостей" : "News feed"}
+                  </Link>
+                )}
+              </div>
+
               {leadFight ? (
                 <div className="hero-fight-tape">
                   <div className="hero-fight-corner">
@@ -265,37 +301,6 @@ export default async function HomePage() {
                 </div>
               ) : null}
 
-              {leadFight && leadPick ? (
-                <div className="hero-verdict">
-                  <p className="eyebrow">{isRu ? "Пик ИИ-модели FightBase" : "FightBase AI pick"}</p>
-                  <strong>{getDisplayName(leadPick.fighter, locale)}</strong>
-                  <span>
-                    {isRu
-                      ? `${leadFight.predictionSnapshot?.percentA}% против ${leadFight.predictionSnapshot?.percentB}% по предматчевой оценке`
-                      : `${leadFight.predictionSnapshot?.percentA}% vs ${leadFight.predictionSnapshot?.percentB}% by pre-fight rating`}
-                  </span>
-                </div>
-              ) : null}
-
-              <div className="hero-action-row">
-                {leadFight?.predictionSnapshot && leadEvent ? (
-                  <Link
-                    href={localizePath(`/predictions/${leadEvent.slug}/${leadFight.slug ?? ""}`, locale)}
-                    className="button"
-                  >
-                    {isRu ? "Разбор и прогноз боя" : "Fight breakdown and pick"}
-                  </Link>
-                ) : null}
-                {leadEvent ? (
-                  <Link href={localizePath(`/events/${leadEvent.slug}`, locale)} className="button-secondary">
-                    {isRu ? "Полный кард" : "Full card"}
-                  </Link>
-                ) : (
-                  <Link href={localizePath("/news", locale)} className="button-secondary">
-                    {isRu ? "Лента новостей" : "News feed"}
-                  </Link>
-                )}
-              </div>
             </div>
 
             <div className="hero-gorilla-sigil" aria-hidden="true">

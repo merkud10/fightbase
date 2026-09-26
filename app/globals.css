@@ -773,9 +773,10 @@ img {
 }
 
 .hero-card-poster {
-  min-height: 560px;
+  min-height: 0;
   padding: 28px 28px 32px;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 20px;
   background:
     radial-gradient(circle at top right, rgba(227, 27, 35, 0.34), transparent 24%),
     radial-gradient(circle at bottom left, rgba(227, 27, 35, 0.14), transparent 28%),
@@ -817,6 +818,7 @@ img {
 }
 
 .hero-poster-topline {
+  padding-right: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -836,9 +838,10 @@ img {
 
 .hero-card-poster h1 {
   margin: 0;
-  font-size: clamp(4.8rem, 8vw, 9.4rem);
-  line-height: 0.82;
-  max-width: 8.6ch;
+  font-size: clamp(2.2rem, 4vw, 4rem);
+  line-height: 1.05;
+  max-width: none;
+  overflow-wrap: anywhere;
   text-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
@@ -951,10 +954,10 @@ img {
 
 .hero-gorilla-sigil {
   position: absolute;
-  right: 32px;
-  top: 78px;
-  width: min(40%, 360px);
-  opacity: 1;
+  right: 20px;
+  top: 12px;
+  width: 48px;
+  opacity: 0.35;
   pointer-events: none;
   filter:
     drop-shadow(0 18px 40px rgba(0, 0, 0, 0.48))
@@ -1033,7 +1036,7 @@ img {
   pointer-events: none;
 }
 
-.hero-card h1 {
+.hero-card:not(.hero-card-poster) h1 {
   margin: 10px 0 14px;
   font-size: clamp(3.4rem, 4.7vw, 6.2rem);
   line-height: 0.9;
@@ -3378,19 +3381,18 @@ th {
     text-align: left;
   }
 
-  .hero-grid-poster,
-  .hero-fight-tape {
+  .hero-grid-poster {
     grid-template-columns: 1fr;
   }
 
   .hero-gorilla-sigil {
-    width: min(42%, 280px);
-    top: 110px;
-    right: 22px;
+    width: 48px;
+    top: 12px;
+    right: 16px;
   }
 
   .hero-card-poster h1 {
-    max-width: 12ch;
+    max-width: none;
   }
 
   .filter-group,
@@ -3471,20 +3473,28 @@ th {
   }
 
   .hero-card-poster {
-    min-height: 460px;
-    padding: 22px;
+    min-height: 0;
+    padding: 18px;
+    gap: 12px;
   }
 
   .hero-gorilla-sigil {
-    width: 180px;
-    top: 120px;
-    right: 14px;
-    opacity: 1;
+    display: none;
   }
 
   .hero-corner-photo {
-    width: min(140px, 100%);
+    width: 64px;
+    height: 76px;
+    object-fit: cover;
   }
+
+  .hero-card-poster h1 { font-size: 2.1rem; }
+  .hero-poster-body { gap: 10px; }
+  .hero-fight-tape { gap: 8px; margin-top: 0; }
+  .hero-fight-corner { min-width: 0; padding: 10px; }
+  .hero-fight-corner strong { font-size: 0.9rem; }
+  .hero-fight-corner span { font-size: 0.65rem; letter-spacing: 0.03em; }
+  .hero-poster-subline { font-size: 0.7rem; letter-spacing: 0.03em; }
 
   .hero-poster-topline,
   .hero-poster-subline {
@@ -3492,6 +3502,7 @@ th {
   }
 
   .hero-poster-topline {
+    padding-right: 0;
     flex-direction: column;
     align-items: flex-start;
   }

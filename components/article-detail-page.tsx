@@ -8,6 +8,7 @@ import { AdSlot } from "@/components/ad-slot";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { prepareArticleIntro } from "@/lib/article-intro";
 import { getArticleRouteBase, resolveMovedArticlePath } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
 import { selectArticleFights } from "@/lib/article-fights";
@@ -161,6 +162,7 @@ export async function ArticleDetailPage({
     notFound();
   }
 
+  const intro = prepareArticleIntro(article.excerpt, article.sections);
   const articleFighterIds = article.fighterMap.map(({ fighter }) => fighter.id);
   const [relatedArticles, fightCandidates] = await Promise.all([
     getRelatedArticles({
@@ -222,7 +224,7 @@ export async function ArticleDetailPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={articleJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero title={article.title} description={article.excerpt} />
+      <PageHero title={article.title} description={intro.lead} />
 
       <section className="policy-card" aria-label={locale === "ru" ? "Данные материала" : "Story details"}>
         <p className="kicker">
@@ -279,7 +281,7 @@ export async function ArticleDetailPage({
               }));
               const linkedFighters = new Set<string>();
 
-              return article.sections.map((section) => (
+              return intro.sections.filter((section) => section.body.trim()).map((section) => (
                 <div key={section.id} style={{ marginBottom: 22 }}>
                   {section.heading && section.heading !== "AI draft" ? <h3>{section.heading}</h3> : null}
                   <div className="article-copy-stack">

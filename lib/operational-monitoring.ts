@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getEnvironmentReport } from "@/lib/env";
+import { ingestionStatus, unresolvedFailures } from "@/lib/operational-status";
 
 type AlertSeverity = "info" | "warn" | "error";
 
@@ -30,7 +31,8 @@ function hoursSince(value: Date | string | null | undefined) {
 
 export async function getReadinessReport() {
   const environment = getEnvironmentReport();
-  const [latestIngestionRun, queuedJobs, staleRunningJobs, recentFailedJobs] = await Promise.all([
+  const newsTypes = ["weekly-news", "ai-discovery"];
+  const [latestIngestionRun, queuedJobs, staleRunningJobs, failedJobs, successes, latestNewsJob, successfulNewsJob, successfulLegacy] = await Promise.all([
     prisma.ingestionRun.findFirst({
       orderBy: { startedAt: "desc" }
     }),
@@ -44,23 +46,28 @@ export async function getReadinessReport() {
         status: "running"
       },
       orderBy: { startedAt: "asc" },
-      take: 10
     }),
-    prisma.backgroundJob.count({
+    prisma.backgroundJob.findMany({
       where: {
         status: "failed",
         updatedAt: {
           gte: new Date(Date.now() - 6 * 3_600_000)
         }
-      }
-    })
+      },
+      select: { type: true, updatedAt: true }
+    }),
+    prisma.backgroundJob.groupBy({ by: ["type"], where: { status: "succeeded" }, _max: { finishedAt: true } }),
+    prisma.backgroundJob.findFirst({ where: { type: { in: newsTypes } }, orderBy: { createdAt: "desc" } }),
+    prisma.backgroundJob.findFirst({ where: { type: { in: newsTypes }, status: "succeeded" }, orderBy: { finishedAt: "desc" } }),
+    prisma.ingestionRun.findFirst({ where: { status: "success" }, orderBy: { finishedAt: "desc" } })
   ]);
 
   await prisma.$queryRaw`SELECT 1`;
 
   const staleRunningThresholdHours = 1;
   const staleRunningCount = staleRunningJobs.filter((job) => hoursSince(job.startedAt ?? job.updatedAt) > staleRunningThresholdHours).length;
-  const ingestionIsFresh = latestIngestionRun ? hoursSince(latestIngestionRun.startedAt) <= 48 : false;
+  const recentFailedJobs = failedJobs.length;
+  const unresolvedFailedJobs = unresolvedFailures(failedJobs, successes.map((run) => ({ type: run.type, finishedAt: run._max.finishedAt }))).length;
   const environmentReady = environment.readyForPublicDeploy;
 
   const checks = {
@@ -71,33 +78,32 @@ export async function getReadinessReport() {
       status: environmentReady ? ("ok" as const) : ("warn" as const),
       warnings: environment.warnings
     },
-    ingestion: {
-      status: ingestionIsFresh ? ("ok" as const) : ("warn" as const),
-      latestStartedAt: latestIngestionRun?.startedAt ?? null,
-      latestStatus: latestIngestionRun?.status ?? "missing"
-    },
+    ingestion: ingestionStatus({ latestJob: latestNewsJob, successfulJob: successfulNewsJob, latestLegacy: latestIngestionRun, successfulLegacy }),
     backgroundJobs: {
-      status: staleRunningCount === 0 && recentFailedJobs === 0 ? ("ok" as const) : recentFailedJobs > 0 ? ("error" as const) : ("warn" as const),
+      status: staleRunningCount === 0 && unresolvedFailedJobs === 0 ? ("ok" as const) : unresolvedFailedJobs > 0 ? ("error" as const) : ("warn" as const),
       queuedJobs,
       staleRunningCount,
-      recentFailedJobs
+      recentFailedJobs,
+      unresolvedFailedJobs
     }
   };
 
   const ok =
     checks.database.status === "ok" &&
     checks.environment.status === "ok" &&
-    checks.backgroundJobs.status !== "error";
+    checks.backgroundJobs.status === "ok" &&
+    checks.ingestion.status === "ok";
 
   return {
     ok,
+    status: Object.values(checks).some((check) => check.status === "error") ? "error" : ok ? "ok" : "warn",
     timestamp: new Date().toISOString(),
     checks
   };
 }
 
 export async function getOperationalAlerts(limit = 8): Promise<OperationalAlert[]> {
-  const [recentErrorEvents, recentWarnEvents, failedJobs, staleRunningJobs, latestIngestionRun] = await Promise.all([
+  const [recentErrorEvents, recentWarnEvents, failedJobs, staleRunningJobs, readiness, successes] = await Promise.all([
     prisma.systemEvent.findMany({
       where: {
         level: "error",
@@ -132,9 +138,8 @@ export async function getOperationalAlerts(limit = 8): Promise<OperationalAlert[
       orderBy: { startedAt: "asc" },
       take: 3
     }),
-    prisma.ingestionRun.findFirst({
-      orderBy: { startedAt: "desc" }
-    })
+    getReadinessReport(),
+    prisma.backgroundJob.groupBy({ by: ["type"], where: { status: "succeeded" }, _max: { finishedAt: true } })
   ]);
 
   const alerts: OperationalAlert[] = [];
@@ -161,7 +166,7 @@ export async function getOperationalAlerts(limit = 8): Promise<OperationalAlert[
     });
   }
 
-  for (const job of failedJobs) {
+  for (const job of unresolvedFailures(failedJobs, successes.map((run) => ({ type: run.type, finishedAt: run._max.finishedAt })))) {
     alerts.push({
       id: `job-failed-${job.id}`,
       severity: "error",
@@ -187,15 +192,14 @@ export async function getOperationalAlerts(limit = 8): Promise<OperationalAlert[
     });
   }
 
-  if (!latestIngestionRun || hoursSince(latestIngestionRun.startedAt) > 48) {
+  const ingestion = readiness.checks.ingestion;
+  if (ingestion.status !== "ok") {
     alerts.push({
       id: "ingestion-stale",
-      severity: "warn",
-      title: "Ingestion appears stale",
-      message: latestIngestionRun
-        ? "No ingestion run has started in the last 48 hours."
-        : "There are no ingestion runs recorded yet.",
-      createdAt: latestIngestionRun ? toIsoString(latestIngestionRun.startedAt) : new Date().toISOString(),
+      severity: ingestion.status,
+      title: "Content discovery needs attention",
+      message: `Source: ${ingestion.source}; latest status: ${ingestion.latestStatus}; last success: ${ingestion.lastSucceededAt?.toISOString() ?? "never"}; freshness limit: ${ingestion.maxAgeHours} hours.`,
+      createdAt: toIsoString(ingestion.latestStartedAt),
       source: "ingestion"
     });
   }

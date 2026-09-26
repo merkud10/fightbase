@@ -1,6 +1,7 @@
 import type { ArticleCategory, SourceType } from "@prisma/client";
 
 import { slugify } from "@/lib/admin";
+import { buildArticleExcerpt as buildExcerpt } from "@/lib/article-intro";
 
 export interface IngestionItem {
   headline: string;
@@ -63,16 +64,6 @@ function tokenize(value: string) {
 
 function unique(items: string[]) {
   return Array.from(new Set(items.filter(Boolean)));
-}
-
-function buildExcerpt(articleText: string, maxLength = 400) {
-  const normalized = normalizeWhitespace(articleText);
-
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxLength).trimEnd()}...`;
 }
 
 function inferCategory(headline: string, body: string): ArticleCategory {

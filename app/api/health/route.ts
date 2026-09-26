@@ -23,6 +23,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      scope: "availability",
+      readiness: { ok: readiness.ok, status: readiness.status },
       service: "fightbase-media",
       timestamp: new Date().toISOString(),
       checks: {

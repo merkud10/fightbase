@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionAccuracyHistory } from "@/lib/db";
+import { comparePredictions } from "@/lib/prediction-comparison";
 import { emptyRoiBucket, formatUnits, roiPercent, type RoiBucket } from "@/lib/prediction-roi";
 import { getPredictionStatsSince, predictionStatsSinceNote } from "@/lib/prediction-stats-window";
 import { getLocale } from "@/lib/i18n";
@@ -46,6 +47,7 @@ function formatScore(bucket: Bucket, locale: "ru" | "en") {
 export default async function PredictionAccuracyPage() {
   const locale = await getLocale();
   const history = await getPredictionAccuracyHistory();
+  const comparison = comparePredictions(history.flatMap((event) => event.fights));
   const sinceNote = predictionStatsSinceNote(getPredictionStatsSince(), locale);
 
   const totalModel: Bucket = { correct: 0, judged: 0 };
@@ -122,6 +124,29 @@ export default async function PredictionAccuracyPage() {
         </section>
       ) : (
         <>
+          <section className="policy-card" aria-label={locale === "ru" ? "Сравнение на одинаковых боях" : "Same-bout comparison"}>
+            <h2>{locale === "ru" ? "Сравнение на одинаковых боях" : "Same-bout comparison"}</h2>
+            <p className="copy">
+              {locale === "ru"
+                ? `FightBase: ${formatScore(comparison.model, locale)} · Фаворит: ${formatScore(comparison.favorite, locale)}.`
+                : `FightBase: ${formatScore(comparison.model, locale)} · Favorite: ${formatScore(comparison.favorite, locale)}.`}
+            </p>
+            <p className="copy">
+              {locale === "ru"
+                ? `ROI на одинаковой выборке с коэффициентами обеих сторон: FightBase ${formatRoiLine(comparison.modelRoi)} · Фаворит ${formatRoiLine(comparison.favoriteRoi)}.`
+                : `ROI on the same sample with odds for both strategies: FightBase ${formatRoiLine(comparison.modelRoi)} · Favorite ${formatRoiLine(comparison.favoriteRoi)}.`}
+            </p>
+            <p className="copy">
+              {locale === "ru"
+                ? `Пики на фаворита: ${formatScore(comparison.favorites, locale)} · Пики на андердога: ${formatScore(comparison.underdogs, locale)}.`
+                : `Favorite picks: ${formatScore(comparison.favorites, locale)} · Underdog picks: ${formatScore(comparison.underdogs, locale)}.`}
+            </p>
+            <p className="copy">
+              {locale === "ru"
+                ? `Включены только бои с оценёнными пиками обеих стратегий и записанным временем пика ИИ до начала турнира. Исключено: ${comparison.excluded}; из них без подтверждённого времени до турнира: ${comparison.unverifiedTiming}. Ещё ${comparison.missingOdds} боёв не вошли в ROI из-за отсутствующих коэффициентов. Равная оценка 50/50 не определяет фаворита. Небольшая выборка не доказывает устойчивого преимущества модели.`
+                : `Only bouts scored for both strategies with a recorded AI pick timestamp before the event are included. Excluded: ${comparison.excluded}; of these, without a verified pre-event timestamp: ${comparison.unverifiedTiming}. Another ${comparison.missingOdds} bouts lack odds for paired ROI. A 50/50 rating has no favorite. A small sample does not establish a lasting model advantage.`}
+            </p>
+          </section>
           <section className="policy-card" aria-label={locale === "ru" ? "Сводка за всё время" : "All-time summary"}>
             <p className="kicker">{locale === "ru" ? "За всё время" : "All time"}</p>
             <p className="copy">

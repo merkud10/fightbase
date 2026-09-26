@@ -7,6 +7,8 @@ const { PrismaClient } = require("@prisma/client");
 const { classifyArticleWithAi } = require("./ai-article-taxonomy");
 const { ensureUfcFightersForText } = require("./ensure-ufc-fighters");
 const { buildInternalApiHeaders } = require("./internal-api");
+const { createSourceCircuitBreaker } = require("./source-circuit-breaker");
+const sourceCircuit = createSourceCircuitBreaker();
 
 const prisma = new PrismaClient();
 const ENABLED_PROMOTIONS = new Set(["ufc"]);
@@ -406,6 +408,9 @@ function hostnameFromUrl(url) {
 
 async function fetchHtml(url) {
   const host = hostnameFromUrl(url);
+  if (host && sourceCircuit.isOpen(host)) {
+    throw new Error(`Skipping ${url}: repeated fetch failures on ${host}; retry on the next run`);
+  }
   if (host && (HOST_CLIENT_ERROR_STREAK.get(host) ?? 0) >= HOST_BAN_THRESHOLD) {
     throw new Error(`Skipping ${url}: host ${host} banned after repeated 4xx responses`);
   }
@@ -440,7 +445,9 @@ async function fetchHtml(url) {
       if (host) {
         HOST_CLIENT_ERROR_STREAK.set(host, 0);
       }
-      return await response.text();
+      const html = await response.text();
+      if (host) sourceCircuit.succeeded(host);
+      return html;
     } catch (error) {
       lastError = error;
       if (error?.message?.startsWith("HTTP 4")) {
@@ -451,6 +458,7 @@ async function fetchHtml(url) {
     }
   }
 
+  if (host) sourceCircuit.failed(host);
   if (lastError?.name === "AbortError") {
     throw new Error(`Timed out while fetching ${url}`);
   }
@@ -802,6 +810,12 @@ async function main() {
   console.log(`Filtered out: ${totals.filteredOut}`);
   console.log(`Fetch failed: ${totals.fetchFailed}`);
   console.log(`Ingest failed: ${totals.ingestFailed}`);
+  if (allStats.length > 0 && allStats.every((s) => s.errorMessage || (s.fetched === 0 && s.fetchFailed > 0))) {
+    throw new Error("All selected sources failed; discovery did not complete successfully");
+  }
+  if (totals.ingestFailed > 0 && totals.created + totals.duplicates === 0) {
+    throw new Error("All discovered articles failed ingestion");
+  }
   await prisma.$disconnect();
 }
 

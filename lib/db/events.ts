@@ -178,7 +178,7 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
           resultType: true,
           status: true,
           predictionSnapshot: {
-            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true }
+            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true }
           }
         }
       }
@@ -323,7 +323,7 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
           fighterA: { select: { id: true, name: true, nameRu: true } },
           fighterB: { select: { id: true, name: true, nameRu: true } },
           predictionSnapshot: {
-            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true }
+            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true }
           }
         }
       }
@@ -407,7 +407,8 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
               : favoriteFighterId === fight.fighterBId
                 ? snapshot.oddsBAtPick
                 : null;
-          addToRoiBucket(favoriteRoi, resolvePickRoiUnits(favoriteVerdict, favoriteOdds));
+          const favoriteUnits = resolvePickRoiUnits(favoriteVerdict, favoriteOdds);
+          addToRoiBucket(favoriteRoi, favoriteUnits);
 
           return {
             id: fight.id,
@@ -422,6 +423,8 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
             ),
             pickOdds,
             pickUnits,
+            favoriteUnits,
+            lockedBeforeEvent: Boolean(snapshot.aiPickGeneratedAt && snapshot.aiPickGeneratedAt < event.date),
             winnerFighter,
             resultType: fight.resultType,
             favoriteVerdict,
