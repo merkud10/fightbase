@@ -36,6 +36,7 @@ export async function FloatingSocialLinks() {
           title="Telegram"
         >
           <TelegramIcon />
+          <span className="floating-social-label">Telegram</span>
         </MetrikaGoalLink>
       ) : null}
       {hasVk ? (
@@ -47,6 +48,7 @@ export async function FloatingSocialLinks() {
           title="VK"
         >
           <VkWordmark />
+          <span className="floating-social-label">VK</span>
         </MetrikaGoalLink>
       ) : null}
     </aside>
