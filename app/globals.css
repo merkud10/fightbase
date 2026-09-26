@@ -1587,7 +1587,8 @@ img {
 .detail-grid > *,
 .table-card,
 .rankings-stack,
-.rankings-stack > * {
+.rankings-stack > *,
+.ranking-table-card > * {
   min-width: 0;
 }
 
@@ -3489,6 +3490,15 @@ th {
 }
 
 @media (max-width: 720px) {
+  .ranking-table-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ranking-champion-badge {
+    max-width: 100%;
+  }
+
   .section-head {
     flex-wrap: wrap;
   }
