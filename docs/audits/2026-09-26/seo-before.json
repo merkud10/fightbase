@@ -1,0 +1,295 @@
+{
+  "checkedAt": "2026-09-26T10:30:35.102Z",
+  "note": "HTTP timings are single samples, not Core Web Vitals or Lighthouse scores.",
+  "results": [
+    {
+      "path": "/ru",
+      "status": 200,
+      "url": "https://fightbase.ru/ru",
+      "elapsedMs": 340,
+      "bytes": 99064,
+      "title": "FightBase Media - новости UFC, прогнозы, бойцы и турниры",
+      "description": "FightBase Media освещает UFC как профильное спортивное медиа: новости, карточки турниров, прогнозы на бои, профили бойцов и рейтинги.",
+      "canonical": "https://fightbase.ru/ru",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "CollectionPage",
+        "ItemList"
+      ]
+    },
+    {
+      "path": "/ru/fighters/joshua-van",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/joshua-van",
+      "elapsedMs": 573,
+      "bytes": 72998,
+      "title": "Джошуа Ван (Joshua Van): рекорд 18-2-0, статистика и бои UFC | FightBase Media",
+      "description": "Джошуа Ван «The Fearless» — чемпион UFC в наилегчайшем весе, рекорд 18-2-0, 24 года. Последний бой: Александре Пантожа, победа, 20.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/joshua-van",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/yadong-song",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/yadong-song",
+      "elapsedMs": 572,
+      "bytes": 71843,
+      "title": "Сонг Ядонг (Song Yadong): рекорд 24-9-1, статистика и бои UFC | FightBase Media",
+      "description": "Сонг Ядонг «Kung Fu Kid» — боец UFC (Китай), №3 легчайшего веса, рекорд 24-9-1, 28 лет. Последний бой: Умар Нурмагомедов, победа, 29.08.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/yadong-song",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/events/ufc-335",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/events/ufc-335",
+      "elapsedMs": 317,
+      "bytes": 39682,
+      "title": "UFC 335 (ЮФС 335): кард участников, дата и время по Москве | FightBase Media",
+      "description": "UFC 335 (ЮФС 335): 13 декабря 2026 г., Лас-Вегас · T-Mobile Arena. Кард из 3 боёв, время по Москве, прогнозы FightBase на каждый бой. Главный кард — в ночь на воскресенье, 13 декабря, в 05:00 мск.",
+      "canonical": "https://fightbase.ru/ru/events/ufc-335",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "SportsEvent"
+      ]
+    },
+    {
+      "path": "/ru/fighters/rafa-garcia",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/rafa-garcia",
+      "elapsedMs": 424,
+      "bytes": 63249,
+      "title": "Рафа Гарсия (Rafa Garcia): рекорд 19-5-0, статистика и бои UFC | FightBase Media",
+      "description": "Рафа Гарсия «Gifted» — боец UFC (Мексика), легкий вес, рекорд 19-5-0, 32 года. Последний бой: Ронгжу, поражение, 12.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/rafa-garcia",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/muhammad-naimov",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/muhammad-naimov",
+      "elapsedMs": 424,
+      "bytes": 56461,
+      "title": "Мухаммад Наимов (Muhammad Naimov): рекорд 13-5-0, статистика и бои UFC | FightBase Media",
+      "description": "Мухаммад Наимов «Hillman» — боец UFC (Tajikistan), полулегкий вес, рекорд 13-5-0, 32 года. Последний бой: Лосене Кеита, поражение, 05.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/muhammad-naimov",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/trevor-peek",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/trevor-peek",
+      "elapsedMs": 424,
+      "bytes": 53120,
+      "title": "Тревор Пик (Trevor Peek): рекорд 9-4-0, статистика и бои UFC | FightBase Media",
+      "description": "Тревор Пик — боец UFC (USA), полулегкий вес, рекорд 9-4-0, 31 год. Последний бой: Куртис Кампбелл, поражение, 05.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/trevor-peek",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/mario-pinto",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/mario-pinto",
+      "elapsedMs": 423,
+      "bytes": 50565,
+      "title": "Марио Пинто (Mario Pinto): рекорд 13-0-0, статистика и бои UFC | FightBase Media",
+      "description": "Марио Пинто — боец UFC (Portugal), №14 тяжелого веса, рекорд 13-0-0, 28 лет. Последний бой: Райан Спэнн, победа, 05.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/mario-pinto",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/jeremy-horn",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/jeremy-horn",
+      "elapsedMs": 458,
+      "bytes": 44572,
+      "title": "Джереми Хорн (Jeremy Horn): рекорд 88-19-5, статистика и бои UFC | FightBase Media",
+      "description": "Джереми Хорн — боец UFC (США), средний вес, рекорд 88-19-5, 47 лет. Последний бой: Палхарес, победа, 16.01.2009. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/jeremy-horn",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/sofia-montenegro",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/sofia-montenegro",
+      "elapsedMs": 458,
+      "bytes": 45302,
+      "title": "София Монтенегро (Sofia Montenegro): рекорд 6-3-0, статистика и бои UFC | FightBase Media",
+      "description": "София Монтенегро «La Bruja» — боец UFC (Argentina), женский минимальный вес, рекорд 6-3-0, 27 лет. Последний бой: Делфине Беноуаич, поражение, 05.09.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/sofia-montenegro",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/bo-nickal",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/bo-nickal",
+      "elapsedMs": 462,
+      "bytes": 62319,
+      "title": "Бо Никал (Bo Nickal): рекорд 9-1-0, статистика и бои UFC | FightBase Media",
+      "description": "Бо Никал — боец UFC (USA), №14 среднего веса, рекорд 9-1-0, 30 лет. Последний бой: Кайл Даукас, победа, 15.06.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/bo-nickal",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/sean-woodson",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/sean-woodson",
+      "elapsedMs": 466,
+      "bytes": 58915,
+      "title": "Шон Вудсон (Sean Woodson): рекорд 14-2-1, статистика и бои UFC | FightBase Media",
+      "description": "Шон Вудсон «The Sniper» — боец UFC (USA), полулегкий вес, рекорд 14-2-1, 34 года. Последний бой: Джакк Дженкинс, победа, 29.08.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/sean-woodson",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/fighters/kori-makkenna-7",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/fighters/julia-polastri",
+      "elapsedMs": 219,
+      "bytes": 55367,
+      "title": "Джулия Поластри (Julia Polastri): рекорд 15-6-0, статистика и бои UFC | FightBase Media",
+      "description": "Джулия Поластри «Psycho» — боец UFC (Бразилия), женский минимальный вес, рекорд 15-6-0, 28 лет. Последний бой: Джингнан Ксионг, победа, 29.08.2026. Статистика UFC, последние бои, параметры и прогнозы FightBase.",
+      "canonical": "https://fightbase.ru/ru/fighters/julia-polastri",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/compare/levi-rodrigues-jr-vs-liu-ce",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/compare/ce-liu-vs-levi-rodrigues-jr",
+      "elapsedMs": 214,
+      "bytes": 41306,
+      "title": "Лю Цэ — Леви Родригес Младший: сравнение бойцов UFC | FightBase Media",
+      "description": "Лю Цэ — Леви Родригес Младший: сравнение рекордов, физических данных и официальной статистики UFC — удары, тейкдауны, защита и активность.",
+      "canonical": "https://fightbase.ru/ru/compare/ce-liu-vs-levi-rodrigues-jr",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/compare/dzhek-della-maddalena-vs-yaroslav-amosov",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/compare/dzhek-della-maddalena-vs-yaroslav-amosov",
+      "elapsedMs": 108,
+      "bytes": 41509,
+      "title": "Джек Делла Маддалена — Ярослав Амосов: сравнение бойцов UFC | FightBase Media",
+      "description": "Джек Делла Маддалена — Ярослав Амосов: сравнение рекордов, физических данных и официальной статистики UFC — удары, тейкдауны, защита и активность.",
+      "canonical": "https://fightbase.ru/ru/compare/dzhek-della-maddalena-vs-yaroslav-amosov",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "Person",
+        "Person"
+      ]
+    },
+    {
+      "path": "/ru/predictions/accuracy",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/predictions/accuracy",
+      "elapsedMs": 129,
+      "bytes": 90053,
+      "title": "Точность прогнозов FightBase | FightBase Media",
+      "description": "Открытая история точности прогнозов FightBase по турнирам UFC: пики модели, результаты фаворитов и угаданные апсеты по каждому бою.",
+      "canonical": "https://fightbase.ru/ru/predictions/accuracy",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite"
+      ]
+    },
+    {
+      "path": "/ru/news/debyutant-ufc-osmanly-natselilsya-na-lyogkij-boj-s-shonom-omelli",
+      "status": 200,
+      "url": "https://fightbase.ru/ru/news/debyutant-ufc-osmanly-natselilsya-na-lyogkij-boj-s-shonom-omelli",
+      "elapsedMs": 49,
+      "bytes": 71656,
+      "title": "Дебютант UFC Османлы нацелился на «лёгкий» бой с Шоном О’Мэлли | FightBase Media",
+      "description": "Мехеммедали Османлы ещё не провёл ни одного поединка в UFC, однако уже назвал желаемого соперника. Азербайджанский боец считает встречу с Шоном О’Мэлли…",
+      "canonical": "https://fightbase.ru/ru/news/debyutant-ufc-osmanly-natselilsya-na-lyogkij-boj-s-shonom-omelli",
+      "h1Count": 1,
+      "schemas": [
+        "NewsMediaOrganization",
+        "WebSite",
+        "BreadcrumbList",
+        "NewsArticle"
+      ]
+    }
+  ]
+}
