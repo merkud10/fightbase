@@ -3489,6 +3489,10 @@ th {
 }
 
 @media (max-width: 720px) {
+  .section-head {
+    flex-wrap: wrap;
+  }
+
   .page-hero {
     margin: 16px 0;
     padding: 20px 18px;
