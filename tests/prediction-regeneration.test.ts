@@ -77,3 +77,28 @@ test("regeneration eligibility follows actual prelim start and excludes archives
   assert.equal(options.eventSlug, "event");
   assert.equal(options.fightSlug, "a-vs-b");
 });
+
+test("the expensive model runs only inside the window before the event, once per lineup", () => {
+  const h = harness();
+  const start = new Date("2026-10-03T22:00:00Z");
+  const fight = { ...h.fight, event: { ...h.fight.event, date: new Date("2026-10-03"), prelimsAt: start } };
+  const hoursBefore = (hours: number) => new Date(start.getTime() - hours * 3600 * 1000);
+  const plan = (existing: unknown, now: Date, regenerate = false) => h.planAiCopy({ fight, existing, windowHours: 48, now, regenerate });
+  const copy = (generatedAt: Date, pick = "a") => ({ aiGeneratedAt: generatedAt, aiPickFighterId: pick });
+
+  // Вне окна модель не зовём: нет разбора — шаблон, есть — оставляем как есть.
+  assert.equal(plan(undefined, hoursBefore(72)), "template");
+  assert.equal(plan(copy(hoursBefore(700)), hoursBefore(72)), "reuse");
+  // В окне: первый разбор или разбор, сделанный задолго до турнира, генерируем заново...
+  assert.equal(plan(undefined, hoursBefore(40)), "generate");
+  assert.equal(plan(copy(hoursBefore(700)), hoursBefore(40)), "generate");
+  // ...а сделанный уже в окне больше не трогаем, даже если сдвинулась линия.
+  assert.equal(plan(copy(hoursBefore(40)), hoursBefore(16)), "reuse");
+  // Замена соперника: старый пик не относится к новому составу.
+  assert.equal(plan(copy(hoursBefore(40), "someone-else"), hoursBefore(16)), "generate");
+  assert.equal(plan(copy(hoursBefore(700), "someone-else"), hoursBefore(72)), "template");
+  // После начала турнира пик не меняется.
+  assert.equal(plan(undefined, hoursBefore(-1)), "template");
+  // Ручная перегенерация окно не учитывает.
+  assert.equal(plan(copy(hoursBefore(40)), hoursBefore(16), true), "generate");
+});

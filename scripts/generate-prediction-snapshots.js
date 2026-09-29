@@ -72,10 +72,47 @@ function parseArgs(argv) {
 
 // Принудительная перегенерация меняет и выбор победителя: только до начала
 // турнира. Обычный запуск по-прежнему сохраняет первоначальный выбор.
+function getEventStart(event) {
+  return event?.earlyPrelimsAt || event?.prelimsAt || event?.mainCardAt || event?.date;
+}
+
 function canRegeneratePrediction(fight, now = new Date()) {
   const event = fight.event;
-  const start = event?.earlyPrelimsAt || event?.prelimsAt || event?.mainCardAt || event?.date;
-  return fight.status === "scheduled" && event?.status === "upcoming" && new Date(start).getTime() > now.getTime();
+  return fight.status === "scheduled" && event?.status === "upcoming" && new Date(getEventStart(event)).getTime() > now.getTime();
+}
+
+// Модель прогнозов дорогая (gpt-6.1-sol с веб-поиском), поэтому зовём её только
+// в последние PREDICTION_AI_WINDOW_HOURS до начала турнира: sync-odds идёт раз в
+// сутки в 06:00 UTC, и окно в 48 часов ловит один прогон накануне боя.
+const DEFAULT_AI_WINDOW_HOURS = 48;
+
+function getAiWindowHours() {
+  const hours = Number(readEnv("PREDICTION_AI_WINDOW_HOURS", String(DEFAULT_AI_WINDOW_HOURS)));
+  return hours > 0 ? hours : DEFAULT_AI_WINDOW_HOURS;
+}
+
+function hasAiCopyForLineup(existing, fight) {
+  return Boolean(
+    existing?.aiGeneratedAt &&
+      (existing.aiPickFighterId === fight.fighterAId || existing.aiPickFighterId === fight.fighterBId)
+  );
+}
+
+/**
+ * Что делать с текстом и пиком боя:
+ *   generate — звать модель: --regenerate, либо бой в окне перед турниром, а
+ *              разбора для этого состава, сделанного уже в окне, ещё нет;
+ *   reuse    — оставить готовый разбор: вне окна модель не зовём, а в окне
+ *              разбор делается один раз и потом не меняется, даже если сдвинулась линия;
+ *   template — шаблонный текст без пика, модель позовём, когда бой войдёт в окно.
+ */
+function planAiCopy({ fight, existing, windowHours, regenerate = false, now = new Date() }) {
+  if (regenerate) return "generate";
+  const hasCopy = hasAiCopyForLineup(existing, fight);
+  const windowStart = new Date(getEventStart(fight.event)).getTime() - windowHours * 3600 * 1000;
+  const inWindow = canRegeneratePrediction(fight, now) && now.getTime() >= windowStart;
+  if (!inWindow) return hasCopy ? "reuse" : "template";
+  return hasCopy && new Date(existing.aiGeneratedAt).getTime() >= windowStart ? "reuse" : "generate";
 }
 
 function parseRecord(record) {
@@ -481,9 +518,11 @@ async function main() {
 
   const aiConfig = getAiCopyConfig();
   if (options.regenerate && !aiConfig) throw new Error("AI configuration is required for --regenerate");
+  const aiWindowHours = getAiWindowHours();
   let aiGeneratedCount = 0;
   let aiReusedCount = 0;
   let aiFallbackCount = 0;
+  let aiDeferredCount = 0;
 
   let upserted = 0;
   let skipped = 0;
@@ -501,9 +540,9 @@ async function main() {
     let aiGeneratedAt = null;
     let aiResearch = [];
 
-    // Пик модели фиксируется при первой генерации и сохраняется при любой
-    // регенерации текстов, пока не сменился состав боя, — иначе статистика
-    // меткости превратилась бы в подгонку задним числом.
+    // Пик берётся из того же ответа модели, что и текст, и меняется только при
+    // новой генерации (см. planAiCopy) — до начала турнира, поэтому статистика
+    // меткости не подгоняется задним числом.
     const existing = existingSnapshots.get(fight.id);
     const existingPickIsValid =
       existing?.aiPickFighterId &&
@@ -518,8 +557,8 @@ async function main() {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);
-
-      if (!options.regenerate && existing?.aiContentHash === nextHash && existing.aiGeneratedAt) {
+      const plan = planAiCopy({ fight, existing, windowHours: aiWindowHours, regenerate: options.regenerate });
+      const reuseExisting = () => {
         ru = {
           ...baseRu,
           excerpt: existing.excerptRu,
@@ -531,7 +570,13 @@ async function main() {
         };
         aiContentHash = existing.aiContentHash;
         aiGeneratedAt = existing.aiGeneratedAt;
+      };
+
+      if (plan === "reuse") {
+        reuseExisting();
         aiReusedCount += 1;
+      } else if (plan === "template") {
+        aiDeferredCount += 1;
       } else {
         const generated = await generateAiPredictionCopy({ fight, config: aiConfig });
         if (generated) {
@@ -547,22 +592,25 @@ async function main() {
           aiResearch = generated.research ?? [];
           aiGeneratedCount += 1;
 
-          if (!aiPickFighterId || options.regenerate) {
-            aiPickFighterId = generated.pick === "A" ? fight.fighterAId : fight.fighterBId;
-            aiPickReasonRu = normalizeRussianMmaText(generated.pickReason);
-            aiPickGeneratedAt = new Date();
-            if (options.regenerate) {
-              oddsAAtPick = null;
-              oddsBAtPick = null;
-            }
-          }
+          // Генерация идёт один раз на состав боя (или по --regenerate), поэтому
+          // текст и пик всегда из одного ответа модели и не противоречат друг другу.
+          aiPickFighterId = generated.pick === "A" ? fight.fighterAId : fight.fighterBId;
+          aiPickReasonRu = normalizeRussianMmaText(generated.pickReason);
+          aiPickGeneratedAt = new Date();
+          oddsAAtPick = null;
+          oddsBAtPick = null;
         } else {
           aiFallbackCount += 1;
           if (options.regenerate) {
             console.warn(`[ai-copy] regeneration failed, snapshot preserved: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
             continue;
           }
-          console.warn(`[ai-copy] fallback to template: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+          if (hasAiCopyForLineup(existing, fight)) {
+            reuseExisting();
+            console.warn(`[ai-copy] generation failed, earlier copy kept: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+          } else {
+            console.warn(`[ai-copy] fallback to template: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+          }
         }
       }
     }
@@ -669,7 +717,7 @@ async function main() {
 
   const aiAttempted = aiGeneratedCount + aiFallbackCount;
   if (aiConfig) {
-    console.log(`AI copy: generated ${aiGeneratedCount}, reused ${aiReusedCount}, fallback ${aiFallbackCount}`);
+    console.log(`AI copy: generated ${aiGeneratedCount}, reused ${aiReusedCount}, fallback ${aiFallbackCount}, deferred until ${aiWindowHours}h window ${aiDeferredCount}`);
   }
   if (!options.dryRun && aiAttempted > 0 && aiFallbackCount / aiAttempted > 0.2) {
     await prisma.systemEvent
@@ -685,7 +733,7 @@ async function main() {
   }
 }
 
-module.exports = { parseArgs, canRegeneratePrediction, main };
+module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, main };
 
 if (require.main === module) main()
   .catch((error) => {
