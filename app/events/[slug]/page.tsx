@@ -10,7 +10,7 @@ import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData, resolveEventSlugRedirect } from "@/lib/db";
-import { describeFightPick, summarizeEventPicks } from "@/lib/event-picks";
+import { describeFightPick, isPickPending, pickPendingText, summarizeEventPicks } from "@/lib/event-picks";
 import { buildEventSeoName, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
@@ -265,11 +265,11 @@ export default async function EventPage({
                     : "Winner, method and round for every fight; bouts with a prediction show the FightBase AI pick."
                   : picks.withPicks > 0
                     ? locale === "ru"
-                      ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся после обновления карда.`
-                      : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest follow the next card update.`
+                      ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся накануне боя.`
+                      : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest are published the day before the fight.`
                     : locale === "ru"
-                      ? "Прогнозы появятся после объявления полного карда."
-                      : "Predictions appear once the full card is announced."}
+                      ? "Пики ИИ-модели FightBase появятся накануне турнира."
+                      : "FightBase AI picks are published the day before the event."}
               </p>
             </div>
             <Link href={localizePath("/predictions", locale)} className="button-secondary">
@@ -342,6 +342,8 @@ export default async function EventPage({
                                 {locale === "ru" ? "Пик" : "Pick"}: <strong>{pickName}</strong>
                                 {pick?.percent ? ` · ${pick.percent}%` : ""}
                               </span>
+                            ) : isPickPending(fight) ? (
+                              <span className="event-table-pick">{pickPendingText(locale, "short")}</span>
                             ) : null}
                             <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
                               {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
@@ -350,7 +352,7 @@ export default async function EventPage({
                         ) : null;
                       })()}
                       {fight.status !== "completed" && !fight.predictionSnapshot ? (
-                        <span className="event-table-pending">{locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}</span>
+                        <span className="event-table-pending">{pickPendingText(locale, "short")}</span>
                       ) : null}
                       <Link
                         href={localizePath(

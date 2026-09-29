@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { describeFightPick, summarizeEventPicks } from "../lib/event-picks";
+import { describeFightPick, isPickPending, pickPendingText, summarizeEventPicks } from "../lib/event-picks";
 
 function fight(overrides: Record<string, unknown>) {
   return {
@@ -34,4 +34,14 @@ test("describeFightPick returns side, percent and verdict, or null without a pic
   assert.deepEqual(describeFightPick(fight({ status: "completed", resultType: "win", winnerFighterId: "b" })), { side: "A", percent: 60, verdict: "wrong" });
   assert.equal(describeFightPick(fight({ predictionSnapshot: null })), null);
   assert.equal(describeFightPick(fight({ predictionSnapshot: { aiPickFighterId: "zzz", percentA: 50, percentB: 50 } })), null);
+});
+
+test("a scheduled fight without a model pick says the pick comes the day before", () => {
+  assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: null }), true);
+  assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: { aiPickFighterId: null } }), true);
+  assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: { aiPickFighterId: "a" } }), false);
+  // После боя «появится накануне» уже неправда.
+  assert.equal(isPickPending({ status: "completed", predictionSnapshot: { aiPickFighterId: null } }), false);
+  assert.equal(pickPendingText("ru"), "Прогноз ИИ-модели FightBase появится накануне боя.");
+  assert.equal(pickPendingText("ru", "short"), "пик — накануне боя");
 });

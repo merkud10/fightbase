@@ -15,6 +15,7 @@ import { selectArticleFights } from "@/lib/article-fights";
 import { getArticlePageData, getPredictionFightsForFighters, getRelatedArticles } from "@/lib/db";
 import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
+import { isPickPending, pickPendingText } from "@/lib/event-picks";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
@@ -338,7 +339,9 @@ export async function ArticleDetailPage({
                     `${fight.event.name} · ${formatDate(fight.event.date)}`,
                     pickFighter
                       ? `${locale === "ru" ? "пик" : "pick"}: ${displayName(pickFighter)}${pickPercent ? ` (${pickPercent}%)` : ""}`
-                      : null,
+                      : isPickPending(fight)
+                        ? pickPendingText(locale, "short")
+                        : null,
                     fight.status === "completed"
                       ? `${locale === "ru" ? "итог" : "result"}: ${winner ? displayName(winner) : locale === "ru" ? "без победителя" : "no winner"}`
                       : null

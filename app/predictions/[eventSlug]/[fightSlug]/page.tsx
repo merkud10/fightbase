@@ -15,6 +15,7 @@ import {
   resolvePredictionRedirect
 } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
+import { isPickPending, pickPendingText } from "@/lib/event-picks";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
@@ -270,6 +271,9 @@ export default async function FightPredictionPage({
           <span className="prediction-label">{locale === "ru" ? "Фаворит" : "Favorite"}</span>
           <strong>{prediction.pick}</strong>
           {(() => {
+            if (isPickPending({ status: fight.status, predictionSnapshot: snapshot })) {
+              return <p className="copy prediction-meter-caption"><strong>{pickPendingText(locale)}</strong></p>;
+            }
             if (!snapshot.aiPickFighterId) return null;
             const aiPickName =
               snapshot.aiPickFighterId === fight.fighterAId

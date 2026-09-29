@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getPredictionAccuracy, getPredictionsPageData } from "@/lib/db";
+import { isPickPending, pickPendingText } from "@/lib/event-picks";
 import { formatUnits } from "@/lib/prediction-roi";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
@@ -66,11 +67,11 @@ export default async function PredictionsPage() {
   const heroDescription =
     locale === "ru"
       ? nextEvent
-        ? `Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): ближайший турнир ${nextEvent.name} ${nextEventDate}, пики готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв. Всего ${totalPicks} прогнозов на ${eventsWithSnapshots.length} ближайших турниров: пик, проценты и разбор по каждому матчапу.`
-        : "Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): пик, проценты и разбор по каждому матчапу ближайших турниров."
+        ? `Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): ближайший турнир ${nextEvent.name} ${nextEventDate}, ${nextEventPicks > 0 ? `пики готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв` : "пики появятся накануне турнира"}. Всего ${totalPicks} прогнозов на ${eventsWithSnapshots.length} ближайших турниров: пик, проценты и разбор по каждому матчапу. Пик на каждый бой публикуется накануне.`
+        : "Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): пик, проценты и разбор по каждому матчапу ближайших турниров. Пик на каждый бой публикуется накануне."
       : nextEvent
-        ? `FightBase AI predictions for UFC fights: next card ${nextEvent.name} on ${nextEventDate}, picks ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts. ${totalPicks} predictions across the next ${eventsWithSnapshots.length} events with pick, percentages and a breakdown for every matchup.`
-        : "FightBase AI predictions for UFC fights: pick, percentages and a breakdown for every matchup on upcoming cards.";
+        ? `FightBase AI predictions for UFC fights: next card ${nextEvent.name} on ${nextEventDate}, ${nextEventPicks > 0 ? `picks ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts` : "picks are published the day before the event"}. ${totalPicks} predictions across the next ${eventsWithSnapshots.length} events with pick, percentages and a breakdown for every matchup. Each pick is published the day before the fight.`
+        : "FightBase AI predictions for UFC fights: pick, percentages and a breakdown for every matchup on upcoming cards. Each pick is published the day before the fight.";
   const itemList = eventsWithSnapshots
     .flatMap((event) =>
       event.fights.map((fight) => ({
@@ -223,9 +224,9 @@ export default async function PredictionsPage() {
                       </strong>
                       <span>{formatWeightClass(fight.weightClass, locale)}</span>
                       <small>
-                        {hasSnapshot
-                          ? locale === "ru" ? "Открыть превью боя" : "Open fight preview"
-                          : locale === "ru" ? "Прогноз ожидается" : "Prediction pending"}
+                        {isPickPending(fight)
+                          ? pickPendingText(locale, "short")
+                          : locale === "ru" ? "Открыть превью боя" : "Open fight preview"}
                       </small>
                     </div>
                     {hasSnapshot ? (

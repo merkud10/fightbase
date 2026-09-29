@@ -23,6 +23,7 @@ import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getPredictionStatsSince, predictionStatsSinceNote } from "@/lib/prediction-stats-window";
+import { isPickPending, pickPendingText } from "@/lib/event-picks";
 import { ogImageUrl } from "@/lib/seo";
 import { getSiteUrl } from "@/lib/site";
 import { isPoundForPoundRankingGroup } from "@/lib/ufc-rankings";
@@ -240,6 +241,11 @@ export default async function HomePage() {
                     <span>{isRu ? "ИИ выбирает андердога по предматчевой оценке." : "The AI pick is the underdog by the pre-fight rating."}</span>
                   ) : null}
                 </div>
+              ) : leadFight && isPickPending(leadFight) ? (
+                <div className="hero-verdict">
+                  <p className="eyebrow">{isRu ? "Пик ИИ-модели FightBase" : "FightBase AI pick"}</p>
+                  <span>{pickPendingText(locale)}</span>
+                </div>
               ) : null}
 
               <div className="hero-action-row">
@@ -357,6 +363,8 @@ export default async function HomePage() {
                               <span className="home-pick-underdog">{isRu ? " андердог" : " underdog"}</span>
                             ) : null}
                           </span>
+                        ) : isPickPending(fight) ? (
+                          <span className="home-pick-verdict">{pickPendingText(locale, "short")}</span>
                         ) : null}
                       </li>
                     );
@@ -471,9 +479,13 @@ export default async function HomePage() {
                           ? isRu
                             ? "пики готовы"
                             : "picks ready"
-                          : isRu
-                            ? "кард собирается"
-                            : "card in progress"}
+                          : event.fights.length > 0
+                            ? isRu
+                              ? "пики — накануне"
+                              : "picks the day before"
+                            : isRu
+                              ? "кард собирается"
+                              : "card in progress"}
                       </span>
                     </li>
                   );
