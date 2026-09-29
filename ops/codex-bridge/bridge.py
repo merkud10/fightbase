@@ -30,6 +30,8 @@ def build_config(env):
         "default_model": env.get("CODEX_BRIDGE_DEFAULT_MODEL", "gpt-5.3-codex-spark"),
         "allowed_models": allowed,
         "timeout_sec": timeout,
+        # Запрос с web_search: true — несколько поисков и чтение страниц, обычного таймаута мало.
+        "search_timeout_sec": float(env.get("CODEX_BRIDGE_SEARCH_TIMEOUT_SEC", str(max(timeout, 300)))),
         "queue_wait_sec": float(env.get("CODEX_BRIDGE_QUEUE_WAIT_SEC", str(timeout))),
         "codex_cmd": [env.get("CODEX_BRIDGE_CODEX_BIN", "codex")],
         "work_dir": env.get("CODEX_BRIDGE_WORK_DIR", os.path.join(os.path.expanduser("~"), "work")),
@@ -52,13 +54,15 @@ def strip_fence(text):
     return match.group(1) if match else text
 
 
-def run_codex(config, model, prompt):
+def run_codex(config, model, prompt, web_search=False):
     """Возвращает (text, error). Ровно одно из двух не None."""
     os.makedirs(config["work_dir"], exist_ok=True)
     handle = tempfile.NamedTemporaryFile(prefix="codex-bridge-", suffix=".txt", delete=False)
     out_path = handle.name
     handle.close()
-    cmd = config["codex_cmd"] + [
+    timeout = config["search_timeout_sec"] if web_search else config["timeout_sec"]
+    # --search — глобальный флаг codex, поэтому стоит до подкоманды exec.
+    cmd = config["codex_cmd"] + (["--search"] if web_search else []) + [
         "exec",
         "--model", model,
         "--sandbox", "read-only",
@@ -77,12 +81,12 @@ def run_codex(config, model, prompt):
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=config["timeout_sec"],
+            timeout=timeout,
             cwd=config["work_dir"],
         )
     except subprocess.TimeoutExpired:
         _remove(out_path)
-        return None, f"codex exec timed out after {config['timeout_sec']:.0f}s"
+        return None, f"codex exec timed out after {timeout:.0f}s"
     except OSError as error:
         _remove(out_path)
         return None, f"failed to start codex: {error}"
@@ -181,15 +185,16 @@ class BridgeHandler(BaseHTTPRequestHandler):
         response_format = body.get("response_format") or {}
         json_mode = isinstance(response_format, dict) and response_format.get("type") == "json_object"
         prompt = build_prompt(messages, json_mode)
+        web_search = body.get("web_search") is True
 
         if not self.server.lock.acquire(timeout=config["queue_wait_sec"]):
             return self._error(503, "bridge is busy, retry later", extra=model)
         started = time.monotonic()
         try:
-            text, error = run_codex(config, model, prompt)
+            text, error = run_codex(config, model, prompt, web_search)
         finally:
             self.server.lock.release()
-        elapsed = f"{time.monotonic() - started:.1f}s {model}"
+        elapsed = f"{time.monotonic() - started:.1f}s {model}{' search' if web_search else ''}"
         if error:
             return self._error(502, error, extra=elapsed)
         if json_mode:

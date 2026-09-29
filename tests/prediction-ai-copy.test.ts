@@ -56,7 +56,7 @@ function makeFight(overrides = {}) {
   };
 }
 
-test("buildFightFactPack keeps only filled stats, hides market odds and marks the card slot", () => {
+test("buildFightFactPack keeps only filled stats and marks the card slot", () => {
   const pack = buildFightFactPack(makeFight());
   assert.equal(pack.isHeadliner, true);
   assert.equal(pack.fighters[0].name, "Ислам Махачев");
@@ -64,10 +64,7 @@ test("buildFightFactPack keeps only filled stats, hides market odds and marks th
   assert.equal(pack.fighters[0].stats.takedownDefense, 91);
   assert.equal(pack.fighters[0].recentFights[0].opponent, "Джек Делла Маддалена");
   assert.equal(pack.fighters[1].recentFights.length, 0);
-  // Модель принимает решение вслепую от рынка: котировок в факт-пакете нет.
-  assert.equal("percentA" in pack, false);
-  assert.equal("percentB" in pack, false);
-  assert.equal("percentSource" in pack, false);
+  assert.equal("market" in pack, false);
 
   const sparse = buildFightFactPack(
     makeFight({
@@ -82,6 +79,30 @@ test("buildFightFactPack keeps only filled stats, hides market odds and marks th
     })
   );
   assert.deepEqual(sparse.fighters[0].stats, {});
+});
+
+test("buildFightFactPack adds the market view rounded to 5 points", () => {
+  // 1.30 / 3.60 → 73.5% без маржи → 75.
+  const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
+  assert.deepEqual(pack.market, { winChanceA: 75, winChanceB: 25, favorite: "A" });
+  assert.deepEqual(buildFightFactPack(makeFight({ oddsA: 1.9, oddsB: 1.9 })).market, { winChanceA: 50, winChanceB: 50, favorite: null });
+  assert.equal("market" in buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: null })), false);
+  // Мелкое движение линии не меняет пакет и не запускает перегенерацию текста.
+  assert.equal(
+    computeAiContentHash(makeFight({ oddsA: 1.3, oddsB: 3.6 }), { percentA: 73 }),
+    computeAiContentHash(makeFight({ oddsA: 1.32, oddsB: 3.5 }), { percentA: 73 })
+  );
+});
+
+test("buildPrompt tells the model to weigh the market and search the web only when enabled", () => {
+  const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
+  const plain = buildPrompt(pack);
+  assert.ok(plain.system.includes("market"));
+  assert.equal(plain.system.includes("research"), false);
+  const searching = buildPrompt(pack, { webSearch: true });
+  assert.ok(searching.system.includes("веб-поиск"));
+  assert.ok(searching.system.includes("research"));
+  assert.equal(buildPrompt(buildFightFactPack(makeFight())).system.includes("market"), false);
 });
 
 function validCopy() {
@@ -395,4 +416,71 @@ test("validateAiCopy tolerates Latin fighter names used whole or as separate wor
     overview: "Isaac Moreno is the sharper striker here and should control the distance for the whole fight against Reginaldo Junior."
   };
   assert.equal(validateAiCopy(englishProse, pack).reason, "latin_share");
+});
+
+test("validateAiCopy keeps market numbers and market talk out of the published text", () => {
+  const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
+  const percent = validateAiCopy({ ...validCopy(), keyEdge: "Ислам Махачев побеждает в 75 случаях из 100 за счет борьбы у сетки и темпа." }, pack);
+  assert.equal(percent.reason, "foreign_numbers");
+  const marketTalk = validateAiCopy({ ...validCopy(), keyEdge: "Рынок уверенно видит Ислама Махачева фаворитом за счет борьбы и контроля у сетки." }, pack);
+  assert.equal(marketTalk.reason, "banned_lexicon");
+});
+
+test("validateAiCopy accepts sourced research as evidence for numbers and streaks", () => {
+  const pack = buildFightFactPack(makeFight());
+  const copy = {
+    ...validCopy(),
+    keyEdge: "Иан Мачадо Гарри подходит к бою с серией из 8 побед подряд, но борьба Ислама Махачева остается решающим фактором.",
+    research: [
+      { fact: "Гарри одержал 8 побед подряд в UFC", url: "https://www.ufc.com/athlete/ian-garry" },
+      { fact: "Без ссылки факт не принимается: 47 побед", url: "" },
+      { fact: "Не http-ссылка", url: "javascript:alert(1)" }
+    ]
+  };
+  assert.equal(validateAiCopy(copy, pack).ok, false);
+  const result = validateAiCopy(copy, pack, { webSearch: true });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.research, [{ fact: "Гарри одержал 8 побед подряд в UFC", url: "https://www.ufc.com/athlete/ian-garry" }]);
+  }
+  const unsourced = { ...copy, research: [{ fact: "Гарри одержал 8 побед подряд в UFC" }] };
+  assert.equal(validateAiCopy(unsourced, pack, { webSearch: true }).ok, false);
+});
+
+test("generateAiPredictionCopy asks the bridge for web search and returns the research", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const research = [{ fact: "Махачев провел полный лагерь в Eagles MMA", url: "https://www.espn.com/mma/story" }];
+  const result = await generateAiPredictionCopy({
+    fight: makeFight(),
+    config: { apiKey: "k", baseUrl: "http://bridge", model: "gpt-6.1-sol", webSearch: true, retryDelayMs: 1 },
+    fetchImpl: async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return okResponse({ ...validCopy(), research });
+    }
+  });
+  assert.equal(bodies[0]?.web_search, true);
+  assert.deepEqual(result?.research, research);
+
+  bodies.length = 0;
+  await generateAiPredictionCopy({
+    fight: makeFight(),
+    config: { apiKey: "k", baseUrl: "http://bridge", model: "m", retryDelayMs: 1 },
+    fetchImpl: async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return okResponse(validCopy());
+    }
+  });
+  assert.equal("web_search" in (bodies[0] ?? {}), false);
+});
+
+test("resolvePredictionAiConfig: PREDICTION_AI_WEB_SEARCH=1 enables search on the bridge with a longer timeout", () => {
+  const config = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_WEB_SEARCH: "1" }));
+  assert.equal(config?.webSearch, true);
+  assert.equal(config?.timeoutMs, 450000);
+  const custom = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_WEB_SEARCH: "1", PREDICTION_AI_TIMEOUT_MS: "300000" }));
+  assert.equal(custom?.timeoutMs, 300000);
+  // DeepSeek не умеет искать через мост: флаг игнорируется.
+  const deepseek = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_PROVIDER: "deepseek", PREDICTION_AI_WEB_SEARCH: "1" }));
+  assert.equal(deepseek?.webSearch, undefined);
+  assert.equal(deepseek?.timeoutMs, 60000);
 });

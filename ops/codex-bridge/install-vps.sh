@@ -23,14 +23,17 @@ chown root:"$BRIDGE_USER" "$ENV_FILE"
 chmod 0640 "$ENV_FILE"
 
 CODEX_VERSION="$(grep -E '^CODEX_VERSION=' "$ENV_FILE" | cut -d= -f2)"
-if ! command -v codex >/dev/null 2>&1 || ! codex --version | grep -q "$CODEX_VERSION"; then
+if ! command -v codex >/dev/null 2>&1 || ! codex --version | grep -q "$CODEX_VERSION" || [ ! -x /usr/local/bin/codex-code-mode-host ]; then
   TMP="$(mktemp -d)"
-  URL="https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz"
-  echo "downloading $URL"
-  curl -fsSL --retry 3 -o "$TMP/codex.tar.gz" "$URL"
-  tar -xzf "$TMP/codex.tar.gz" -C "$TMP"
-  BIN="$(find "$TMP" -maxdepth 2 -type f -name 'codex*' ! -name '*.tar.gz' | head -n 1)"
-  install -m 0755 "$BIN" /usr/local/bin/codex
+  # codex-code-mode-host нужен для инструментов модели, включая web_search:
+  # без него `codex --search exec` отвечает «поиск недоступен».
+  for NAME in codex codex-code-mode-host; do
+    URL="https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/${NAME}-x86_64-unknown-linux-musl.tar.gz"
+    echo "downloading $URL"
+    curl -fsSL --retry 3 -o "$TMP/$NAME.tar.gz" "$URL"
+    tar -xzf "$TMP/$NAME.tar.gz" -C "$TMP"
+    install -m 0755 "$TMP/${NAME}-x86_64-unknown-linux-musl" "/usr/local/bin/$NAME"
+  done
   rm -rf "$TMP"
 fi
 codex --version

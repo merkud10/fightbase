@@ -499,6 +499,7 @@ async function main() {
     let ru = baseRu;
     let aiContentHash = null;
     let aiGeneratedAt = null;
+    let aiResearch = [];
 
     // Пик модели фиксируется при первой генерации и сохраняется при любой
     // регенерации текстов, пока не сменился состав боя, — иначе статистика
@@ -543,6 +544,7 @@ async function main() {
           });
           aiContentHash = nextHash;
           aiGeneratedAt = new Date();
+          aiResearch = generated.research ?? [];
           aiGeneratedCount += 1;
 
           if (!aiPickFighterId || options.regenerate) {
@@ -632,6 +634,7 @@ async function main() {
         console.log(`  fightScript: ${ru.fightScript}`);
         console.log(`  pathA: ${ru.pathA}`);
         console.log(`  pathB: ${ru.pathB}`);
+        for (const item of aiResearch) console.log(`  research: ${item.fact} — ${item.url}`);
       }
       continue;
     }
@@ -655,7 +658,7 @@ async function main() {
     });
 
     upserted += 1;
-    console.log(`[snapshot] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+    console.log(`[snapshot] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}${aiResearch.length ? ` | research: ${aiResearch.length}` : ""}`);
   }
 
   console.log("");

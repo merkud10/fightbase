@@ -33,6 +33,8 @@ class BridgeTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.prompt_file = os.path.join(self.tmp.name, "prompt.txt")
         os.environ["FAKE_CODEX_PROMPT_FILE"] = self.prompt_file
+        self.args_file = os.path.join(self.tmp.name, "args.json")
+        os.environ["FAKE_CODEX_ARGS_FILE"] = self.args_file
         os.environ["FAKE_CODEX_MODE"] = "ok"
         os.environ["FAKE_CODEX_ANSWER"] = "plain answer"
         os.environ["FAKE_CODEX_LOGGED_IN"] = "1"
@@ -105,6 +107,28 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(payload["choices"][0]["message"]["content"], "```json\n{}\n```")
         with open(self.prompt_file, encoding="utf-8") as handle:
             self.assertEqual(handle.read(), "SYSTEM PROMPT\n\nUSER PROMPT")
+
+    def codex_args(self):
+        with open(self.args_file, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def test_web_search_adds_global_search_flag(self):
+        status, _ = self.completions({"messages": self.messages(), "web_search": True})
+        self.assertEqual(status, 200)
+        args = self.codex_args()
+        self.assertEqual(args[:2], ["--search", "exec"])
+
+    def test_search_is_off_by_default(self):
+        for body in ({"messages": self.messages()}, {"messages": self.messages(), "web_search": "yes"}):
+            status, _ = self.completions(body)
+            self.assertEqual(status, 200)
+            self.assertNotIn("--search", self.codex_args())
+
+    def test_search_timeout_defaults_to_at_least_300s(self):
+        config = bridge.build_config({"CODEX_BRIDGE_TIMEOUT_SEC": "120"})
+        self.assertEqual(config["search_timeout_sec"], 300)
+        config = bridge.build_config({"CODEX_BRIDGE_TIMEOUT_SEC": "120", "CODEX_BRIDGE_SEARCH_TIMEOUT_SEC": "420"})
+        self.assertEqual(config["search_timeout_sec"], 420)
 
     def test_accepts_path_without_v1_prefix(self):
         os.environ["FAKE_CODEX_ANSWER"] = "answer"

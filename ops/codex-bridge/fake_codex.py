@@ -1,6 +1,8 @@
 """Подменный codex для тестов моста. Поведение задаётся переменными окружения:
 FAKE_CODEX_MODE = ok | fail | slow, FAKE_CODEX_ANSWER — текст ответа,
-FAKE_CODEX_PROMPT_FILE — куда записать полученный промпт."""
+FAKE_CODEX_PROMPT_FILE — куда записать полученный промпт,
+FAKE_CODEX_ARGS_FILE — куда записать аргументы командной строки."""
+import json
 import os
 import sys
 import time
@@ -17,6 +19,11 @@ if args[:2] == ["login", "status"]:
         sys.exit(0)
     print("Not logged in", file=sys.stderr)
     sys.exit(1)
+
+args_file = os.environ.get("FAKE_CODEX_ARGS_FILE")
+if args_file:
+    with open(args_file, "w", encoding="utf-8") as handle:
+        json.dump(args, handle)
 
 out_path = args[args.index("--output-last-message") + 1]
 # Байты и явный перевод строки: на Windows текстовый stdin/файл иначе удваивает \r\n.
