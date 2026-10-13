@@ -5,8 +5,8 @@
 ## Установка / обновление
 
 ```bash
-scp -i ~/.ssh/fightbase_deploy -r ops/codex-bridge root@31.59.185.86:/root/codex-bridge-src
-ssh -i ~/.ssh/fightbase_deploy root@31.59.185.86 'bash /root/codex-bridge-src/install-vps.sh'
+scp -i ~/.ssh/fightbase_deploy -r ops/codex-bridge root@201.51.10.131:/root/codex-bridge-src
+ssh -i ~/.ssh/fightbase_deploy root@201.51.10.131 'bash /root/codex-bridge-src/install-vps.sh'
 ```
 
 ## Логин (один раз и при протухании)
@@ -14,7 +14,7 @@ ssh -i ~/.ssh/fightbase_deploy root@31.59.185.86 'bash /root/codex-bridge-src/in
 В ChatGPT: Settings → Security → Device code authorization → включить. Затем:
 
 ```bash
-ssh -i ~/.ssh/fightbase_deploy root@31.59.185.86 'sudo -H -u codexbridge codex login --device-auth'
+ssh -i ~/.ssh/fightbase_deploy root@201.51.10.131 'sudo -H -u codexbridge codex login --device-auth'
 ```
 
 Код из вывода подтвердить на своём устройстве. Проверка: `curl -s 127.0.0.1:8787/healthz` → `"loggedIn": true`.
@@ -47,3 +47,20 @@ Codex разлогинился. Ручной запуск: `sudo -u fightbase ba
 
 Юнит `codex-bridge-tunnel.service`, ключ `/root/.ssh/codex_bridge_tunnel`.
 `systemctl status codex-bridge-tunnel`, проверка `curl -s 127.0.0.1:8787/healthz` с прода.
+
+## Переезд на новый VPS
+
+С 13.10.2026 мост живёт на `201.51.10.131` (Timeweb, Амстердам, рядом Amnezia
+в Docker); прежний `31.59.185.86` (HostVDS) недоступен.
+
+1. Положить на VPS `/etc/codex-bridge/env` с тем же `CODEX_BRIDGE_TOKEN`, что в
+   `/opt/fightbase/.env` прода, — тогда `.env` прода не меняется. Затем установка
+   и логин, как выше.
+2. На VPS в `/home/codexbridge/.ssh/authorized_keys` — публичный ключ туннеля
+   с прода (`/root/.ssh/codex_bridge_tunnel.pub`) с ограничением
+   `restrict,port-forwarding,permitopen="127.0.0.1:8787"`.
+3. На проде: host key VPS в `/root/.ssh/known_hosts` (туннель идёт со
+   `StrictHostKeyChecking=yes`), новый IP в `codex-bridge-tunnel.service`,
+   `systemctl daemon-reload && systemctl restart codex-bridge-tunnel`.
+4. Слепок `snapshot.sh` до и после: должны добавиться только `127.0.0.1:8787`,
+   пользователь `codexbridge` и `codex-bridge.service`.

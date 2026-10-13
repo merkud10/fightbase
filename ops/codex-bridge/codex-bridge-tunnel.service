@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/root/.ssh/known_hosts -o BatchMode=yes -i /root/.ssh/codex_bridge_tunnel -L 127.0.0.1:8787:127.0.0.1:8787 codexbridge@31.59.185.86
+ExecStart=/usr/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/root/.ssh/known_hosts -o BatchMode=yes -i /root/.ssh/codex_bridge_tunnel -L 127.0.0.1:8787:127.0.0.1:8787 codexbridge@201.51.10.131
 Restart=always
 RestartSec=5
 
