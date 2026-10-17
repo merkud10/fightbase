@@ -856,7 +856,9 @@ const preferredRussianNameMap = {
   "Dricus Du Plessis": "Дрикус дю Плесси",
   "Zhang Weili": "Чжан Вэйли",
   "Valentina Shevchenko": "Валентина Шевченко",
-  "Jon Jones": "Джон Джонс"
+  "Jon Jones": "Джон Джонс",
+  // gpt-6.1-sol с поиском взял полное «Джозеф»; в UFC и в запросах он Joe.
+  "Joe Kropschot": "Джо Кропшот"
 };
 
 function getManualRussianName(name) {
