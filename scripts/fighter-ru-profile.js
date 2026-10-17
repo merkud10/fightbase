@@ -35,6 +35,18 @@ function isAcceptableRussianBio(bio) {
   return !latinWords.some((word) => /^[a-z]/.test(word));
 }
 
+// Слабая биография старого поколения (DeepSeek, 2026): пересказ цифр профиля
+// с пустыми фразами. Аудит 17.10.2026: «не участвует в активных соревнованиях»
+// 745 раз, «заметную позицию» ~200, «бойчиха» 111, у звёзд 120–200 знаков.
+function isWeakBio(bio) {
+  const text = String(bio || "").trim();
+  if (!text) return false;
+  if (text.length < 200) return true;
+  if (/бойчих|заметн[а-яё]* позици|не участву[а-яё]* в активных соревнованиях/i.test(text)) return true;
+  if (/[іїєґІЇЄҐ]/.test(text)) return true;
+  return (text.match(/[A-Za-z]{2,}/g) || []).some((word) => /^[a-z]/.test(word));
+}
+
 // Шаблон buildGenericBio («X — профессиональный боец UFC, выступающий в категории
 // «…». В профиле бойца указана страна…»): у бойцов ближайших турниров его
 // заменяем текстом модели, как пустую биографию.
@@ -62,4 +74,4 @@ function cleanAiBio(bio) {
     .trim();
 }
 
-module.exports = { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName, isTemplateBio };
+module.exports = { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName, isTemplateBio, isWeakBio };

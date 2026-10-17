@@ -54,3 +54,28 @@ test("source links from web search are stripped out of the bio", () => {
     "Теодор Берггрен — швед."
   );
 });
+
+test("weak bios of the old generation are detected, good ones are not", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { isWeakBio } = require("../scripts/fighter-ru-profile.js");
+  assert.equal(isWeakBio("Российский боец, известный под прозвищем «Орёл», одержал 8 побед нокаутом и 11 сабмишенами."), true);
+  assert.equal(
+    isWeakBio(
+      "Марион Ренеау — американская профессиональная бойчиха UFC, выступавшая в женском легчайшем весе и завершившая карьеру с рекордом девять побед и восемь поражений в смешанных единоборствах."
+    ),
+    true
+  );
+  assert.equal(
+    isWeakBio(
+      "Амир Алиакбари — профессиональный боец UFC в тяжёлом весе. В настоящее время он не участвует в активных соревнованиях, но в прошлом стал многократным чемпионом мира по греко-римской борьбе и известен мощным давлением."
+    ),
+    true
+  );
+  assert.equal(
+    isWeakBio(
+      "Том Аспиналл — английский боец тяжёлого веса UFC с рекордом 15 побед и 3 поражения. В ноябре 2023 года он завоевал временный пояс UFC, нокаутировав Сергея Павловича, а в 2025 году стал полноценным чемпионом."
+    ),
+    false
+  );
+  assert.equal(isWeakBio(""), false);
+});
