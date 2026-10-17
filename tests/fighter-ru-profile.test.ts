@@ -1,0 +1,28 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { isAcceptableRussianBio, isAcceptableRussianName } = require("../scripts/fighter-ru-profile.js");
+
+test("a Cyrillic name with the same number of words is accepted", () => {
+  assert.equal(isAcceptableRussianName("Джавад Махджуб", "Javad Mahjoub"), true);
+  assert.equal(isAcceptableRussianName("Ю Су Ён", "Suyoung You"), true);
+  assert.equal(isAcceptableRussianName("Кай Камака III", "Kai Kamaka III"), false);
+  assert.equal(isAcceptableRussianName("Кай Камака", "Kai Kamaka III"), true);
+});
+
+test("names with Latin letters, extra words or empty values are rejected", () => {
+  assert.equal(isAcceptableRussianName("Javad Mahjoub", "Javad Mahjoub"), false);
+  assert.equal(isAcceptableRussianName("Боец UFC Джавад Махджуб из Канады", "Javad Mahjoub"), false);
+  assert.equal(isAcceptableRussianName("", "Javad Mahjoub"), false);
+  assert.equal(isAcceptableRussianName(null, "Javad Mahjoub"), false);
+});
+
+test("a bio must be Russian, mention the fighter and have a sane length", () => {
+  const bio =
+    "Джавад Махджуб — канадский полутяжеловес с рекордом 5-0, пришедший в UFC без поражений. Все победы он одержал досрочно.";
+  assert.equal(isAcceptableRussianBio(bio, "Джавад Махджуб"), true);
+  assert.equal(isAcceptableRussianBio("Коротко.", "Джавад Махджуб"), false);
+  assert.equal(isAcceptableRussianBio(`${bio} Он тренируется в Tristar Gym.`, "Джавад Махджуб"), false);
+  assert.equal(isAcceptableRussianBio(bio.replaceAll("Махджуб", "Петров"), "Джавад Махджуб"), false);
+});

@@ -12,6 +12,7 @@
 #   sync-photos-upcoming — фото из Sherdog бойцам ближайших турниров без портрета
 #   sync-bio-records — цифры рекорда в биографиях бойцов по текущему рекорду
 #   indexnow       — сообщить Яндексу (IndexNow) об изменённых страницах
+#   localize-upcoming — русское имя и биография новичкам ближайших турниров
 # =============================================================
 set -euo pipefail
 
@@ -305,6 +306,23 @@ case "${TASK}" in
     fi
     ;;
 
+  localize-upcoming)
+    log "Starting localize-upcoming"
+    # Русское имя и биография новичкам ближайших турниров (ESPN их не даёт).
+    # Утром до sync-bio-records и sync-odds, второй раз после sync-odds, который
+    # заводит бойцов новых боёв.
+    output=$(cd /opt/fightbase && node scripts/localize-upcoming-fighters.js --days-forward 21 --apply 2>&1) || {
+      log "localize-upcoming FAILED: ${output}"
+      send_tg_alert "❌ Русские имена к ближайшим турнирам: сбой"
+      exit 1
+    }
+    log "localize-upcoming: ${output}"
+    updated="$(extract_json_number "${output}" "updated")"
+    if [ "${updated:-0}" != "0" ]; then
+      send_tg_alert "✅ Русские имена и биографии к ближайшим турнирам: ${updated}"
+    fi
+    ;;
+
   sync-fight-history)
     log "Starting sync-fight-history"
     # Идёт напрямую к скрипту, а не через /api/cron: источник здесь ESPN, и
@@ -407,7 +425,7 @@ case "${TASK}" in
     ;;
 
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|indexnow|silence-check|bridge-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check}"
     exit 1
     ;;
 esac
