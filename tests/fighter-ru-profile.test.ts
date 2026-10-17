@@ -28,3 +28,23 @@ test("a bio must be Russian, mention the fighter and have a sane length", () => 
   assert.equal(isAcceptableRussianBio(`${bio} He is a former champion.`, "Джавад Махджуб"), false);
   assert.equal(isAcceptableRussianBio(bio.replaceAll("Махджуб", "Петров"), "Джавад Махджуб"), false);
 });
+
+test("source links from web search are stripped out of the bio", () => {
+  const { cleanAiBio } = require("../scripts/fighter-ru-profile.js");
+  assert.equal(
+    cleanAiBio(
+      "Джо Кропшот — американец. Завоевал пояс LFA удушающим ([LFA](https://www.lfa.com/x-226/)). Встретится с Ником Кляйном ([UFC](https://www.ufc.com/e), [UFC](https://www.ufc.com/f))."
+    ),
+    "Джо Кропшот — американец. Завоевал пояс LFA удушающим. Встретится с Ником Кляйном."
+  );
+  assert.equal(
+    cleanAiBio(
+      "Джавад Махджуб — тяжеловес. Встретится с Фаглиером. Данные подтверждают [профиль UFC](https://u.com/a) и [карточка](https://c.com/b)."
+    ),
+    "Джавад Махджуб — тяжеловес. Встретится с Фаглиером."
+  );
+  assert.equal(
+    cleanAiBio("Теодор Берггрен — швед. [Источники: UFC](https://www.ufc.com/athlete/x), [материал](https://www.ufc.com/news/y)."),
+    "Теодор Берггрен — швед."
+  );
+});

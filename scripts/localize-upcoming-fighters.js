@@ -22,7 +22,7 @@ const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 
 const { buildGenericBio, getManualRussianName, parseArgs, transliterateName } = require("./fighter-import-utils");
-const { isAcceptableRussianBio, isAcceptableRussianName } = require("./fighter-ru-profile");
+const { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName } = require("./fighter-ru-profile");
 
 const prisma = new PrismaClient();
 
@@ -60,7 +60,7 @@ function buildPrompt(fighter) {
     "Нужен русскоязычный профиль бойца UFC для карточки на сайте.",
     "Верни строгий JSON с ключами nameRu и bioRu, без пояснений.",
     "nameRu: имя и фамилия по-русски. Найди, как бойца пишут русскоязычные спортивные СМИ (sports.ru, championat.com, ufc.ru, matchtv.ru); если там его нет, дай практическую транскрипцию по правилам языка происхождения имени (корейские и китайские имена — в принятом по-русски порядке). Без прозвища и лишних слов.",
-    "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд, чем известен до UFC и с кем выходит на ближайший турнир. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов.",
+    "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд, чем известен до UFC и с кем выходит на ближайший турнир. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов, без ссылок и упоминаний источников.",
     "",
     `Name: ${fighter.name}`,
     `Nickname: ${fighter.nickname || ""}`,
@@ -98,7 +98,7 @@ async function localizeWithBridge(fighter) {
   const parsed = parseModelJson((await response.json())?.choices?.[0]?.message?.content);
   return {
     nameRu: String(parsed?.nameRu || "").replace(/\s+/g, " ").trim(),
-    bioRu: String(parsed?.bioRu || "").replace(/\s+/g, " ").trim()
+    bioRu: cleanAiBio(parsed?.bioRu)
   };
 }
 
