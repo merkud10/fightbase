@@ -23,7 +23,7 @@ test("a bio must be Russian, mention the fighter and have a sane length", () => 
     "Джавад Махджуб — канадский полутяжеловес с рекордом 5-0, пришедший в UFC без поражений. Все победы он одержал досрочно.";
   assert.equal(isAcceptableRussianBio(bio, "Джавад Махджуб"), true);
   assert.equal(isAcceptableRussianBio("Коротко.", "Джавад Махджуб"), false);
-  assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Road FC и Cage Warriors.`, "Джавад Махджуб"), false);
+  assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Road FC, Cage Warriors и Eagle FC.`, "Джавад Махджуб"), false);
   assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Road FC.`, "Джавад Махджуб"), true);
   assert.equal(isAcceptableRussianBio(`${bio} He is a former champion.`, "Джавад Махджуб"), false);
   assert.equal(isAcceptableRussianBio(bio.replaceAll("Махджуб", "Петров"), "Джавад Махджуб"), false);
