@@ -3,6 +3,7 @@ import type { FighterStatus, Prisma } from "@prisma/client";
 import { cache } from "react";
 
 import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
+import { fighterNameKey, getFighterNameIndex } from "@/lib/fighter-name-index";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -589,6 +590,16 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
 
     return true;
   });
+  // Соперник из истории → его карточка: русское имя из карточки вместо
+  // транслитерации синка и ссылка на профиль (lib/fighter-name-index.ts).
+  const nameIndex = await getFighterNameIndex();
+  const linkedProfileRecentFights = visibleProfileRecentFights.map((fight) => {
+    const opponent = nameIndex.get(fighterNameKey(fight.opponentName));
+    if (!opponent || opponent.slug === fighter.slug) {
+      return { ...fight, opponentSlug: null as string | null };
+    }
+    return { ...fight, opponentNameRu: opponent.nameRu || fight.opponentNameRu, opponentSlug: opponent.slug };
+  });
 
   const visibleRecentFights = recentFights.filter((fight) => {
     if (!fight.event?.name?.trim()) {
@@ -624,7 +635,7 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
     fighter,
     nextFight,
     recentFights: visibleRecentFights,
-    profileRecentFights: visibleProfileRecentFights,
+    profileRecentFights: linkedProfileRecentFights,
     relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 20)
   };
 });

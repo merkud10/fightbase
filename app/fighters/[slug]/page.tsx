@@ -592,9 +592,17 @@ export default async function FighterPage({
                       <div className="recent-fight-head">
                         <div>
                           <p className="recent-fight-opponent">
-                            {locale === "ru"
-                              ? cleanOpponentName(fight.opponentNameRu ?? fight.opponentName)
-                              : cleanOpponentName(fight.opponentName)}
+                            {(() => {
+                              const label =
+                                locale === "ru"
+                                  ? cleanOpponentName(fight.opponentNameRu ?? fight.opponentName)
+                                  : cleanOpponentName(fight.opponentName);
+                              return fight.opponentSlug ? (
+                                <Link href={localizePath(`/fighters/${fight.opponentSlug}`, locale)}>{label}</Link>
+                              ) : (
+                                label
+                              );
+                            })()}
                           </p>
                           <p className="recent-fight-meta">
                             {fight.eventName} • {formatDate(fight.date, locale)}
@@ -634,6 +642,7 @@ export default async function FighterPage({
                     <thead>
                       <tr>
                         <th scope="col">{locale === "ru" ? "Турнир" : "Event"}</th>
+                        <th scope="col">{locale === "ru" ? "Соперник" : "Opponent"}</th>
                         <th scope="col">{locale === "ru" ? "Вес" : "Weight"}</th>
                         <th scope="col">{locale === "ru" ? "Статус" : "Status"}</th>
                         <th scope="col">{locale === "ru" ? "Итог" : "Result"}</th>
@@ -643,6 +652,14 @@ export default async function FighterPage({
                       {recentFights.map((fight) => (
                         <tr key={fight.id}>
                           <td>{fight.event.name}</td>
+                          <td>
+                            {(() => {
+                              const opponent = fight.fighterAId === fighter.id ? fight.fighterB : fight.fighterA;
+                              return opponent ? (
+                                <Link href={localizePath(`/fighters/${opponent.slug}`, locale)}>{getDisplayName(opponent, locale)}</Link>
+                              ) : null;
+                            })()}
+                          </td>
                           <td>{formatWeightClass(fight.weightClass, locale)}</td>
                           <td>{formatFightStatus(fight.status, locale)}</td>
                           <td>
