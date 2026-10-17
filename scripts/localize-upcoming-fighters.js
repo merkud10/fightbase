@@ -8,6 +8,8 @@
 //   node scripts/localize-upcoming-fighters.js                    # сухой прогон
 //   node scripts/localize-upcoming-fighters.js --apply            # запись
 //   node scripts/localize-upcoming-fighters.js --days-forward 30 --fighter-slug javad-mahjoub
+//   node scripts/localize-upcoming-fighters.js --fighter-slug petr-yan --force-bio --apply  # переписать био одному
+//   node scripts/localize-upcoming-fighters.js --all-templates --apply  # все шаблонные био в базе, не только к турнирам
 //
 // Порядок для имени: ручной словарь → ИИ (если прошло проверку) → транслитерация.
 // Биография: ИИ → шаблон buildGenericBio. Заполненные поля не перезаписываем,
@@ -61,7 +63,7 @@ function buildPrompt(fighter) {
     "Нужен русскоязычный профиль бойца UFC для карточки на сайте.",
     "Верни строгий JSON с ключами nameRu и bioRu, без пояснений.",
     "nameRu: имя и фамилия по-русски. Найди, как бойца пишут русскоязычные спортивные СМИ (sports.ru, championat.com, ufc.ru, matchtv.ru); если там его нет, дай практическую транскрипцию по правилам языка происхождения имени (корейские и китайские имена — в принятом по-русски порядке). Без прозвища и лишних слов.",
-    "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд, чем известен до UFC и с кем выходит на ближайший турнир. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов, без ссылок и упоминаний источников.",
+    "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд и главное, чем он известен — титулы и громкие победы и до UFC, и в самом UFC (для бывших и действующих чемпионов UFC это обязательно). Если в данных есть ближайший бой — с кем и когда выходит; если нет, о будущих боях не пиши. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов, без ссылок и упоминаний источников.",
     "",
     `Name: ${fighter.name}`,
     fighter.nameRu ? `Russian name on the site (use exactly this spelling): ${fighter.nameRu}` : "",
@@ -70,7 +72,7 @@ function buildPrompt(fighter) {
     `Weight class: ${fighter.weightClass || ""}`,
     `Record: ${fighter.record || ""}`,
     `Team: ${fighter.team || ""}`,
-    `Next fight: ${fighter.nextFight || ""}`
+    `Next fight: ${fighter.nextFight || "none scheduled"}`
   ].join("\n");
 }
 
@@ -118,6 +120,7 @@ async function main() {
       event: { select: { name: true, date: true } }
     }
   });
+  const forceBio = Boolean(args["force-bio"] && args["fighter-slug"]);
   const fighters = new Map();
   for (const fight of fights) {
     for (const [fighter, opponent] of [
@@ -126,9 +129,22 @@ async function main() {
     ]) {
       if (!fighter || isPlaceholder(fighter.slug)) continue;
       if (args["fighter-slug"] && fighter.slug !== args["fighter-slug"]) continue;
-      if (fighter.nameRu && String(fighter.bio || "").trim() && !isTemplateBio(fighter.bio)) continue;
+      if (!forceBio && fighter.nameRu && String(fighter.bio || "").trim() && !isTemplateBio(fighter.bio)) continue;
       const nextFight = `${fight.event.name}, ${fight.event.date.toISOString().slice(0, 10)}, vs ${opponent?.name || "TBA"}`;
       fighters.set(fighter.id, { ...fighter, nextFight });
+    }
+  }
+
+  // Бойцы вне ближайших турниров: точечно по --fighter-slug или все с шаблонной
+  // биографией (--all-templates). Ближайшего боя у них нет.
+  if (args["all-templates"] || (args["fighter-slug"] && fighters.size === 0)) {
+    const extra = await prisma.fighter.findMany({
+      where: args["fighter-slug"] ? { slug: args["fighter-slug"] } : { bio: { contains: "— профессиональный боец UFC, выступающий в категории" } }
+    });
+    for (const fighter of extra) {
+      if (fighters.has(fighter.id) || isPlaceholder(fighter.slug)) continue;
+      if (!forceBio && fighter.nameRu && String(fighter.bio || "").trim() && !isTemplateBio(fighter.bio)) continue;
+      fighters.set(fighter.id, { ...fighter, nextFight: "" });
     }
   }
 
@@ -148,7 +164,7 @@ async function main() {
 
     let bio = String(fighter.bio || "").trim();
     let bioSource = "kept";
-    if (!bio || isTemplateBio(bio)) {
+    if (!bio || isTemplateBio(bio) || forceBio) {
       if (ai && isAcceptableRussianBio(ai.bioRu)) {
         bio = ai.bioRu;
         bioSource = "ai";
