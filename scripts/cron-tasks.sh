@@ -11,6 +11,7 @@
 #   sync-fight-history — восстановить историю боёв из архива ESPN
 #   sync-photos-upcoming — фото из Sherdog бойцам ближайших турниров без портрета
 #   sync-bio-records — цифры рекорда в биографиях бойцов по текущему рекорду
+#   indexnow       — сообщить Яндексу (IndexNow) об изменённых страницах
 # =============================================================
 set -euo pipefail
 
@@ -336,6 +337,26 @@ case "${TASK}" in
     log "sync-bio-records: ${output}"
     ;;
 
+  indexnow)
+    # Раз в час шлём в IndexNow всё, что изменилось после прошлой удачной отправки.
+    # Время отправки храним в файле: если запуск упал, следующий захватит пропущенное.
+    log "Starting indexnow"
+    state_file="${LOG_DIR}/indexnow.last"
+    started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    since="$(cat "${state_file}" 2>/dev/null || true)"
+    response=$(call_api "/api/cron/indexnow" "{\"since\":\"${since}\"}") || {
+      rc=$?
+      log "indexnow FAILED ($(describe_curl_failure "${rc}"))"
+      exit 1
+    }
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | head -n -1)
+    log "indexnow HTTP ${http_code}: ${body}"
+    if [ "$http_code" = "200" ]; then
+      echo "${started_at}" > "${state_file}"
+    fi
+    ;;
+
   silence-check)
     log "Starting silence-check"
     response=$(curl -sf -w "\n%{http_code}" "${BASE_URL}/api/ops/diagnostics" \
@@ -386,7 +407,7 @@ case "${TASK}" in
     ;;
 
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|silence-check|bridge-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|indexnow|silence-check|bridge-check}"
     exit 1
     ;;
 esac
