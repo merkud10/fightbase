@@ -10,26 +10,96 @@
 //   node scripts/localize-upcoming-fighters.js --days-forward 30 --fighter-slug javad-mahjoub
 //
 // Порядок для имени: ручной словарь → ИИ (если прошло проверку) → транслитерация.
-// Биография: ИИ по данным профиля → шаблон buildGenericBio. Заполненные поля не
-// перезаписываем. Ежедневный крон: cron-tasks.sh localize-upcoming.
+// Биография: ИИ → шаблон buildGenericBio. Заполненные поля не перезаписываем.
+// Ежедневный крон: cron-tasks.sh localize-upcoming.
+//
+// Модель — та же, что у прогнозов: gpt-6.1-sol через мост Codex с веб-поиском
+// (FIGHTER_AI_MODEL переопределяет). Поиск нужен, чтобы взять написание имени из
+// русскоязычных СМИ, а не транскрибировать «Suyoung You» буква в букву.
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 
-const {
-  buildGenericBio,
-  getManualRussianName,
-  localizeUfcFighterProfileWithDeepSeek,
-  parseArgs,
-  transliterateName
-} = require("./fighter-import-utils");
+const { buildGenericBio, getManualRussianName, parseArgs, transliterateName } = require("./fighter-import-utils");
 const { isAcceptableRussianBio, isAcceptableRussianName } = require("./fighter-ru-profile");
 
 const prisma = new PrismaClient();
+
+function readEnv(name, fallback = "") {
+  if (process.env[name]) return process.env[name];
+  try {
+    const contents = fs.readFileSync(path.join(process.cwd(), ".env"), "utf8");
+    const line = contents.split(/\r?\n/).find((item) => item.startsWith(`${name}=`));
+    const value = line ? line.slice(name.length + 1).trim().replace(/^["']|["']$/g, "") : "";
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function parseModelJson(content) {
+  const text = String(content || "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  try {
+    return JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : text);
+  } catch {
+    return null;
+  }
+}
 
 function isPlaceholder(slug) {
   return String(slug || "")
     .split("-")
     .some((part) => part === "tba" || part === "tbd");
+}
+
+function buildPrompt(fighter) {
+  return [
+    "Нужен русскоязычный профиль бойца UFC для карточки на сайте.",
+    "Верни строгий JSON с ключами nameRu и bioRu, без пояснений.",
+    "nameRu: имя и фамилия по-русски. Найди, как бойца пишут русскоязычные спортивные СМИ (sports.ru, championat.com, ufc.ru, matchtv.ru); если там его нет, дай практическую транскрипцию по правилам языка происхождения имени (корейские и китайские имена — в принятом по-русски порядке). Без прозвища и лишних слов.",
+    "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд, чем известен до UFC и с кем выходит на ближайший турнир. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов.",
+    "",
+    `Name: ${fighter.name}`,
+    `Nickname: ${fighter.nickname || ""}`,
+    `Country: ${fighter.country || ""}`,
+    `Weight class: ${fighter.weightClass || ""}`,
+    `Record: ${fighter.record || ""}`,
+    `Team: ${fighter.team || ""}`,
+    `Next fight: ${fighter.nextFight || ""}`
+  ].join("\n");
+}
+
+async function localizeWithBridge(fighter) {
+  const baseUrl = readEnv("CODEX_BRIDGE_URL").trim();
+  const token = readEnv("CODEX_BRIDGE_TOKEN").trim();
+  if (!baseUrl || !token) throw new Error("CODEX_BRIDGE_URL/CODEX_BRIDGE_TOKEN are not configured");
+
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    signal: AbortSignal.timeout(450_000),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      model: readEnv("FIGHTER_AI_MODEL", "gpt-6.1-sol").trim(),
+      temperature: 0.2,
+      web_search: true,
+      messages: [
+        {
+          role: "system",
+          content: "Ты редактор русскоязычного UFC-медиа. Пишешь точно, без выдуманных фактов. Отвечаешь только JSON."
+        },
+        { role: "user", content: buildPrompt(fighter) }
+      ]
+    })
+  });
+  if (!response.ok) throw new Error(`bridge HTTP ${response.status}`);
+  const parsed = parseModelJson((await response.json())?.choices?.[0]?.message?.content);
+  return {
+    nameRu: String(parsed?.nameRu || "").replace(/\s+/g, " ").trim(),
+    bioRu: String(parsed?.bioRu || "").replace(/\s+/g, " ").trim()
+  };
 }
 
 async function main() {
@@ -42,16 +112,21 @@ async function main() {
     where: { event: { status: "upcoming", date: { lte: until } } },
     select: {
       fighterA: true,
-      fighterB: true
+      fighterB: true,
+      event: { select: { name: true, date: true } }
     }
   });
   const fighters = new Map();
   for (const fight of fights) {
-    for (const fighter of [fight.fighterA, fight.fighterB]) {
+    for (const [fighter, opponent] of [
+      [fight.fighterA, fight.fighterB],
+      [fight.fighterB, fight.fighterA]
+    ]) {
       if (!fighter || isPlaceholder(fighter.slug)) continue;
       if (args["fighter-slug"] && fighter.slug !== args["fighter-slug"]) continue;
       if (fighter.nameRu && String(fighter.bio || "").trim()) continue;
-      fighters.set(fighter.id, fighter);
+      const nextFight = `${fight.event.name}, ${fight.event.date.toISOString().slice(0, 10)}, vs ${opponent?.name || "TBA"}`;
+      fighters.set(fighter.id, { ...fighter, nextFight });
     }
   }
 
@@ -59,34 +134,15 @@ async function main() {
   for (const fighter of fighters.values()) {
     let ai = null;
     try {
-      ai = await localizeUfcFighterProfileWithDeepSeek({
-        name: fighter.name,
-        nickname: fighter.nickname,
-        country: fighter.country,
-        weightClass: fighter.weightClass,
-        status: fighter.status,
-        record: fighter.record,
-        team: fighter.team,
-        style: fighter.style,
-        highlights: "",
-        description: ""
-      });
+      ai = await localizeWithBridge(fighter);
     } catch (error) {
       console.error(`[ai failed] ${fighter.slug}: ${error.message || error}`);
     }
 
-    const nameRu =
-      fighter.nameRu ||
-      getManualRussianName(fighter.name) ||
-      (ai && isAcceptableRussianName(ai.nameRu, fighter.name) ? ai.nameRu : null) ||
-      transliterateName(fighter.name);
-    const nameSource = fighter.nameRu
-      ? "kept"
-      : getManualRussianName(fighter.name)
-        ? "manual"
-        : ai && ai.nameRu === nameRu
-          ? "ai"
-          : "translit";
+    const manualName = getManualRussianName(fighter.name);
+    const aiName = ai && isAcceptableRussianName(ai.nameRu, fighter.name) ? ai.nameRu : null;
+    const nameRu = fighter.nameRu || manualName || aiName || transliterateName(fighter.name);
+    const nameSource = fighter.nameRu ? "kept" : manualName ? "manual" : aiName ? "ai" : "translit";
 
     let bio = String(fighter.bio || "").trim();
     let bioSource = "kept";
@@ -113,17 +169,14 @@ async function main() {
       }
     }
 
-    results.push({ slug: fighter.slug, name: fighter.name, nameRu, nameSource, bioSource });
+    results.push({ slug: fighter.slug, nameSource, bioSource });
     console.log(`[${apply ? "update" : "would update"}] ${fighter.slug}: ${fighter.name} → ${nameRu} (${nameSource}), bio ${bioSource}`);
     if (!apply) {
-      console.log(`    ${bio.slice(0, 220)}`);
+      console.log(`    ${bio}`);
     }
 
     if (apply) {
-      await prisma.fighter.update({
-        where: { id: fighter.id },
-        data: { nameRu, bio }
-      });
+      await prisma.fighter.update({ where: { id: fighter.id }, data: { nameRu, bio } });
     }
   }
 
