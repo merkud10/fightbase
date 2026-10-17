@@ -22,17 +22,24 @@ function isAcceptableRussianName(nameRu, name) {
   return Math.abs(countNameTokens(value) - countNameTokens(name)) <= 1 && countNameTokens(value) >= 1;
 }
 
-// Биография: русский текст 80–900 знаков с именем бойца внутри. Названия
-// промоушенов и клубов по-русски пишут латиницей (UFC, Road FC, Cage Warriors),
-// поэтому терпим до трёх латинских слов с заглавной буквы; строчная латиница или
-// больше слов — признак непереведённого текста.
-function isAcceptableRussianBio(bio, nameRu) {
+// Биография от gpt-6.1-sol с поиском: ловим только явный брак, а не стиль.
+// Названия промоушенов и клубов по-русски пишут латиницей (Road FC, Fight Club
+// Rush, Cage Warriors) — их сколько угодно. Строчная латиница значит, что в текст
+// попала английская фраза. Совпадение фамилии не требуем: модель иногда пишет её
+// в другом варианте («Ён»/«Янг»), а имя и так стоит в заголовке карточки.
+function isAcceptableRussianBio(bio) {
   const text = String(bio || "").trim();
-  if (text.length < 80 || text.length > 900) return false;
-  const latinWords = text.replace(/\b[A-Z]{2,5}\b/g, "").match(/[A-Za-z]{2,}/g) || [];
-  if (latinWords.length > 3 || latinWords.some((word) => /^[a-z]/.test(word))) return false;
-  const surname = String(nameRu || "").trim().split(/\s+/).pop() || "";
-  return surname.length > 0 && text.includes(surname.slice(0, Math.max(3, surname.length - 2)));
+  if (text.length < 80 || text.length > 1500) return false;
+  if (!/[А-ЯЁа-яё]/.test(text)) return false;
+  const latinWords = text.match(/[A-Za-z]{2,}/g) || [];
+  return !latinWords.some((word) => /^[a-z]/.test(word));
+}
+
+// Шаблон buildGenericBio («X — профессиональный боец UFC, выступающий в категории
+// «…». В профиле бойца указана страна…»): у бойцов ближайших турниров его
+// заменяем текстом модели, как пустую биографию.
+function isTemplateBio(bio) {
+  return /— профессиональный боец UFC, выступающий в категории/.test(String(bio || ""));
 }
 
 // С веб-поиском модель ставит ссылки на источники: «… удушающим ([LFA](https://…))»
@@ -55,4 +62,4 @@ function cleanAiBio(bio) {
     .trim();
 }
 
-module.exports = { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName };
+module.exports = { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName, isTemplateBio };

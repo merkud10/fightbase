@@ -10,7 +10,8 @@
 //   node scripts/localize-upcoming-fighters.js --days-forward 30 --fighter-slug javad-mahjoub
 //
 // Порядок для имени: ручной словарь → ИИ (если прошло проверку) → транслитерация.
-// Биография: ИИ → шаблон buildGenericBio. Заполненные поля не перезаписываем.
+// Биография: ИИ → шаблон buildGenericBio. Заполненные поля не перезаписываем,
+// кроме шаблонной биографии (isTemplateBio): её меняем на текст модели.
 // Ежедневный крон: cron-tasks.sh localize-upcoming.
 //
 // Модель — та же, что у прогнозов: gpt-6.1-sol через мост Codex с веб-поиском
@@ -22,7 +23,7 @@ const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 
 const { buildGenericBio, getManualRussianName, parseArgs, transliterateName } = require("./fighter-import-utils");
-const { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName } = require("./fighter-ru-profile");
+const { cleanAiBio, isAcceptableRussianBio, isAcceptableRussianName, isTemplateBio } = require("./fighter-ru-profile");
 
 const prisma = new PrismaClient();
 
@@ -63,6 +64,7 @@ function buildPrompt(fighter) {
     "bioRu: 2-4 предложения естественным русским языком: откуда боец, весовая категория, рекорд, чем известен до UFC и с кем выходит на ближайший турнир. Только проверенные факты из данных ниже и из поиска; если факта нет, не пиши его. Без латиницы, кроме названий промоушенов (UFC, LFA и т.п.), без ставок и коэффициентов, без ссылок и упоминаний источников.",
     "",
     `Name: ${fighter.name}`,
+    fighter.nameRu ? `Russian name on the site (use exactly this spelling): ${fighter.nameRu}` : "",
     `Nickname: ${fighter.nickname || ""}`,
     `Country: ${fighter.country || ""}`,
     `Weight class: ${fighter.weightClass || ""}`,
@@ -124,7 +126,7 @@ async function main() {
     ]) {
       if (!fighter || isPlaceholder(fighter.slug)) continue;
       if (args["fighter-slug"] && fighter.slug !== args["fighter-slug"]) continue;
-      if (fighter.nameRu && String(fighter.bio || "").trim()) continue;
+      if (fighter.nameRu && String(fighter.bio || "").trim() && !isTemplateBio(fighter.bio)) continue;
       const nextFight = `${fight.event.name}, ${fight.event.date.toISOString().slice(0, 10)}, vs ${opponent?.name || "TBA"}`;
       fighters.set(fighter.id, { ...fighter, nextFight });
     }
@@ -146,10 +148,13 @@ async function main() {
 
     let bio = String(fighter.bio || "").trim();
     let bioSource = "kept";
-    if (!bio) {
-      if (ai && isAcceptableRussianBio(ai.bioRu, nameRu)) {
+    if (!bio || isTemplateBio(bio)) {
+      if (ai && isAcceptableRussianBio(ai.bioRu)) {
         bio = ai.bioRu;
         bioSource = "ai";
+      } else if (bio) {
+        // Шаблон уже стоит, модель не дала годного текста — оставляем как есть.
+        bioSource = "kept-template";
       } else {
         bio = buildGenericBio({
           nameRu,
@@ -173,7 +178,7 @@ async function main() {
     console.log(`[${apply ? "update" : "would update"}] ${fighter.slug}: ${fighter.name} → ${nameRu} (${nameSource}), bio ${bioSource}`);
     if (!apply) {
       console.log(`    ${bio}`);
-      if (ai && bioSource === "template") console.log(`    [rejected ai bio] ${ai.bioRu || "<empty>"}`);
+      if (ai && (bioSource === "template" || bioSource === "kept-template")) console.log(`    [rejected ai bio] ${ai.bioRu || "<empty>"}`);
       if (ai && nameSource === "translit") console.log(`    [rejected ai name] ${ai.nameRu || "<empty>"}`);
     }
 

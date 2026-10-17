@@ -18,15 +18,21 @@ test("names with Latin letters, extra words or empty values are rejected", () =>
   assert.equal(isAcceptableRussianName(null, "Javad Mahjoub"), false);
 });
 
-test("a bio must be Russian, mention the fighter and have a sane length", () => {
+test("a bio passes unless it is too short, too long or carries English phrases", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { isTemplateBio } = require("../scripts/fighter-ru-profile.js");
   const bio =
-    "Джавад Махджуб — канадский полутяжеловес с рекордом 5-0, пришедший в UFC без поражений. Все победы он одержал досрочно.";
-  assert.equal(isAcceptableRussianBio(bio, "Джавад Махджуб"), true);
-  assert.equal(isAcceptableRussianBio("Коротко.", "Джавад Махджуб"), false);
-  assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Road FC, Cage Warriors и Eagle FC.`, "Джавад Махджуб"), false);
-  assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Road FC.`, "Джавад Махджуб"), true);
-  assert.equal(isAcceptableRussianBio(`${bio} He is a former champion.`, "Джавад Махджуб"), false);
-  assert.equal(isAcceptableRussianBio(bio.replaceAll("Махджуб", "Петров"), "Джавад Махджуб"), false);
+    "Джавад Махджуб — канадский тяжеловес с рекордом 5-0, пришедший в UFC без поражений. Все победы он одержал досрочно.";
+  assert.equal(isAcceptableRussianBio(bio), true);
+  assert.equal(isAcceptableRussianBio(`${bio} До UFC выступал в Fight Club Rush, Cage Warriors и Eagle FC.`), true);
+  assert.equal(isAcceptableRussianBio(bio.replaceAll("Махджуб", "Махджоуб")), true);
+  assert.equal(isAcceptableRussianBio("Коротко."), false);
+  assert.equal(isAcceptableRussianBio(`${bio} He is a former champion.`), false);
+  assert.equal(isAcceptableRussianBio("A".repeat(10) + " ".repeat(100)), false);
+  assert.equal(isAcceptableRussianBio(bio.repeat(20)), false);
+
+  assert.equal(isTemplateBio("Петр Ян — профессиональный боец UFC, выступающий в категории «Легчайший вес»."), true);
+  assert.equal(isTemplateBio(bio), false);
 });
 
 test("source links from web search are stripped out of the bio", () => {
