@@ -278,15 +278,30 @@ function inferContentTypeHeuristically(input) {
   return "news";
 }
 
-async function classifyWithDeepSeek(prompt) {
-  const response = await fetch(`${getDeepSeekBaseUrl().replace(/\/$/, "")}/chat/completions`, {
+// Классификатор ходит туда же, куда и локализация: при AI_PROVIDER=codex — мост
+// (gpt-6.1-sol по CODEX_BRIDGE_MODEL), иначе DeepSeek.
+function getClassifierProvider() {
+  if (getAiProvider() === "codex") {
+    const baseUrl = readEnv("CODEX_BRIDGE_URL");
+    const apiKey = readEnv("CODEX_BRIDGE_TOKEN");
+    if (!baseUrl || !apiKey) return null;
+    return { name: "codex", baseUrl, apiKey, model: readEnv("CODEX_BRIDGE_MODEL", "gpt-6.1-sol") };
+  }
+  const apiKey = getDeepSeekApiKey();
+  if (!apiKey) return null;
+  return { name: "deepseek", baseUrl: getDeepSeekBaseUrl(), apiKey, model: getDeepSeekModel() };
+}
+
+async function classifyWithAiProvider(provider, prompt) {
+  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(120_000),
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getDeepSeekApiKey()}`
+      Authorization: `Bearer ${provider.apiKey}`
     },
     body: JSON.stringify({
-      model: getDeepSeekModel(),
+      model: provider.model,
       messages: [
         {
           role: "system",
@@ -301,7 +316,7 @@ async function classifyWithDeepSeek(prompt) {
   });
 
   if (!response.ok) {
-    throw new Error(`DeepSeek HTTP ${response.status}`);
+    throw new Error(`${provider.name} HTTP ${response.status}`);
   }
 
   const raw = await response.json();
@@ -374,11 +389,12 @@ async function classifyArticleWithAi(input) {
   };
 
   try {
-    if (!getDeepSeekApiKey()) {
+    const provider = getClassifierProvider();
+    if (!provider) {
       return fallbackResult;
     }
 
-    const parsed = await classifyWithDeepSeek(promptContext.prompt);
+    const parsed = await classifyWithAiProvider(provider, promptContext.prompt);
 
     const promotionSlug = String(parsed.promotionSlug || "").trim();
     const fighterSlugs = uniqueStrings(Array.isArray(parsed.fighterSlugs) ? parsed.fighterSlugs : []).filter((slug) =>

@@ -35,7 +35,7 @@ const defaultOllamaUrl = "http://127.0.0.1:11434/api/generate";
 const defaultOllamaModel = "aya:8b-23";
 const defaultAlibabaBaseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 const defaultAlibabaModel = "qwen-flash";
-const defaultCodexBridgeModel = "gpt-5.3-codex-spark";
+const defaultCodexBridgeModel = "gpt-6.1-sol";
 const execFileAsync = promisify(execFile);
 
 type OpenAiCompatibleProvider = {
@@ -118,8 +118,9 @@ function providerModelLabel(provider: OpenAiCompatibleProvider) {
 
 /**
  * Порядок провайдеров. Явное переопределение — ровно один провайдер без фолбэка
- * (нужно скрипту сравнения). Без него: AI_PROVIDER=codex → мост, затем DeepSeek;
- * AI_PROVIDER=deepseek или пусто → DeepSeek.
+ * (нужно скрипту сравнения). Без него: AI_PROVIDER=codex → только мост (с октября
+ * 2026 всё на gpt-6.1-sol, решение пользователя); DeepSeek запасным — лишь при
+ * AI_DEEPSEEK_FALLBACK=1. AI_PROVIDER=deepseek или пусто → DeepSeek.
  */
 function resolveOpenAiCompatibleProviders(override?: LocalizationProviderOverride): OpenAiCompatibleProvider[] {
   const deepSeek = getDeepSeekProvider();
@@ -143,7 +144,8 @@ function resolveOpenAiCompatibleProviders(override?: LocalizationProviderOverrid
   if (provider === "codex" && codex) {
     order.push(codex);
   }
-  if ((provider === "codex" || provider === "deepseek" || !provider) && deepSeek) {
+  const deepSeekFallback = getEnvValue("AI_DEEPSEEK_FALLBACK", "0").trim() === "1";
+  if (((provider === "codex" && deepSeekFallback) || provider === "deepseek" || !provider) && deepSeek) {
     order.push(deepSeek);
   }
   return order;
@@ -323,12 +325,13 @@ function clampTelegramDigest(text: string) {
 }
 
 /**
- * Сжимает материал для поста в Telegram (≤1024 символов). Только DeepSeek; без ключа возвращает null.
+ * Сжимает материал для поста в Telegram (≤1024 символов) тем же провайдером, что и
+ * локализация (мост → gpt-6.1-sol). Без провайдера возвращает null.
  * Короткие тексты возвращает без дополнительного запроса.
  */
 export async function generateTelegramDigestForArticle(title: string, body: string): Promise<string | null> {
-  const apiKey = getDeepSeekApiKey();
-  if (!apiKey) {
+  const providers = resolveOpenAiCompatibleProviders();
+  if (providers.length === 0) {
     return null;
   }
 
@@ -343,25 +346,24 @@ export async function generateTelegramDigestForArticle(title: string, body: stri
     return combined;
   }
 
-  const model = getDeepSeekModel();
-  const baseUrl = getDeepSeekBaseUrl();
-
-  try {
-    let text = await sendOpenAiCompatibleSingleTextPrompt({
-      baseUrl,
-      apiKey,
-      model,
-      systemPrompt:
-        "Ты редактор русскоязычного MMA-медиа. Сожми материал в один пост для Telegram. Отвечай только валидным JSON с одним ключом text. Русский язык, без выдуманных фактов.",
-      userPrompt: buildTelegramDigestUserPrompt(t, b),
-      temperature: 0.2
-    });
-    text = clampTelegramDigest(text);
-    return text || null;
-  } catch (error) {
-    console.error("DeepSeek telegram digest failed", error);
-    return null;
+  for (const provider of providers) {
+    try {
+      let text = await sendOpenAiCompatibleSingleTextPrompt({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        model: provider.model,
+        systemPrompt:
+          "Ты редактор русскоязычного MMA-медиа. Сожми материал в один пост для Telegram. Отвечай только валидным JSON с одним ключом text. Русский язык, без выдуманных фактов.",
+        userPrompt: buildTelegramDigestUserPrompt(t, b),
+        temperature: 0.2
+      });
+      text = clampTelegramDigest(text);
+      if (text) return text;
+    } catch (error) {
+      console.error(`Telegram digest failed (${providerModelLabel(provider)})`, error);
+    }
   }
+  return null;
 }
 
 function enforcePromotionLabel(input: IngestDraftInput, localizedHeadline: string) {

@@ -66,7 +66,8 @@ const envKeys = [
   "CODEX_BRIDGE_MODEL",
   "DEEPSEEK_BASE_URL",
   "DEEPSEEK_API_KEY",
-  "DEEPSEEK_MODEL"
+  "DEEPSEEK_MODEL",
+  "AI_DEEPSEEK_FALLBACK"
 ];
 const savedEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
@@ -119,10 +120,22 @@ test("AI_PROVIDER=codex sends the request to the bridge with the bridge token an
   });
 });
 
-test("AI_PROVIDER=codex falls back to DeepSeek when the bridge fails", async (context) => {
+test("AI_PROVIDER=codex does not touch DeepSeek when the bridge fails", async (context) => {
+  context.mock.method(console, "error", () => {});
+  await withServers(502, async (bridge, deepseek) => {
+    process.env.AI_PROVIDER = "codex";
+    const result = await localizeIngestionInput(input).catch(() => null);
+    assert.notEqual(result?.model, "deepseek-chat");
+    assert.equal(bridge.seen.length >= 1, true);
+    assert.equal(deepseek.seen.length, 0);
+  });
+});
+
+test("AI_PROVIDER=codex falls back to DeepSeek only with AI_DEEPSEEK_FALLBACK=1", async (context) => {
   const errors = context.mock.method(console, "error", () => {});
   await withServers(502, async (bridge, deepseek) => {
     process.env.AI_PROVIDER = "codex";
+    process.env.AI_DEEPSEEK_FALLBACK = "1";
     const result = await localizeIngestionInput(input);
     assert.equal(result.localized, true);
     assert.equal(result.model, "deepseek-chat");
