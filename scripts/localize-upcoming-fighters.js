@@ -173,6 +173,8 @@ async function main() {
     console.log(`[${apply ? "update" : "would update"}] ${fighter.slug}: ${fighter.name} → ${nameRu} (${nameSource}), bio ${bioSource}`);
     if (!apply) {
       console.log(`    ${bio}`);
+      if (ai && bioSource === "template") console.log(`    [rejected ai bio] ${ai.bioRu || "<empty>"}`);
+      if (ai && nameSource === "translit") console.log(`    [rejected ai name] ${ai.nameRu || "<empty>"}`);
     }
 
     if (apply) {

@@ -22,13 +22,15 @@ function isAcceptableRussianName(nameRu, name) {
   return Math.abs(countNameTokens(value) - countNameTokens(name)) <= 1 && countNameTokens(value) >= 1;
 }
 
-// Биография: русский текст 80–900 знаков без латинских слов (их модель оставляет,
-// когда не знает перевода), с именем бойца внутри. Аббревиатуры промоушенов
-// (UFC, DWCS, LFA) в русском тексте нормальны.
+// Биография: русский текст 80–900 знаков с именем бойца внутри. Названия
+// промоушенов и клубов по-русски пишут латиницей (UFC, Road FC, Cage Warriors),
+// поэтому терпим до трёх латинских слов с заглавной буквы; строчная латиница или
+// больше слов — признак непереведённого текста.
 function isAcceptableRussianBio(bio, nameRu) {
   const text = String(bio || "").trim();
   if (text.length < 80 || text.length > 900) return false;
-  if (/[A-Za-z]{3,}/.test(text.replace(/\b[A-Z]{2,5}\b/g, ""))) return false;
+  const latinWords = text.replace(/\b[A-Z]{2,5}\b/g, "").match(/[A-Za-z]{2,}/g) || [];
+  if (latinWords.length > 3 || latinWords.some((word) => /^[a-z]/.test(word))) return false;
   const surname = String(nameRu || "").trim().split(/\s+/).pop() || "";
   return surname.length > 0 && text.includes(surname.slice(0, Math.max(3, surname.length - 2)));
 }
