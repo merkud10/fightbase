@@ -481,8 +481,8 @@ export default async function HomePage() {
                             : "picks ready"
                           : event.fights.length > 0
                             ? isRu
-                              ? "пики — накануне"
-                              : "picks the day before"
+                              ? "пики — за 2–3 дня"
+                              : "picks 2–3 days before"
                             : isRu
                               ? "кард собирается"
                               : "card in progress"}

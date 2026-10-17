@@ -36,12 +36,12 @@ test("describeFightPick returns side, percent and verdict, or null without a pic
   assert.equal(describeFightPick(fight({ predictionSnapshot: { aiPickFighterId: "zzz", percentA: 50, percentB: 50 } })), null);
 });
 
-test("a scheduled fight without a model pick says the pick comes the day before", () => {
+test("a scheduled fight without a model pick says the pick comes 2–3 days before", () => {
   assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: null }), true);
   assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: { aiPickFighterId: null } }), true);
   assert.equal(isPickPending({ status: "scheduled", predictionSnapshot: { aiPickFighterId: "a" } }), false);
-  // После боя «появится накануне» уже неправда.
+  // После боя «появится за 2–3 дня» уже неправда.
   assert.equal(isPickPending({ status: "completed", predictionSnapshot: { aiPickFighterId: null } }), false);
-  assert.equal(pickPendingText("ru"), "Прогноз ИИ-модели FightBase появится накануне боя.");
-  assert.equal(pickPendingText("ru", "short"), "пик — накануне боя");
+  assert.equal(pickPendingText("ru"), "Прогноз ИИ-модели FightBase появится за 2–3 дня до боя.");
+  assert.equal(pickPendingText("ru", "short"), "пик — за 2–3 дня до боя");
 });

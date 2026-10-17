@@ -265,11 +265,11 @@ export default async function EventPage({
                     : "Winner, method and round for every fight; bouts with a prediction show the FightBase AI pick."
                   : picks.withPicks > 0
                     ? locale === "ru"
-                      ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся накануне боя.`
-                      : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest are published the day before the fight.`
+                      ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся за 2–3 дня до боя.`
+                      : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest are published 2–3 days before the fight.`
                     : locale === "ru"
-                      ? "Пики ИИ-модели FightBase появятся накануне турнира."
-                      : "FightBase AI picks are published the day before the event."}
+                      ? "Пики ИИ-модели FightBase появятся за 2–3 дня до турнира."
+                      : "FightBase AI picks are published 2–3 days before the event."}
               </p>
             </div>
             <Link href={localizePath("/predictions", locale)} className="button-secondary">

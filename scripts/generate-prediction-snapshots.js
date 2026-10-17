@@ -83,8 +83,9 @@ function canRegeneratePrediction(fight, now = new Date()) {
 
 // Модель прогнозов дорогая (gpt-6.1-sol с веб-поиском), поэтому зовём её только
 // в последние PREDICTION_AI_WINDOW_HOURS до начала турнира: sync-odds идёт раз в
-// сутки в 06:00 UTC, и окно в 48 часов ловит один прогон накануне боя.
-const DEFAULT_AI_WINDOW_HOURS = 48;
+// сутки в 06:00 UTC, и окно в 72 часа ловит прогон за 2–3 дня до турнира (для
+// субботнего — в четверг): поисковый спрос на «X Y прогноз» начинается раньше накануне.
+const DEFAULT_AI_WINDOW_HOURS = 72;
 
 function getAiWindowHours() {
   const hours = Number(readEnv("PREDICTION_AI_WINDOW_HOURS", String(DEFAULT_AI_WINDOW_HOURS)));

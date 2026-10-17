@@ -37,17 +37,17 @@ export function summarizeEventPicks(fights: readonly PickableFight[]): EventPick
   return summary;
 }
 
-// Модель прогнозов запускается только в последние 48 часов перед турниром
+// Модель прогнозов запускается только в последние 72 часа перед турниром
 // (scripts/generate-prediction-snapshots.js), до этого у боя нет пика.
 export function isPickPending(fight: { status: string; predictionSnapshot?: { aiPickFighterId: string | null } | null }) {
   return fight.status === "scheduled" && !fight.predictionSnapshot?.aiPickFighterId;
 }
 
 export function pickPendingText(locale: string, form: "full" | "short" = "full") {
-  if (form === "short") return locale === "ru" ? "пик — накануне боя" : "pick: day before the fight";
+  if (form === "short") return locale === "ru" ? "пик — за 2–3 дня до боя" : "pick: 2–3 days before the fight";
   return locale === "ru"
-    ? "Прогноз ИИ-модели FightBase появится накануне боя."
-    : "The FightBase AI pick is published the day before the fight.";
+    ? "Прогноз ИИ-модели FightBase появится за 2–3 дня до боя."
+    : "The FightBase AI pick is published 2–3 days before the fight.";
 }
 
 // Пик по конкретному бою для таблицы карда: кого выбрала модель, с каким

@@ -67,11 +67,11 @@ export default async function PredictionsPage() {
   const heroDescription =
     locale === "ru"
       ? nextEvent
-        ? `Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): ближайший турнир ${nextEvent.name} ${nextEventDate}, ${nextEventPicks > 0 ? `пики готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв` : "пики появятся накануне турнира"}. Всего ${totalPicks} прогнозов на ${eventsWithSnapshots.length} ближайших турниров: пик, проценты и разбор по каждому матчапу. Пик на каждый бой публикуется накануне.`
-        : "Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): пик, проценты и разбор по каждому матчапу ближайших турниров. Пик на каждый бой публикуется накануне."
+        ? `Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): ближайший турнир ${nextEvent.name} ${nextEventDate}, ${nextEventPicks > 0 ? `пики готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв` : "пики появятся за 2–3 дня до турнира"}. Всего ${totalPicks} прогнозов на ${eventsWithSnapshots.length} ближайших турниров: пик, проценты и разбор по каждому матчапу. Пик на каждый бой публикуется за 2–3 дня до турнира.`
+        : "Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): пик, проценты и разбор по каждому матчапу ближайших турниров. Пик на каждый бой публикуется за 2–3 дня до турнира."
       : nextEvent
-        ? `FightBase AI predictions for UFC fights: next card ${nextEvent.name} on ${nextEventDate}, ${nextEventPicks > 0 ? `picks ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts` : "picks are published the day before the event"}. ${totalPicks} predictions across the next ${eventsWithSnapshots.length} events with pick, percentages and a breakdown for every matchup. Each pick is published the day before the fight.`
-        : "FightBase AI predictions for UFC fights: pick, percentages and a breakdown for every matchup on upcoming cards. Each pick is published the day before the fight.";
+        ? `FightBase AI predictions for UFC fights: next card ${nextEvent.name} on ${nextEventDate}, ${nextEventPicks > 0 ? `picks ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts` : "picks are published 2–3 days before the event"}. ${totalPicks} predictions across the next ${eventsWithSnapshots.length} events with pick, percentages and a breakdown for every matchup. Each pick is published 2–3 days before the event.`
+        : "FightBase AI predictions for UFC fights: pick, percentages and a breakdown for every matchup on upcoming cards. Each pick is published 2–3 days before the event.";
   const itemList = eventsWithSnapshots
     .flatMap((event) =>
       event.fights.map((fight) => ({
