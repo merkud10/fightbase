@@ -273,7 +273,11 @@ export default async function EventPage({
                   ? locale === "ru"
                     ? "Победитель, метод и раунд по каждому бою; у боёв с прогнозом отмечен пик ИИ-модели FightBase."
                     : "Winner, method and round for every fight; bouts with a prediction show the FightBase AI pick."
-                  : picks.withPicks > 0
+                  : picks.withPicks > 0 && picks.withPicks >= orderedFights.length
+                    ? locale === "ru"
+                      ? `Пики ИИ-модели FightBase готовы на все ${fightWord(orderedFights.length)}.`
+                      : `FightBase AI picks are ready for all ${fightWord(orderedFights.length)}.`
+                    : picks.withPicks > 0
                     ? locale === "ru"
                       ? `Пики ИИ-модели FightBase готовы на ${picks.withPicks} из ${fightWord(orderedFights.length)}; остальные появятся за 2–3 дня до боя.`
                       : `FightBase AI picks are ready for ${picks.withPicks} of ${fightWord(orderedFights.length)}; the rest are published 2–3 days before the fight.`
