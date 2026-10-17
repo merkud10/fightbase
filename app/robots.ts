@@ -16,7 +16,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin", "/api"]
       }
     ],
-    sitemap: `${canonicalHost}/sitemap.xml`,
+    sitemap: [`${canonicalHost}/sitemap.xml`, `${canonicalHost}/sitemap-fresh.xml`],
     host: canonicalHost
   };
 }

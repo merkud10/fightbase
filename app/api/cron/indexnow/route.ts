@@ -1,60 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { authorizeRequest } from "@/lib/api-security";
-import { getArticleRouteBase } from "@/lib/article-routes";
-import { getUfcRankingSnapshot } from "@/lib/db";
+import { getFreshPages } from "@/lib/fresh-pages";
 import { buildIndexNowPayloads, INDEXNOW_ENDPOINT, isIndexNowEnabled, resolveIndexNowSince } from "@/lib/indexnow";
 import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { findRankingDivision } from "@/lib/ranking-divisions";
 import { getSiteUrl } from "@/lib/site";
-import { isPlaceholderFightSlug } from "@/lib/sitemap-entries";
-
-// Те же адреса, что в sitemap, но только изменённые после `since`. Карточки бойцов
-// не шлём: ежедневные синки трогают тысячи профилей, и пинг превратился бы в шум.
-async function collectChangedUrls(siteUrl: string, since: Date) {
-  const [articles, events, snapshots, rankingSnapshot] = await Promise.all([
-    prisma.article.findMany({
-      where: { status: "published", updatedAt: { gt: since } },
-      select: { slug: true, category: true }
-    }),
-    prisma.event.findMany({
-      where: { updatedAt: { gt: since } },
-      select: { slug: true }
-    }),
-    prisma.fightPredictionSnapshot.findMany({
-      where: { updatedAt: { gt: since } },
-      select: { fight: { select: { slug: true, event: { select: { slug: true } } } } }
-    }),
-    getUfcRankingSnapshot()
-  ]);
-  const paths: string[] = [];
-
-  for (const article of articles) {
-    const base = getArticleRouteBase(article.category);
-    paths.push(`${base}/${article.slug}`, base);
-  }
-  for (const event of events) {
-    paths.push(`/events/${event.slug}`, "/events");
-  }
-  for (const snapshot of snapshots) {
-    if (snapshot.fight.slug && !isPlaceholderFightSlug(snapshot.fight.slug)) {
-      paths.push(`/predictions/${snapshot.fight.event.slug}/${snapshot.fight.slug}`, "/predictions");
-    }
-  }
-  if (rankingSnapshot && rankingSnapshot.fetchedAt > since) {
-    paths.push("/rankings");
-    for (const group of rankingSnapshot.groups) {
-      const division = findRankingDivision(group.title);
-      if (division) paths.push(`/rankings/${division.slug}`);
-    }
-  }
-  if (paths.length > 0) {
-    paths.push("");
-  }
-
-  return paths.map((path) => `${siteUrl}/ru${path}`);
-}
 
 export async function POST(request: Request) {
   const authorization = await authorizeRequest(request, {
@@ -79,8 +29,11 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const since = resolveIndexNowSince((body as { since?: unknown }).since);
-  const urls = await collectChangedUrls(siteUrl, since);
-  const payloads = buildIndexNowPayloads(siteUrl, urls);
+  const pages = await getFreshPages(since);
+  const payloads = buildIndexNowPayloads(
+    siteUrl,
+    pages.map((page) => `${siteUrl}/ru${page.path}`)
+  );
   const statuses: number[] = [];
 
   for (const payload of payloads) {

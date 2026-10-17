@@ -4319,6 +4319,58 @@ th {
   }
 }
 
+.event-start-times {
+  gap: 4px;
+}
+
+/* Кард турнира на телефоне: таблица из пяти колонок не влезала, и колонку с пиком
+   было не видно без горизонтальной прокрутки. Каждый бой — блок: пара бойцов,
+   под ней стадия и вес мелким шрифтом, затем пик и ссылки. Статус «Запланирован»
+   на телефоне не показываем: для будущих боёв он ничего не сообщает. */
+@media (max-width: 640px) {
+  .event-card-table thead {
+    display: none;
+  }
+
+  .event-card-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+    row-gap: 4px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .event-card-table td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .event-card-table td:nth-child(2) {
+    order: -1;
+    width: 100%;
+    font-weight: 700;
+  }
+
+  .event-card-table td:nth-child(1),
+  .event-card-table td:nth-child(3) {
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .event-card-table td:nth-child(4) {
+    display: none;
+  }
+
+  .event-card-table td:nth-child(5) {
+    width: 100%;
+  }
+}
+
 /* Пик модели в таблице карда турнира */
 .event-table-pick {
   display: block;

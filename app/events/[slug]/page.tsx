@@ -169,12 +169,21 @@ export default async function EventPage({
     dateLabel,
     formatEventLocation(event.city, event.venue, locale),
     leadFight && isRealMainEvent({ a: leadFight.fighterA, b: leadFight.fighterB })
-      ? `${locale === "ru" ? "Главный бой" : "Main event"}:${getDisplayName(leadFight.fighterA, locale)} vs ${getDisplayName(leadFight.fighterB, locale)}`
+      ? `${locale === "ru" ? "Главный бой" : "Main event"}: ${getDisplayName(leadFight.fighterA, locale)} vs ${getDisplayName(leadFight.fighterB, locale)}`
       : null,
     orderedFights.length > 0 ? fightWord(orderedFights.length) : null
   ]
     .map((part) => String(part || "").trim())
     .filter(Boolean);
+  // H1 совпадает с SEO-именем из title: по-русски ищут «юфс 335», «бакли мэлотт кард»,
+  // а английское «UFC Fight Night: Buckley vs. Malott» этим запросам не отвечает.
+  const heroTitle =
+    locale === "ru" && leadFight
+      ? buildEventSeoName(event.name, {
+          a: { slug: leadFight.fighterA.slug, name: getDisplayName(leadFight.fighterA, "ru") },
+          b: { slug: leadFight.fighterB.slug, name: getDisplayName(leadFight.fighterB, "ru") }
+        })
+      : event.name;
   const cardImages = [leadFight?.fighterA?.photoUrl, leadFight?.fighterB?.photoUrl]
     .filter((url): url is string => isUsablePhoto(url))
     .map((url) => toAbsoluteUrl(url, siteUrl));
@@ -199,7 +208,7 @@ export default async function EventPage({
       <JsonLd data={breadcrumbJsonLd} />
       {eventJsonLd && <JsonLd data={eventJsonLd} />}
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero eyebrow={event.promotion.shortName} title={event.name} description={heroBits.join(" · ")} />
+      <PageHero eyebrow={event.promotion.shortName} title={heroTitle} description={heroBits.join(" · ")} />
 
       {isCompleted ? (
         <section className="policy-card" aria-label={locale === "ru" ? "Итоги турнира" : "Event recap"}>
@@ -220,34 +229,35 @@ export default async function EventPage({
       ) : null}
 
       {event.status !== "completed" && hasCardTimes(event) ? (
-        <section className="policy-card" aria-label={locale === "ru" ? "Во сколько начнётся" : "Start times"}>
-          <p className="kicker">{locale === "ru" ? "Во сколько начнётся" : "Start times"}</p>
+        <section className="policy-card event-start-times" aria-label={locale === "ru" ? "Во сколько начнётся" : "Start times"}>
           <p className="copy">
             {(() => {
               const anchor = event.mainCardAt ?? event.prelimsAt ?? event.earlyPrelimsAt;
               const nightLabel = anchor ? formatCardNightLabel(anchor, locale) : "";
               const capitalized = nightLabel ? nightLabel.charAt(0).toUpperCase() + nightLabel.slice(1) : "";
-              return locale === "ru" ? `${capitalized}, время московское.` : `${capitalized}, times in UTC.`;
+              const slots = [
+                event.earlyPrelimsAt
+                  ? `${locale === "ru" ? "ранние прелимы" : "early prelims"} ${formatCardTime(event.earlyPrelimsAt, locale)}`
+                  : null,
+                event.prelimsAt ? `${locale === "ru" ? "прелимы" : "prelims"} ${formatCardTime(event.prelimsAt, locale)}` : null,
+                event.mainCardAt
+                  ? `${locale === "ru" ? "главный кард" : "main card"} ${formatCardTime(event.mainCardAt, locale)}`
+                  : null
+              ].filter(Boolean);
+              return (
+                <>
+                  <strong>
+                    {capitalized}
+                    {locale === "ru" ? " (МСК)" : " (UTC)"}:
+                  </strong>{" "}
+                  {slots.join(" · ")}
+                </>
+              );
             })()}
           </p>
-          <p className="copy">
-            {[
-              event.earlyPrelimsAt
-                ? `${locale === "ru" ? "Ранние прелимы" : "Early prelims"} — ${formatCardTime(event.earlyPrelimsAt, locale)}`
-                : null,
-              event.prelimsAt
-                ? `${locale === "ru" ? "Прелимы" : "Prelims"} — ${formatCardTime(event.prelimsAt, locale)}`
-                : null,
-              event.mainCardAt
-                ? `${locale === "ru" ? "Главный кард" : "Main card"} — ${formatCardTime(event.mainCardAt, locale)}`
-                : null
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          <p className="copy">
+          <p className="table-note">
             {locale === "ru"
-              ? "Время начала может сдвигаться в зависимости от продолжительности предыдущих боёв."
+              ? "Время может сдвигаться в зависимости от продолжительности предыдущих боёв."
               : "Start times can shift depending on how long earlier fights run."}
           </p>
         </section>
@@ -277,7 +287,7 @@ export default async function EventPage({
             </Link>
           </div>
           <div className="table-wrap">
-            <table>
+            <table className="event-card-table">
               <caption className="sr-only">
                 {locale === "ru" ? `Кард турнира ${event.name}` : `${event.name} fight card`}
               </caption>
