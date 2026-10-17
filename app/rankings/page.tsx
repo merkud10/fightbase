@@ -41,11 +41,24 @@ export async function generateMetadata({ searchParams }: RankingsPageProps): Pro
   // рейтинга. Держим его вне индекса так же, как фильтры в /news и /fighters.
   const hasFilters = Boolean(readParam(params.division));
   const canonical = localizePath("/rankings", locale);
-  const title = locale === "ru" ? "Рейтинг UFC по весовым категориям — официальный рейтинг бойцов" : "UFC rankings by weight class — official fighter rankings";
+  // Яндекс показывает страницу по «рейтинг юфс (на сегодня)» на 8–9 месте с CTR 0,3–0,6%:
+  // в заголовке нужны «ЮФС», «на сегодня» и дата снимка, чтобы было видно, что рейтинг свежий.
+  const snapshot = await getUfcRankingSnapshot();
+  const updatedLabel = snapshot
+    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "long",
+        timeZone: "Europe/Moscow"
+      }).format(snapshot.fetchedAt)
+    : null;
+  const title =
+    locale === "ru"
+      ? `Рейтинг UFC (ЮФС) на сегодня по весовым категориям${updatedLabel ? ` — обновлён ${updatedLabel}` : ""}`
+      : `UFC rankings today by weight class${updatedLabel ? ` — updated ${updatedLabel}` : ""}`;
   const description =
     locale === "ru"
-      ? "Официальный рейтинг бойцов UFC (ЮФС) по всем весовым категориям: чемпионы, топ-15 каждого дивизиона и pound-for-pound, с переходом к профилям бойцов. Обновляется после каждого турнира."
-      : "Official UFC fighter rankings for every weight class: champions, the top 15 of each division and pound-for-pound, with links to fighter profiles. Updated after every event.";
+      ? `Актуальный рейтинг бойцов UFC (ЮФС)${updatedLabel ? ` на ${updatedLabel}` : ""}: чемпионы, топ-15 всех весовых категорий и pound-for-pound с переходом к профилям бойцов. Обновляется после каждого турнира.`
+      : `Current UFC fighter rankings${updatedLabel ? ` as of ${updatedLabel}` : ""}: champions, the top 15 of every weight class and pound-for-pound, with links to fighter profiles. Updated after every event.`;
 
   return {
     title,
@@ -93,10 +106,31 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
         timeZoneName: "short"
       }).format(rankingSnapshot.fetchedAt)
     : null;
+  const championsDateLabel = rankingSnapshot
+    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "long",
+        timeZone: "Europe/Moscow"
+      }).format(rankingSnapshot.fetchedAt)
+    : null;
 
   const divisionOptions = allGroups.map((g) => g.title);
   const activeDivision = divisionOptions.includes(divisionParam) ? divisionParam : "";
   const groups = activeDivision ? allGroups.filter((g) => g.title === activeDivision) : allGroups;
+  const champions = allGroups
+    .filter((group) => !isPoundForPoundRankingGroup(group.title))
+    .map((group) => {
+      const link =
+        rankingLinks?.bySlug.get(group.champion.officialSlug.toLowerCase()) ??
+        rankingLinks?.byName.get(group.champion.name.toLowerCase()) ??
+        null;
+      return {
+        division: formatWeightClass(group.title, locale),
+        name: (locale === "ru" ? link?.nameRu : null) ?? group.champion.name,
+        slug: link?.localSlug ?? null
+      };
+    })
+    .filter((champion) => champion.name);
 
   const rankingListElements = groups
     .flatMap((group) =>
@@ -144,7 +178,7 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/rankings"
-        title={locale === "ru" ? "Рейтинг UFC по весовым категориям" : "UFC rankings by weight class"}
+        title={locale === "ru" ? "Рейтинг UFC (ЮФС) на сегодня по весовым категориям" : "UFC rankings today by weight class"}
         description={
           locale === "ru"
             ? "Официальный рейтинг бойцов UFC (ЮФС): чемпионы и топ-15 каждого дивизиона плюс pound-for-pound. Каждая строка ведёт в профиль бойца с рекордом, статистикой и ближайшим боем."
@@ -187,6 +221,27 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                 )}
               </p>
             </nav>
+            {champions.length > 0 ? (
+              <>
+                <h2>
+                  {locale === "ru"
+                    ? `Чемпионы UFC${championsDateLabel ? ` на ${championsDateLabel}` : ""}`
+                    : `UFC champions${championsDateLabel ? ` as of ${championsDateLabel}` : ""}`}
+                </h2>
+                <ul className="ranking-champions-list">
+                  {champions.map((champion) => (
+                    <li key={champion.division}>
+                      <span className="table-note">{champion.division}</span>{" "}
+                      {champion.slug ? (
+                        <Link href={localizePath(`/fighters/${champion.slug}`, locale)}>{champion.name}</Link>
+                      ) : (
+                        <strong>{champion.name}</strong>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
           </section>
 
           {allGroups.length === 0 ? (
