@@ -518,6 +518,7 @@ async function main() {
           aiPickGeneratedAt: true,
           oddsAAtPick: true,
           oddsBAtPick: true,
+          aiWinChanceA: true,
           excerptRu: true,
           overviewRu: true,
           keyEdgeRu: true,
@@ -566,6 +567,7 @@ async function main() {
     let aiPickGeneratedAt = existingPickIsValid ? existing.aiPickGeneratedAt : null;
     let oddsAAtPick = existingPickIsValid ? existing.oddsAAtPick : null;
     let oddsBAtPick = existingPickIsValid ? existing.oddsBAtPick : null;
+    let aiWinChanceA = existingPickIsValid ? existing.aiWinChanceA ?? null : null;
 
     if (options.aiOnly && isPlaceholderFight(fight)) continue;
 
@@ -614,6 +616,7 @@ async function main() {
           aiPickFighterId = generated.pick === "A" ? fight.fighterAId : fight.fighterBId;
           aiPickReasonRu = normalizeRussianMmaText(generated.pickReason);
           aiPickGeneratedAt = new Date();
+          aiWinChanceA = generated.winChanceA ?? null;
           oddsAAtPick = null;
           oddsBAtPick = null;
         } else {
@@ -683,6 +686,7 @@ async function main() {
       aiPickGeneratedAt,
       oddsAAtPick,
       oddsBAtPick,
+      aiWinChanceA,
       generatedAt: new Date()
     };
 
@@ -694,7 +698,7 @@ async function main() {
         if (aiPickFighterId) {
           const pickName =
             aiPickFighterId === fight.fighterAId ? fight.fighterA.name : fight.fighterB.name;
-          console.log(`  pick: ${pickName} — ${aiPickReasonRu}`);
+          console.log(`  pick: ${pickName} (A ${aiWinChanceA ?? "?"}%) — ${aiPickReasonRu}`);
         }
         console.log(`  overview: ${ru.overview}`);
         console.log(`  keyEdge: ${ru.keyEdge}`);

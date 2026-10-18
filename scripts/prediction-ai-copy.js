@@ -14,7 +14,7 @@ const COPY_FIELDS = ["overview", "keyEdge", "fightScript", "pathA", "pathB"];
 const BANNED_LEXICON = /букмекер|котировк|коэффициент|беттинг|сделать ставку|ставки принимаются|ставка зайд[её]т|рын(?:ок|ка|ке|ком)(?![\p{L}])|рыночн/iu;
 const MAX_ATTEMPTS = 3;
 const MAX_RESEARCH_ITEMS = 8;
-const FACT_PACK_VERSION = 5;
+const FACT_PACK_VERSION = 6;
 
 function pickName(fighter) {
   return String(fighter?.nameRu || fighter?.name || "").trim();
@@ -77,10 +77,11 @@ function describeCardSlot(fight) {
   return null;
 }
 
-// Оценка рынка по коэффициентам, округлённая до 5 п.п.: мелкие колебания линии
-// не меняют факт-пакет и не запускают перегенерацию. До 30.09.2026 котировки
-// от модели скрывали ради «независимого» пика, но пики против фаворита
-// угадывались в 2 из 10 случаев, поэтому модель теперь видит рынок.
+// Линия букмекеров: десятичные кэфы и шансы без маржи, округлённые до 5 п.п.
+// До 30.09.2026 котировки от модели скрывали ради «независимого» пика, но пики
+// против фаворита угадывались в 2 из 10 случаев, поэтому модель видит рынок.
+// С 18.10.2026 модель получает и сами кэфы: по её оценке шансов и кэфам
+// считается «ценный выбор» (lib/prediction-value.ts).
 function buildMarketFacts(fight) {
   const oddsA = Number(fight.oddsA);
   const oddsB = Number(fight.oddsB);
@@ -89,6 +90,8 @@ function buildMarketFacts(fight) {
   const invB = 1 / oddsB;
   const winChanceA = Math.round(((invA / (invA + invB)) * 100) / 5) * 5;
   return {
+    oddsA: Math.round(oddsA * 100) / 100,
+    oddsB: Math.round(oddsB * 100) / 100,
     winChanceA,
     winChanceB: 100 - winChanceA,
     favorite: winChanceA === 50 ? null : winChanceA > 50 ? "A" : "B"
@@ -113,15 +116,20 @@ function buildFightFactPack(fight) {
 
 function computeAiContentHash(fight, percents) {
   const band = percents?.percentA == null ? "na" : String(Math.round(percents.percentA / 10) * 10);
-  const raw = JSON.stringify([FACT_PACK_VERSION, fight.fighterA?.id, fight.fighterB?.id, fight.eventId, band, buildFightFactPack(fight)]);
+  // Точные кэфы в хэш не берём: каждое движение линии меняло бы его без
+  // изменения смысла пакета — шансы в нём уже округлены до 5 п.п.
+  const pack = buildFightFactPack(fight);
+  if (pack.market) pack.market = { ...pack.market, oddsA: undefined, oddsB: undefined };
+  const raw = JSON.stringify([FACT_PACK_VERSION, fight.fighterA?.id, fight.fighterB?.id, fight.eventId, band, pack]);
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
 function buildPrompt(pack, { webSearch = false } = {}) {
   const system = [
     "Ты — редактор русскоязычного MMA-медиа. Пишешь сухие, точные редакционные разборы боев UFC и делаешь собственный прогноз победителя.",
-    `Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: pick, pickReason, overview, keyEdge, fightScript, pathA, pathB${webSearch ? ", research" : ""}.`,
+    `Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: pick, winChanceA, pickReason, overview, keyEdge, fightScript, pathA, pathB${webSearch ? ", research" : ""}.`,
     'pick — строго "A" (первый боец в списке) или "B" (второй): кто, по твоему анализу, победит. Решай по статистике, форме, стилям и последним боям.',
+    "winChanceA — целое число от 1 до 99: твоя оценка вероятности победы бойца A в процентах. Она должна согласовываться с pick: больше 50 — pick A, меньше 50 — pick B. Оценивай честно и калиброванно: из боёв, которым ты даешь 70, боец должен выигрывать примерно 7 из 10.",
     ...(webSearch
       ? [
           "Перед ответом изучи бой в интернете через веб-поиск: свежие новости о бойцах и этом поединке (травмы, замена или короткий срок подготовки, проблемы с весом, смена лагеря, долгий простой), результаты последних боев в любых организациях, стиль и сильные стороны, разборы аналитиков. Ищи на английском и русском, опирайся на профильные источники: ufc.com, ufcstats.com, espn.com, mmafighting.com, mmajunkie.com, sherdog.com, tapology.com.",
@@ -132,7 +140,9 @@ function buildPrompt(pack, { webSearch = false } = {}) {
       : []),
     ...(pack.market
       ? [
-          "market — оценка шансов по линии букмекеров в процентах (winChanceA, winChanceB), favorite — фаворит рынка. Это сильный ориентир: рынок в среднем точнее отдельного аналитика. Выбирай бойца с меньшими шансами только при конкретной весомой причине, которую рынок мог недооценить (травма, замена на коротком сроке, проблемы с весом, явное стилистическое преимущество), и назови ее в pickReason.",
+          "market — линия букмекеров: десятичные коэффициенты (oddsA, oddsB), шансы без маржи в процентах (winChanceA, winChanceB) и фаворит рынка (favorite). Это сильный ориентир: рынок в среднем точнее отдельного аналитика, поэтому без конкретных причин держи свою winChanceA близко к рыночной.",
+          "Отклоняй winChanceA от рынка, когда видишь то, что линия могла недооценить: травма или замена на коротком сроке, проблемы с весом, долгий простой, явное стилистическое преимущество, возраст и износ, уровень прошлой оппозиции. Отклонение на 5-15 п.п. — нормальная работа аналитика, а не ошибка. Коэффициенты нужны, чтобы оценить, где линия ошибается: по твоей оценке и коэффициенту будет рассчитано, выгодна ли ставка на каждого бойца.",
+          "Выбирай в pick бойца с меньшими рыночными шансами, только если твоя winChanceA действительно отдает ему больше 50, и назови причину в pickReason.",
           "В текстах не упоминай рынок, линию, шансы по ставкам и проценты из market."
         ]
       : []),
@@ -191,6 +201,9 @@ function validateAiCopy(parsed, pack, { webSearch = false } = {}) {
 
   const pick = parsed.pick === "A" || parsed.pick === "B" ? parsed.pick : null;
   if (!pick) return { ok: false, reason: "invalid_pick" };
+  const winChanceA = Number(parsed.winChanceA);
+  if (!Number.isInteger(winChanceA) || winChanceA < 1 || winChanceA > 99) return { ok: false, reason: "invalid_win_chance" };
+  if ((winChanceA > 50 && pick !== "A") || (winChanceA < 50 && pick !== "B")) return { ok: false, reason: "pick_contradicts_win_chance" };
   const pickReason =
     typeof parsed.pickReason === "string" ? enforceNameCorrections(parsed.pickReason.trim()) : "";
   if (!pickReason) return { ok: false, reason: "empty_pick_reason" };
@@ -263,7 +276,7 @@ function validateAiCopy(parsed, pack, { webSearch = false } = {}) {
   const perFieldAverage = totalWords / COPY_FIELDS.length;
   if (perFieldAverage < 8 || perFieldAverage > maxWords) return { ok: false, reason: "length" };
 
-  return { ok: true, copy, pick, pickReason, research };
+  return { ok: true, copy, pick, winChanceA, pickReason, research };
 }
 
 function sleep(ms) {
@@ -341,7 +354,7 @@ async function generateAiPredictionCopy({ fight, config, fetchImpl = fetch }) {
       if (attempt === MAX_ATTEMPTS) return null;
       continue;
     }
-    return { copy: verdict.copy, pick: verdict.pick, pickReason: verdict.pickReason, research: verdict.research, pack };
+    return { copy: verdict.copy, pick: verdict.pick, winChanceA: verdict.winChanceA, pickReason: verdict.pickReason, research: verdict.research, pack };
   }
 
   return null;

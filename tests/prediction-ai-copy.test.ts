@@ -84,8 +84,8 @@ test("buildFightFactPack keeps only filled stats and marks the card slot", () =>
 test("buildFightFactPack adds the market view rounded to 5 points", () => {
   // 1.30 / 3.60 → 73.5% без маржи → 75.
   const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
-  assert.deepEqual(pack.market, { winChanceA: 75, winChanceB: 25, favorite: "A" });
-  assert.deepEqual(buildFightFactPack(makeFight({ oddsA: 1.9, oddsB: 1.9 })).market, { winChanceA: 50, winChanceB: 50, favorite: null });
+  assert.deepEqual(pack.market, { oddsA: 1.3, oddsB: 3.6, winChanceA: 75, winChanceB: 25, favorite: "A" });
+  assert.deepEqual(buildFightFactPack(makeFight({ oddsA: 1.9, oddsB: 1.9 })).market, { oddsA: 1.9, oddsB: 1.9, winChanceA: 50, winChanceB: 50, favorite: null });
   assert.equal("market" in buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: null })), false);
   // Мелкое движение линии не меняет пакет и не запускает перегенерацию текста.
   assert.equal(
@@ -108,6 +108,7 @@ test("buildPrompt tells the model to weigh the market and search the web only wh
 function validCopy() {
   return {
     pick: "A",
+    winChanceA: 70,
     pickReason: "Борьба и контроль темпа дают Исламу Махачеву решающее преимущество в этом матчапе.",
     overview:
       "Ислам Махачев подходит к бою фаворитом за счет давления, темпа и борьбы, которая остается его главным оружием на любом отрезке поединка. Иан Мачадо Гарри строит бой от джеба и дистанции, любит контролировать центр клетки и наказывать соперника на выходах. Его шансы напрямую связаны с тем, удастся ли удерживать поединок в стойке достаточно долго и не отдавать спину у сетки.",
@@ -402,6 +403,7 @@ test("validateAiCopy tolerates Latin fighter names used whole or as separate wor
   );
   const copy = {
     pick: "A",
+    winChanceA: 60,
     pickReason: "Moreno сохраняет более чистый рекорд и стабильнее защищается от переводов в партер.",
     overview: "Isaac Moreno и Reginaldo Junior встречаются в предварительном карде, где Moreno подходит с более чистым рекордом и надежной защитой.",
     keyEdge: "Главное преимущество Moreno заключается в защите от переводов и точности ударов на средней дистанции против Junior.",
@@ -483,4 +485,20 @@ test("resolvePredictionAiConfig: PREDICTION_AI_WEB_SEARCH=1 enables search on th
   const deepseek = resolvePredictionAiConfig(envReader({ ...bridgeEnv, PREDICTION_AI_PROVIDER: "deepseek", PREDICTION_AI_WEB_SEARCH: "1" }));
   assert.equal(deepseek?.webSearch, undefined);
   assert.equal(deepseek?.timeoutMs, 60000);
+});
+
+test("validateAiCopy requires a win chance that agrees with the pick", () => {
+  const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
+  assert.equal(validateAiCopy({ ...validCopy(), winChanceA: undefined }, pack).reason, "invalid_win_chance");
+  assert.equal(validateAiCopy({ ...validCopy(), winChanceA: 100 }, pack).reason, "invalid_win_chance");
+  assert.equal(validateAiCopy({ ...validCopy(), winChanceA: 62.5 }, pack).reason, "invalid_win_chance");
+  assert.equal(validateAiCopy({ ...validCopy(), winChanceA: 40 }, pack).reason, "pick_contradicts_win_chance");
+  assert.equal(validateAiCopy({ ...validCopy(), pick: "B", winChanceA: 40 }, pack).winChanceA, 40);
+  assert.equal(validateAiCopy({ ...validCopy(), pick: "B", winChanceA: 50 }, pack).ok, true);
+});
+
+test("the model sees decimal odds, but they never reach the published text", () => {
+  const pack = buildFightFactPack(makeFight({ oddsA: 1.3, oddsB: 3.6 }));
+  assert.ok(buildPrompt(pack).system.includes("oddsA"));
+  assert.equal(validateAiCopy({ ...validCopy(), keyEdge: validCopy().keyEdge + " Цена 3.6 завышена." }, pack).ok, false);
 });

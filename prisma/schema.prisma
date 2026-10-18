@@ -287,6 +287,9 @@ model FightPredictionSnapshot {
   // база расчёта ROI. Записываются один раз и не обновляются вместе с линией.
   oddsAAtPick       Float?
   oddsBAtPick       Float?
+  // Собственная оценка модели шансов бойца A (1–99) из того же ответа, что и
+  // пик. Вместе с кэфами на момент пика даёт «ценный выбор» (lib/prediction-value.ts).
+  aiWinChanceA      Int?
   generatedAt       DateTime @default(now())
   browserPushNotifiedAt DateTime?
   updatedAt         DateTime @updatedAt

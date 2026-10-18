@@ -4,6 +4,7 @@ import { cache } from "react";
 import { eventNightWindowBounds, isWithinEventNightWindow } from "@/lib/event-night";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { addToRoiBucket, emptyRoiBucket, resolvePickRoiUnits, roiPercent } from "@/lib/prediction-roi";
+import { resolveValuePick, resolveValueUnits } from "@/lib/prediction-value";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { eventSlugPrefixCandidates, pickFightSlugByTokens } from "@/lib/event-slug-redirect";
 import { predictionStatsDateFilter } from "@/lib/prediction-stats-window";
@@ -178,7 +179,7 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
           resultType: true,
           status: true,
           predictionSnapshot: {
-            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true }
+            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true, aiWinChanceA: true }
           }
         }
       }
@@ -189,6 +190,7 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
   const model = { correct: 0, judged: 0 };
   const favoriteRoi = emptyRoiBucket();
   const modelRoi = emptyRoiBucket();
+  const valueRoi = emptyRoiBucket();
 
   for (const event of completedEvents) {
     for (const fight of event.fights) {
@@ -241,6 +243,9 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
             ? snapshot.oddsAAtPick
             : snapshot.oddsBAtPick;
       addToRoiBucket(favoriteRoi, resolvePickRoiUnits(favoriteVerdict, favoriteOdds));
+
+      const valuePick = resolveValuePick({ ...snapshot, fighterAId: fight.fighterAId, fighterBId: fight.fighterBId });
+      addToRoiBucket(valueRoi, resolveValueUnits(valuePick, fight));
     }
   }
 
@@ -254,7 +259,8 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
     favorite: withPercent(favorite),
     model: withPercent(model),
     modelRoi: { ...modelRoi, percent: roiPercent(modelRoi) },
-    favoriteRoi: { ...favoriteRoi, percent: roiPercent(favoriteRoi) }
+    favoriteRoi: { ...favoriteRoi, percent: roiPercent(favoriteRoi) },
+    valueRoi: { ...valueRoi, percent: roiPercent(valueRoi) }
   };
 });
 
@@ -323,7 +329,7 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
           fighterA: { select: { id: true, name: true, nameRu: true } },
           fighterB: { select: { id: true, name: true, nameRu: true } },
           predictionSnapshot: {
-            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true }
+            select: { percentA: true, percentB: true, aiPickFighterId: true, oddsAAtPick: true, oddsBAtPick: true, aiPickGeneratedAt: true, aiWinChanceA: true }
           }
         }
       }
@@ -336,6 +342,7 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
       const model = { correct: 0, judged: 0 };
       const favoriteRoi = emptyRoiBucket();
       const modelRoi = emptyRoiBucket();
+      const valueRoi = emptyRoiBucket();
 
       const fights = sortFightsForCard(event.fights)
         .map((fight) => {
@@ -410,6 +417,10 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
           const favoriteUnits = resolvePickRoiUnits(favoriteVerdict, favoriteOdds);
           addToRoiBucket(favoriteRoi, favoriteUnits);
 
+          const valuePick = resolveValuePick({ ...snapshot, fighterAId: fight.fighterAId, fighterBId: fight.fighterBId });
+          const valueUnits = resolveValueUnits(valuePick, fight);
+          addToRoiBucket(valueRoi, valueUnits);
+
           return {
             id: fight.id,
             slug: fight.slug,
@@ -424,6 +435,15 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
             pickOdds,
             pickUnits,
             favoriteUnits,
+            valuePick: valuePick
+              ? {
+                  fighter: valuePick.side === "A" ? fight.fighterA : fight.fighterB,
+                  odds: valuePick.odds,
+                  modelChance: valuePick.modelChance,
+                  edge: valuePick.edge
+                }
+              : null,
+            valueUnits,
             lockedBeforeEvent: Boolean(snapshot.aiPickGeneratedAt && snapshot.aiPickGeneratedAt < event.date),
             winnerFighter,
             resultType: fight.resultType,
@@ -442,7 +462,8 @@ export const getPredictionAccuracyHistory = cache(async function getPredictionAc
         favorite,
         model,
         modelRoi: { ...modelRoi, percent: roiPercent(modelRoi) },
-        favoriteRoi: { ...favoriteRoi, percent: roiPercent(favoriteRoi) }
+        favoriteRoi: { ...favoriteRoi, percent: roiPercent(favoriteRoi) },
+        valueRoi: { ...valueRoi, percent: roiPercent(valueRoi) }
       };
     })
     .filter((event) => event.fights.length > 0);

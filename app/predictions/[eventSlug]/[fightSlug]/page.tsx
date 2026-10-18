@@ -16,6 +16,7 @@ import {
 } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, isUsablePhoto } from "@/lib/display";
 import { isPickPending, pickPendingText } from "@/lib/event-picks";
+import { resolveValuePick } from "@/lib/prediction-value";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
@@ -285,12 +286,36 @@ export default async function FightPredictionPage({
             const favoriteFighterId =
               snapshot.percentA >= snapshot.percentB ? fight.fighterAId : fight.fighterBId;
             const againstOdds = snapshot.aiPickFighterId !== favoriteFighterId;
+            const valuePick = resolveValuePick({ ...snapshot, fighterAId: fight.fighterAId, fighterBId: fight.fighterBId });
             return (
-              <p className="copy prediction-meter-caption">
-                <strong>{locale === "ru" ? "Прогноз FightBase" : "FightBase pick"}: {aiPickName}</strong>
-                {againstOdds ? (locale === "ru" ? " · против котировок" : " · against the odds") : null}
-                {snapshot.aiPickReasonRu && locale === "ru" ? <> — {snapshot.aiPickReasonRu}</> : null}
-              </p>
+              <>
+                <p className="copy prediction-meter-caption">
+                  <strong>{locale === "ru" ? "Прогноз FightBase" : "FightBase pick"}: {aiPickName}</strong>
+                  {againstOdds ? (locale === "ru" ? " · против котировок" : " · against the odds") : null}
+                  {snapshot.aiPickReasonRu && locale === "ru" ? <> — {snapshot.aiPickReasonRu}</> : null}
+                </p>
+                {snapshot.aiWinChanceA != null ? (
+                  <p className="copy prediction-meter-caption">
+                    {locale === "ru" ? "Оценка модели" : "Model estimate"}: {fighterAName} {snapshot.aiWinChanceA}% · {fighterBName}{" "}
+                    {100 - snapshot.aiWinChanceA}%
+                    {snapshot.oddsAAtPick && snapshot.oddsBAtPick ? (
+                      valuePick ? (
+                        <>
+                          {" · "}
+                          <strong>{locale === "ru" ? "Ценный выбор" : "Value pick"}: {valuePick.side === "A" ? fighterAName : fighterBName}</strong>{" "}
+                          {locale === "ru"
+                            ? `(кэф ${valuePick.odds.toFixed(2)}, ожидаемая доходность +${Math.round(valuePick.edge * 100)}%)`
+                            : `(odds ${valuePick.odds.toFixed(2)}, expected return +${Math.round(valuePick.edge * 100)}%)`}
+                        </>
+                      ) : locale === "ru" ? (
+                        " · ценного выбора нет: линия близка к оценке модели"
+                      ) : (
+                        " · no value pick: the line is close to the model's estimate"
+                      )
+                    ) : null}
+                  </p>
+                ) : null}
+              </>
             );
           })()}
           <div className="prediction-meter">
