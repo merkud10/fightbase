@@ -8,23 +8,24 @@ const scriptUrl = new URL("../scripts/generate-prediction-snapshots.js", import.
 const scriptRequire = createRequire(scriptUrl);
 const source = readFileSync(scriptUrl, "utf8");
 
-function harness({ regenerate = true, generated = true, startedDuringRun = false } = {}) {
+function harness({ regenerate = true, generated = true, startedDuringRun = false, args = [] as string[], eventDate = new Date("2099-01-01"), existingOverride = undefined as any } = {}) {
   const fight = {
     id: "fight", slug: "a-vs-b", status: "scheduled", eventId: "event", fighterAId: "a", fighterBId: "b",
     weightClass: "Lightweight", oddsA: 3, oddsB: 1.5,
-    event: { id: "event", slug: "event", name: "UFC", status: "upcoming", date: new Date("2099-01-01"), promotion: { name: "UFC" } },
+    event: { id: "event", slug: "event", name: "UFC", status: "upcoming", date: eventDate, promotion: { name: "UFC" } },
     fighterA: { id: "a", name: "Боец А", record: "10-2-0", recentFights: [] },
     fighterB: { id: "b", name: "Боец Б", record: "12-1-0", recentFights: [] }
   };
   const existing = { fightId: "fight", aiContentHash: "same-hash", aiGeneratedAt: new Date("2026-01-01"), aiPickFighterId: "a", aiPickReasonRu: "Старый прогноз", aiPickGeneratedAt: new Date("2026-01-01"), oddsAAtPick: 2, oddsBAtPick: 2 };
+  const snapshots = existingOverride === undefined ? [existing] : existingOverride ? [existingOverride] : [];
   const writes: any[] = [];
   let generations = 0;
   const db = {
     fight: { findMany: async () => [fight], findUnique: async () => startedDuringRun ? { ...fight, status: "live" } : fight },
-    fightPredictionSnapshot: { findMany: async () => [existing], upsert: async (args: any) => writes.push(args) },
+    fightPredictionSnapshot: { findMany: async () => snapshots, upsert: async (args: any) => writes.push(args) },
     systemEvent: { create: async () => ({}) }, $disconnect: async () => {}
   };
-  const mockProcess = { argv: ["node", "script", ...(regenerate ? ["--regenerate"] : [])], exitCode: 0, env: { PREDICTION_AI_COPY: "1", AI_PROVIDER: "deepseek", DEEPSEEK_API_KEY: "test", DEEPSEEK_BASE_URL: "https://example.test", DEEPSEEK_MODEL: "test", PREDICTION_AI_TIMEOUT_MS: "100" } };
+  const mockProcess = { argv: ["node", "script", ...(regenerate ? ["--regenerate"] : []), ...args], exitCode: 0, env: { PREDICTION_AI_COPY: "1", AI_PROVIDER: "deepseek", DEEPSEEK_API_KEY: "test", DEEPSEEK_BASE_URL: "https://example.test", DEEPSEEK_MODEL: "test", PREDICTION_AI_TIMEOUT_MS: "100" } };
   const module = { exports: {} as any };
   const mockRequire = (name: string) => {
     if (name === "@prisma/client") return { PrismaClient: function () { return db; } };
@@ -101,4 +102,38 @@ test("the expensive model runs only inside the window before the event, once per
   assert.equal(plan(undefined, hoursBefore(-1)), "template");
   // Ручная перегенерация окно не учитывает.
   assert.equal(plan(copy(hoursBefore(40)), hoursBefore(16), true), "generate");
+});
+
+test("--ai-only generates a missing pick inside the window and writes only that fight", async () => {
+  const soon = new Date(Date.now() + 24 * 3600 * 1000);
+  const h = harness({ regenerate: false, args: ["--ai-only"], eventDate: soon, existingOverride: null });
+  await h.main();
+  assert.equal(h.generations(), 1);
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.writes[0].create.aiPickFighterId, "b");
+});
+
+test("--ai-only leaves fights that need no model call untouched", async () => {
+  const h = harness({ regenerate: false, args: ["--ai-only"] });
+  await h.main();
+  assert.equal(h.generations(), 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test("--ai-only does not downgrade a snapshot to the template when the model fails", async () => {
+  const soon = new Date(Date.now() + 24 * 3600 * 1000);
+  const h = harness({ regenerate: false, generated: false, args: ["--ai-only"], eventDate: soon, existingOverride: null });
+  await h.main();
+  assert.equal(h.generations(), 1);
+  assert.equal(h.writes.length, 0);
+});
+
+test("confidence labels: clear edge from 70/30, moderate from 58/42", () => {
+  const h = harness();
+  const label = (margin: number) => h.buildConfidenceLabel("ru", margin, 0, true);
+  assert.equal(label(0.48), "явное преимущество");
+  assert.equal(label(0.4), "явное преимущество");
+  assert.equal(label(0.28), "умеренное преимущество");
+  assert.equal(label(0.2), "умеренное преимущество");
+  assert.equal(label(0.1), "очень близкий бой");
 });

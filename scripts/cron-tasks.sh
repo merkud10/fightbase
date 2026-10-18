@@ -13,6 +13,7 @@
 #   sync-bio-records — цифры рекорда в биографиях бойцов по текущему рекорду
 #   indexnow       — сообщить Яндексу (IndexNow) об изменённых страницах
 #   localize-upcoming — русское имя и биография новичкам ближайших турниров
+#   retry-predictions — догенерировать пики, которые не сделал утренний sync-odds
 # =============================================================
 set -euo pipefail
 
@@ -399,6 +400,32 @@ case "${TASK}" in
     fi
     ;;
 
+  retry-predictions)
+    # sync-odds зовёт модель раз в сутки, и в окно перед турниром попадают всего
+    # два-три прогона. Если в эти дни лежит мост, пиков у боёв так и не будет:
+    # 8–10.10.2026 так остались без прогноза 10 из 12 боёв Allen vs. Duncan.
+    # Дозапуск трогает только бои, которым нужен разбор (--ai-only), поэтому
+    # в обычный день модель не вызывается вовсе. Лежащий мост не алертим здесь:
+    # это делает bridge-check.
+    bridge_url="${BRIDGE_HEALTH_URL:-http://127.0.0.1:8787/healthz}"
+    if ! curl -sf -m 30 "${bridge_url}" | grep -q '"loggedIn": *true'; then
+      log "retry-predictions skipped: мост недоступен"
+      exit 0
+    fi
+    output=$(cd /opt/fightbase && node scripts/generate-prediction-snapshots.js --ai-only 2>&1) || {
+      log "retry-predictions FAILED: ${output}"
+      send_tg_alert "❌ Дозапуск прогнозов: сбой генерации"
+      exit 1
+    }
+    summary="$(echo "${output}" | grep '^AI copy:' | tail -n 1)"
+    log "retry-predictions: ${summary:-no AI summary}"
+    generated="$(echo "${summary}" | sed -n 's/.*generated \([0-9]*\).*/\1/p')"
+    if [ "${generated:-0}" != "0" ]; then
+      (cd /opt/fightbase && node scripts/send-pending-push-notifications.js --type predictions >> "${LOG_DIR}/cron.log" 2>&1) || true
+      send_tg_alert "✅ Дозапуск прогнозов: новых пиков ${generated}"
+    fi
+    ;;
+
   bridge-check)
     # Мост к Codex на VPS (ops/codex-bridge): прод ходит к нему через SSH-туннель
     # на 127.0.0.1:8787. Если туннель или мост упали либо протух логин Codex,
@@ -425,7 +452,7 @@ case "${TASK}" in
     ;;
 
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check|retry-predictions}"
     exit 1
     ;;
 esac

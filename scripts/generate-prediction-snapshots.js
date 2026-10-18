@@ -40,6 +40,10 @@ function parseArgs(argv) {
     limit: 500,
     dryRun: false,
     regenerate: false,
+    // Дозапуск генерации (крон retry-predictions): трогаем только бои, которым
+    // нужен разбор модели, остальные снапшоты не переписываем — иначе каждый
+    // прогон сдвигал бы updatedAt и IndexNow заново слал бы все прогнозы.
+    aiOnly: false,
     eventSlug: null,
     fightSlug: null
   };
@@ -58,6 +62,9 @@ function parseArgs(argv) {
     }
     if (arg === "--regenerate") {
       options.regenerate = true;
+    }
+    if (arg === "--ai-only") {
+      options.aiOnly = true;
     }
     if (arg === "--event-slug" && argv[index + 1]) {
       options.eventSlug = argv[++index];
@@ -307,11 +314,16 @@ function buildPathsToVictory(locale, fighterA, fighterB) {
   };
 }
 
+// Пороги по линии: «явное» — от 70/30, «умеренное» — от 58/42. Раньше «явное»
+// начиналось с 60/40, а такой фаворит проигрывает каждый второй-третий бой.
+const CLEAR_EDGE_MARGIN = 0.4;
+const MODERATE_EDGE_MARGIN = 0.16;
+
 function buildConfidenceLabel(locale, impliedMargin, margin, hasOdds) {
-  if (hasOdds && impliedMargin > 0.18) {
+  if (hasOdds && impliedMargin >= CLEAR_EDGE_MARGIN) {
     return locale === "ru" ? "явное преимущество" : "clear edge";
   }
-  if (hasOdds && impliedMargin > 0.08) {
+  if (hasOdds && impliedMargin >= MODERATE_EDGE_MARGIN) {
     return locale === "ru" ? "умеренное преимущество" : "moderate edge";
   }
   if (hasOdds) {
@@ -519,6 +531,7 @@ async function main() {
 
   const aiConfig = getAiCopyConfig();
   if (options.regenerate && !aiConfig) throw new Error("AI configuration is required for --regenerate");
+  if (options.aiOnly && !aiConfig) throw new Error("AI configuration is required for --ai-only");
   const aiWindowHours = getAiWindowHours();
   let aiGeneratedCount = 0;
   let aiReusedCount = 0;
@@ -554,11 +567,14 @@ async function main() {
     let oddsAAtPick = existingPickIsValid ? existing.oddsAAtPick : null;
     let oddsBAtPick = existingPickIsValid ? existing.oddsBAtPick : null;
 
+    if (options.aiOnly && isPlaceholderFight(fight)) continue;
+
     if (aiConfig && !isPlaceholderFight(fight)) {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);
       const plan = planAiCopy({ fight, existing, windowHours: aiWindowHours, regenerate: options.regenerate });
+      if (options.aiOnly && plan !== "generate") continue;
       const reuseExisting = () => {
         ru = {
           ...baseRu,
@@ -606,6 +622,8 @@ async function main() {
             console.warn(`[ai-copy] regeneration failed, snapshot preserved: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
             continue;
           }
+          // Дозапуск не откатывает снапшот к шаблону: попробуем в следующий раз.
+          if (options.aiOnly) continue;
           if (hasAiCopyForLineup(existing, fight)) {
             reuseExisting();
             console.warn(`[ai-copy] generation failed, earlier copy kept: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
@@ -734,7 +752,7 @@ async function main() {
   }
 }
 
-module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, main };
+module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, buildConfidenceLabel, main };
 
 if (require.main === module) main()
   .catch((error) => {

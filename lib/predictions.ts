@@ -222,11 +222,12 @@ export function buildPredictionCopy(
   const impliedMargin = implied ? Math.abs(implied.pA - implied.pB) : 0;
 
   const confidenceLabel =
-    implied && impliedMargin > 0.18
+    // Те же пороги, что в scripts/generate-prediction-snapshots.js: от 70/30 и от 58/42.
+    implied && impliedMargin >= 0.4
       ? locale === "ru"
         ? "явный фаворит по линии"
         : "clear favorite by the odds"
-      : implied && impliedMargin > 0.08
+      : implied && impliedMargin >= 0.16
         ? locale === "ru"
           ? "умеренный фаворит по линии"
           : "moderate favorite by the odds"
