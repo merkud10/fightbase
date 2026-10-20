@@ -42,7 +42,10 @@ const ALL_SOURCES = [
   {
     label: "MMA Fighting",
     listingUrl: "https://www.mmafighting.com/latest-news",
-    articlePattern: /^https:\/\/www\.mmafighting\.com\/\d{4}\/\d{1,2}\/\d{1,2}\/[^?#]+$/i,
+    // С 2026 года адреса вида /ufc/516750/slug: раздел, id и слаг вместо даты.
+    // Берём только /ufc/, бокс, PFL и BKFC в той же ленте нам не нужны.
+    // Слаги video-… — плеер без текста, статьи из них не выйдет.
+    articlePattern: /^https:\/\/www\.mmafighting\.com\/ufc\/\d+\/(?!video-)[^/?#]+$/i,
     streams: ["news", "quotes", "predictions", "analysis"],
     targetKeywords: {
       quotes: ["interview", "reacts", "reaction", "says", "media-day", "discusses", "reveals", "responds", "talks"],
