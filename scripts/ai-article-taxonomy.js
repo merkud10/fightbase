@@ -385,7 +385,10 @@ async function classifyArticleWithAi(input) {
     promotionSlug: promptContext.inferredPromotionSlug,
     fighterSlugs: promptContext.heuristicFighterSlugs.slice(0, MAX_RETURNED_FIGHTERS),
     confidence: 0.35,
-    reason: "Heuristic fallback"
+    reason: "Heuristic fallback",
+    // false — ответа модели нет, isUfc угадан по ключевым словам. Сборщик
+    // запоминает отказ «не UFC» только по ответу модели.
+    fromAi: false
   };
 
   try {
@@ -413,7 +416,8 @@ async function classifyArticleWithAi(input) {
       promotionSlug: promptContext.allowedPromotionSlugs.has(promotionSlug) ? promotionSlug : promptContext.inferredPromotionSlug,
       fighterSlugs: (fighterSlugs.length > 0 ? fighterSlugs : promptContext.heuristicFighterSlugs).slice(0, MAX_RETURNED_FIGHTERS),
       confidence: Number(parsed.confidence) || fallbackResult.confidence,
-      reason: String(parsed.reason || "").trim() || fallbackResult.reason
+      reason: String(parsed.reason || "").trim() || fallbackResult.reason,
+      fromAi: typeof parsed.isUfc === "boolean"
     };
   } catch {
     return fallbackResult;

@@ -489,10 +489,26 @@ model SourceDiscoveryRun {
   created       Int       @default(0)
   duplicates    Int       @default(0)
   ingestFailed  Int       @default(0)
+  skippedSeen   Int       @default(0)
   errorMessage  String?
 
   @@index([sourceLabel, startedAt])
   @@index([startedAt])
+}
+
+// Ссылки источников, которые сбор новостей уже обработал, и чем это кончилось:
+// article — статья создана (или уже была), duplicate — склеена с чужой статьёй,
+// low_interest — отказ по interestScore, not_ufc — классификатор сказал «не UFC».
+// Сборщик пропускает такие ссылки до загрузки страницы, классификатора и рерайта.
+model IngestSeenUrl {
+  url       String   @id
+  outcome   String
+  articleId String?
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 model UfcRankingSnapshot {

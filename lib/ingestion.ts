@@ -1090,40 +1090,89 @@ function adjustConfidence(
   return Math.max(0.2, Math.min(0.97, Number(confidence.toFixed(2))));
 }
 
-export async function createDraftFromIngestion(input: IngestDraftInput): Promise<IngestDraftResult> {
-  const source = await ensureSource(input.sourceLabel.trim(), input.sourceUrl.trim(), input.sourceType ?? "official");
+export type IngestSeenOutcome = "article" | "duplicate" | "low_interest" | "not_ufc";
 
-  const sourceUrlTag = `URL: ${input.sourceUrl.trim()}`;
+// Итог по ссылке источника, чтобы следующий прогон не гонял её через рерайт
+// заново (см. IngestSeenUrl в схеме). Сбой записи не должен ронять ингест.
+export async function rememberIngestUrl(url: string, outcome: IngestSeenOutcome, articleId: string | null = null, reason: string | null = null) {
+  try {
+    await prisma.ingestSeenUrl.upsert({
+      where: { url },
+      create: { url, outcome, articleId, reason },
+      update: { outcome, articleId, reason }
+    });
+  } catch (error) {
+    console.error(`Failed to remember ingest URL ${url}:`, error instanceof Error ? error.message : error);
+  }
+}
+
+const duplicateArticleSelect = {
+  id: true,
+  slug: true,
+  status: true,
+  aiConfidence: true,
+  promotion: { select: { slug: true } },
+  event: { select: { slug: true } },
+  fighterMap: { include: { fighter: { select: { slug: true } } } },
+  tagMap: { include: { tag: { select: { slug: true } } } }
+} as const;
+
+function buildExistingArticleResult(
+  article: {
+    id: string;
+    slug: string;
+    status: ArticleStatus;
+    aiConfidence: number | null;
+    promotion: { slug: string } | null;
+    event: { slug: string } | null;
+    fighterMap: Array<{ fighter: { slug: string } }>;
+    tagMap: Array<{ tag: { slug: string } }>;
+  },
+  sourceId: string
+): IngestDraftResult {
+  return {
+    articleId: article.id,
+    slug: article.slug,
+    status: article.status,
+    confidence: article.aiConfidence ?? 0.5,
+    duplicate: true,
+    sourceId,
+    fighterSlugs: article.fighterMap.map((item) => item.fighter.slug),
+    tagSlugs: article.tagMap.map((item) => item.tag.slug),
+    eventSlug: article.event?.slug ?? null,
+    promotionSlug: article.promotion?.slug ?? null
+  };
+}
+
+export async function createDraftFromIngestion(input: IngestDraftInput): Promise<IngestDraftResult> {
+  const sourceUrl = input.sourceUrl.trim();
+  const source = await ensureSource(input.sourceLabel.trim(), sourceUrl, input.sourceType ?? "official");
+
+  const sourceUrlTag = `URL: ${sourceUrl}`;
   const existingByUrl = await prisma.article.findFirst({
     where: {
       ingestionSourceSummary: { contains: sourceUrlTag },
       sourceMap: { some: { sourceId: source.id } }
     },
-    select: {
-      id: true,
-      slug: true,
-      status: true,
-      aiConfidence: true,
-      promotion: { select: { slug: true } },
-      event: { select: { slug: true } },
-      fighterMap: { include: { fighter: { select: { slug: true } } } },
-      tagMap: { include: { tag: { select: { slug: true } } } }
-    }
+    select: duplicateArticleSelect
   });
 
   if (existingByUrl) {
-    return {
-      articleId: existingByUrl.id,
-      slug: existingByUrl.slug,
-      status: existingByUrl.status,
-      confidence: existingByUrl.aiConfidence ?? 0.5,
-      duplicate: true,
-      sourceId: source.id,
-      fighterSlugs: existingByUrl.fighterMap.map((item) => item.fighter.slug),
-      tagSlugs: existingByUrl.tagMap.map((item) => item.tag.slug),
-      eventSlug: existingByUrl.event?.slug ?? null,
-      promotionSlug: existingByUrl.promotion?.slug ?? null
-    };
+    await rememberIngestUrl(sourceUrl, "article", existingByUrl.id);
+    return buildExistingArticleResult(existingByUrl, source.id);
+  }
+
+  // Ссылка уже разбиралась: сюжет склеен с чужой статьёй или отклонён по
+  // интересу. Отвечаем по памяти, без рерайта моделью.
+  const seen = await prisma.ingestSeenUrl.findUnique({ where: { url: sourceUrl } });
+  if (seen?.outcome === "low_interest") {
+    throw new Error(seen.reason || "Article rejected: interestScore is below threshold");
+  }
+  if (seen?.articleId && (seen.outcome === "duplicate" || seen.outcome === "article")) {
+    const seenArticle = await prisma.article.findUnique({ where: { id: seen.articleId }, select: duplicateArticleSelect });
+    if (seenArticle) {
+      return buildExistingArticleResult(seenArticle, source.id);
+    }
   }
 
   const fallbackSourceSlug = buildPreferredArticleSlug(input.headline.trim(), input.sourceUrl.trim());
@@ -1149,7 +1198,9 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
   const MIN_INTEREST_SCORE = 4;
   if (localizedInput.interestScore !== null && localizedInput.interestScore < MIN_INTEREST_SCORE) {
     console.log(`Skipping "${cleanNewsTitle(localizedInput.headline)}": interestScore=${localizedInput.interestScore} (below ${MIN_INTEREST_SCORE})`);
-    throw new Error(`Article rejected: interestScore ${localizedInput.interestScore} is below threshold ${MIN_INTEREST_SCORE}`);
+    const rejection = `Article rejected: interestScore ${localizedInput.interestScore} is below threshold ${MIN_INTEREST_SCORE}`;
+    await rememberIngestUrl(sourceUrl, "low_interest", null, rejection);
+    throw new Error(rejection);
   }
 
   const normalized = normalizeIngestionItem({
@@ -1372,5 +1423,6 @@ export async function createDraftFromIngestion(input: IngestDraftInput): Promise
     };
   }, { timeout: 15_000 });
 
+  await rememberIngestUrl(sourceUrl, result.duplicate ? "duplicate" : "article", result.articleId);
   return result;
 }

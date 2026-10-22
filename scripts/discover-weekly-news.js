@@ -536,6 +536,14 @@ async function discoverSourceItems(source, options, taxonomyContext, stats) {
       break;
     }
 
+    // Уже разобранная ссылка (статья, склейка, отказ) не стоит ни загрузки
+    // страницы, ни классификатора, ни рерайта. Не считается в лимит источника,
+    // так что свежие ссылки ниже по ленте теперь доходят до разбора.
+    if (taxonomyContext.seenUrls?.has(url)) {
+      if (stats) stats.skippedSeen += 1;
+      continue;
+    }
+
     try {
       const html = await fetchHtml(url);
       if (stats) stats.fetched += 1;
@@ -617,6 +625,10 @@ async function discoverSourceItems(source, options, taxonomyContext, stats) {
       if (rejectionReason) {
         if (stats) stats.filteredOut += 1;
         console.log(`[FILTER] skipped ${url}: ${rejectionReason}`);
+        if (aiTaxonomy.fromAi && !aiTaxonomy.isUfc && !options.dryRun && !options.dumpFile) {
+          await rememberSeenUrl(url, "not_ufc", aiTaxonomy.reason);
+          taxonomyContext.seenUrls?.add(url);
+        }
         continue;
       }
 
@@ -647,6 +659,7 @@ async function processSource(source, options, taxonomyContext, jobId) {
     created: 0,
     duplicates: 0,
     ingestFailed: 0,
+    skippedSeen: 0,
     errorMessage: null
   };
 
@@ -664,6 +677,12 @@ async function processSource(source, options, taxonomyContext, jobId) {
     for (const item of items) {
       try {
         const payload = await postDraft(options.baseUrl, item);
+        if (payload?.skipped) {
+          // Отказ по interestScore — решение редакции, а не сбой записи.
+          stats.filteredOut += 1;
+          console.log(`[INGEST] skipped | ${item.sourceUrl} | ${payload.reason || "low interest"}`);
+          continue;
+        }
         if (payload.draft.duplicate) {
           stats.duplicates += 1;
         } else {
@@ -672,8 +691,8 @@ async function processSource(source, options, taxonomyContext, jobId) {
         console.log(`[INGEST] ${payload.draft.duplicate ? "duplicate" : "created"} | ${payload.draft.slug} | ${item.sourceLabel} | ${item.category}`);
       } catch (error) {
         stats.ingestFailed += 1;
-        console.error(`[INGEST] failed | ${item.sourceUrl}`);
-        console.error(error.message || error);
+        // В stdout, а не только в stderr: результат фоновой задачи хранит stdout.
+        console.log(`[INGEST] failed | ${item.sourceUrl} | ${error.message || error}`);
       }
     }
   }
@@ -696,6 +715,7 @@ async function processSource(source, options, taxonomyContext, jobId) {
           created: stats.created,
           duplicates: stats.duplicates,
           ingestFailed: stats.ingestFailed,
+          skippedSeen: stats.skippedSeen,
           errorMessage: stats.errorMessage
         }
       });
@@ -705,6 +725,26 @@ async function processSource(source, options, taxonomyContext, jobId) {
   }
 
   return { items, stats };
+}
+
+// Ссылки, которые уже разобраны (IngestSeenUrl). Окно сбора — 7 дней, берём
+// с запасом 30, чтобы не тянуть всю историю в память.
+async function loadSeenUrls() {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rows = await prisma.ingestSeenUrl.findMany({ where: { updatedAt: { gte: since } }, select: { url: true } });
+  return new Set(rows.map((row) => row.url));
+}
+
+async function rememberSeenUrl(url, outcome, reason) {
+  try {
+    await prisma.ingestSeenUrl.upsert({
+      where: { url },
+      create: { url, outcome, reason: reason || null },
+      update: { outcome, reason: reason || null }
+    });
+  } catch (error) {
+    console.error(`[SEEN] failed to remember ${url}: ${error.message || error}`);
+  }
 }
 
 async function postDraft(baseUrl, item) {
@@ -742,6 +782,7 @@ async function main() {
       promotionSlug: fighter.promotion.slug
     }))
   };
+  taxonomyContext.seenUrls = await loadSeenUrls();
 
   const selectedSources = SOURCES.filter((source) => {
     if (!matchesTargetStream(source, options.target)) {
@@ -801,9 +842,10 @@ async function main() {
       duplicates: acc.duplicates + s.duplicates,
       ingestFailed: acc.ingestFailed + s.ingestFailed,
       filteredOut: acc.filteredOut + s.filteredOut,
-      fetchFailed: acc.fetchFailed + s.fetchFailed
+      fetchFailed: acc.fetchFailed + s.fetchFailed,
+      skippedSeen: acc.skippedSeen + s.skippedSeen
     }),
-    { created: 0, duplicates: 0, ingestFailed: 0, filteredOut: 0, fetchFailed: 0 }
+    { created: 0, duplicates: 0, ingestFailed: 0, filteredOut: 0, fetchFailed: 0, skippedSeen: 0 }
   );
 
   console.log("");
@@ -811,6 +853,7 @@ async function main() {
   console.log(`Created: ${totals.created}`);
   console.log(`Duplicates: ${totals.duplicates}`);
   console.log(`Filtered out: ${totals.filteredOut}`);
+  console.log(`Skipped as seen: ${totals.skippedSeen}`);
   console.log(`Fetch failed: ${totals.fetchFailed}`);
   console.log(`Ingest failed: ${totals.ingestFailed}`);
   if (allStats.length > 0 && allStats.every((s) => s.errorMessage || (s.fetched === 0 && s.fetchFailed > 0))) {
