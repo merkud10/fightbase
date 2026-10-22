@@ -51,8 +51,10 @@ export async function POST(request: Request) {
       type: job,
       priority: body.priority ?? (job === "sync-odds" ? 25 : 100),
       payload: {
+        // Сначала локальный адрес: через публичный домен запись статьи идёт сквозь
+        // nginx с proxy_read_timeout 60s, и долгий рерайт моделью обрывается 504.
         baseUrl:
-          String(process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/$/, "") ||
+          String(process.env.INGEST_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/$/, "") ||
           new URL(request.url).origin,
         file: body.file,
         dryRun: body.dryRun,
