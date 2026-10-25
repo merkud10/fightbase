@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { CardPredictionsList } from "@/components/card-predictions-list";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
@@ -167,7 +168,7 @@ export default async function FightPredictionPage({
     notFound();
   }
 
-  const { fight, snapshot, relatedArticles, relatedPredictionArticles, fightPredictionArticle } = data;
+  const { fight, snapshot, relatedArticles, relatedPredictionArticles, fightPredictionArticle, cardFights } = data;
   const prediction = getSnapshotContent(snapshot, locale);
   const fighterAPercent = snapshot.percentA;
   const fighterBPercent = snapshot.percentB;
@@ -599,6 +600,8 @@ export default async function FightPredictionPage({
             ))}
           </div>
           ) : null}
+
+          <CardPredictionsList fights={cardFights} currentFightId={fight.id} event={fight.event} locale={locale} />
 
           <ShareButtons url={pageUrl} title={prediction.headline} locale={locale} />
         </article>

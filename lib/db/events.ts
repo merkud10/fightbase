@@ -532,6 +532,29 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
     return null;
   }
 
+  // Остальные бои турнира со страницей прогноза — для блока «Другие прогнозы
+  // на кард» (lib/card-predictions.ts).
+  const cardFights = await prisma.fight.findMany({
+    where: { eventId: fight.eventId, id: { not: fight.id }, slug: { not: null }, predictionSnapshot: { isNot: null } },
+    select: {
+      id: true,
+      slug: true,
+      stage: true,
+      boutOrder: true,
+      isMainEvent: true,
+      createdAt: true,
+      weightClass: true,
+      status: true,
+      resultType: true,
+      winnerFighterId: true,
+      fighterAId: true,
+      fighterBId: true,
+      fighterA: { select: { id: true, slug: true, name: true, nameRu: true } },
+      fighterB: { select: { id: true, slug: true, name: true, nameRu: true } },
+      predictionSnapshot: { select: { aiPickFighterId: true, percentA: true, percentB: true } }
+    }
+  });
+
   const relatedArticles = await prisma.article.findMany({
     where: {
       status: "published",
@@ -609,7 +632,8 @@ export const getFightPredictionPageData = cache(async function getFightPredictio
     relatedPredictionArticles: relatedPredictionArticles
       .filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl))
       .slice(0, 4),
-    fightPredictionArticle
+    fightPredictionArticle,
+    cardFights
   };
 });
 

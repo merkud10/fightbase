@@ -4382,3 +4382,14 @@ th {
 .event-table-pick strong {
   color: var(--text);
 }
+
+/* Блок «Другие прогнозы на кард» на странице прогноза */
+.card-predictions {
+  display: grid;
+  gap: 14px;
+}
+
+.card-predictions-row {
+  color: inherit;
+  text-decoration: none;
+}
