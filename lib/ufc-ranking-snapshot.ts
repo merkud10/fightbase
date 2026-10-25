@@ -124,12 +124,31 @@ export function toUfcRankingSnapshotView(record: SnapshotRecord | null, now = ne
   };
 }
 
+// Доля дивизионов и строк, ниже которой новый снимок считаем поломкой разбора,
+// а не настоящим изменением рейтинга. 25.10.2026 ufc.ru сменил разметку ссылок,
+// и вместо 24 групп пришло 9 с 21 строкой — снимок перезаписался, страницы
+// дивизионов опустели. Дивизионы UFC так резко не меняются.
+const DEGRADED_REFRESH_RATIO = 0.75;
+
+function countRows(groups: UfcOfficialRankingGroup[]) {
+  return groups.reduce((total, group) => total + group.rows.length, 0);
+}
+
+function isDegradedRefresh(current: SnapshotRecord | null, incomingGroups: UfcOfficialRankingGroup[]) {
+  const currentGroups = current ? deserializeUfcRankingGroups(current.payload) : null;
+  if (!currentGroups) return false;
+  return (
+    incomingGroups.length < currentGroups.length * DEGRADED_REFRESH_RATIO ||
+    countRows(incomingGroups) < countRows(currentGroups) * DEGRADED_REFRESH_RATIO
+  );
+}
+
 export function planUfcRankingSnapshotRefresh(
   current: SnapshotRecord | null,
   incomingGroups: UfcOfficialRankingGroup[],
   fetchedAt = new Date()
 ): RankingRefreshPlan {
-  if (!isUsableUfcRankingGroups(incomingGroups)) {
+  if (!isUsableUfcRankingGroups(incomingGroups) || isDegradedRefresh(current, incomingGroups)) {
     const snapshot = toUfcRankingSnapshotView(current, fetchedAt);
     return {
       shouldWrite: false,

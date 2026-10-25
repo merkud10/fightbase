@@ -44,12 +44,17 @@ export function isPoundForPoundRankingGroup(title: string) {
   return /pound-for-pound/i.test(title) || /вне\s+(зависимости\s+от\s+категорий|весовых\s+категорий)/i.test(title);
 }
 
+// С октября 2026 ufc.ru отдаёт часть ссылок на бойцов как /index%2ephp/athlete/<slug>
+// (270 из 382 на 25.10), остальные — как /athlete/<slug>. Без префикса парсер
+// терял чемпионов вместе с дивизионами и бойцов в строках.
+const ATHLETE_HREF_PREFIX = String.raw`(?:\/index(?:%2e|\.)php)?\/athlete\/`;
+
 function parseRankingRows(sectionHtml: string): UfcOfficialRankingRow[] {
   const rows = [...sectionHtml.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)]
     .map((match) => {
       const rowHtml = match[1] ?? "";
       const rankMatch = rowHtml.match(/views-field-weight-class-rank">\s*([^<]+)\s*<\/td>/i);
-      const fighterMatch = rowHtml.match(/<a[^>]*href="\/athlete\/([^"]+)"[^>]*>([^<]+)<\/a>/i);
+      const fighterMatch = rowHtml.match(new RegExp(String.raw`<a[^>]*href="${ATHLETE_HREF_PREFIX}([^"]+)"[^>]*>([^<]+)<\/a>`, "i"));
       const badgeMatch = rowHtml.match(/views-field-weight-class-rank-change">\s*([\s\S]*?)\s*<\/td>/i);
 
       if (!rankMatch || !fighterMatch) {
@@ -112,7 +117,7 @@ export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGrou
       const sectionHtml = match[2] ?? "";
 
       const championMatch = sectionHtml.match(
-        /<h5><a href="\/athlete\/([^"]+)"[^>]*>([^<]+)<\/a><\/h5>[\s\S]*?<img src="([^"]+)"/i
+        new RegExp(String.raw`<h5><a href="${ATHLETE_HREF_PREFIX}([^"]+)"[^>]*>([^<]+)<\/a><\/h5>[\s\S]*?<img src="([^"]+)"`, "i")
       );
 
       if (!championMatch) {

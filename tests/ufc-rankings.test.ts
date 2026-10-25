@@ -120,3 +120,40 @@ test("fetchUfcOfficialRankings parses divisional groups on an OK response", asyn
     globalThis.fetch = realFetch;
   }
 });
+
+test("fetchUfcOfficialRankings reads athlete links with the /index%2ephp prefix ufc.ru started using in October 2026", async () => {
+  const html = `
+    <div class="view-grouping-header">Легкий вес</div>
+    <div class="view-grouping-content"><table class="cols-0">
+      <caption><div class="info"><h5><a href="/index%2ephp/athlete/dzhastin-getzhi" hreflang="ru">Джастин Гейджи</a></h5></div>
+      <img src="https://img.example/gaethje.png" /></caption>
+      <tbody>
+        <tr>
+          <td class="views-field views-field-weight-class-rank">1</td>
+          <td class="views-field views-field-name"><a href="/index%2ephp/athlete/arman-tsarukyan" hreflang="ru">Арман Царукян</a></td>
+          <td class="views-field views-field-weight-class-rank-change"></td>
+        </tr>
+        <tr>
+          <td class="views-field views-field-weight-class-rank">2</td>
+          <td class="views-field views-field-name"><a href="/athlete/charles-oliveira">Чарльз Оливейра</a></td>
+          <td class="views-field views-field-weight-class-rank-change"></td>
+        </tr>
+      </tbody>
+    </table></div>`;
+  mockFetch(async () => new Response(html, { status: 200 }));
+  try {
+    const groups = await fetchUfcOfficialRankings();
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0]?.champion.officialSlug, "dzhastin-getzhi");
+    assert.equal(groups[0]?.champion.name, "Джастин Гейджи");
+    assert.deepEqual(
+      groups[0]?.rows.map((row) => [row.rank, row.officialSlug]),
+      [
+        [1, "arman-tsarukyan"],
+        [2, "charles-oliveira"]
+      ]
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

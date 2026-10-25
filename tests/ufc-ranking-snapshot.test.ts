@@ -150,3 +150,29 @@ test("usable upstream data produces a fresh write plan", () => {
   assert.equal(plan.snapshot.fetchedAt.toISOString(), fetchedAt.toISOString());
   assert.equal(plan.snapshot.isStale, false);
 });
+
+function fullGroups(count: number, rowsPerGroup: number): UfcOfficialRankingGroup[] {
+  return Array.from({ length: count }, (_, index) =>
+    makeGroup(`Division ${index + 1}`, Array.from({ length: rowsPerGroup }, (_, rank) => rank + 1))
+  );
+}
+
+test("a much smaller upstream snapshot does not overwrite a full one", () => {
+  const current = { payload: serializeUfcRankingGroups(fullGroups(24, 15)), fetchedAt: new Date("2026-10-25T06:00:00.000Z") };
+  // 25.10.2026: ufc.ru сменил ссылки, парсер потерял 15 дивизионов из 24 и почти все строки.
+  const fewerGroups = planUfcRankingSnapshotRefresh(current, fullGroups(9, 15), new Date("2026-10-25T23:02:00.000Z"));
+  assert.equal(fewerGroups.shouldWrite, false);
+  assert.equal(fewerGroups.preserved, true);
+  assert.equal(fewerGroups.snapshot?.groups.length, 24);
+
+  const fewerRows = planUfcRankingSnapshotRefresh(current, fullGroups(24, 3), new Date("2026-10-25T23:02:00.000Z"));
+  assert.equal(fewerRows.shouldWrite, false);
+});
+
+test("a full upstream snapshot replaces a degraded one and small changes still write", () => {
+  const degraded = { payload: serializeUfcRankingGroups(fullGroups(9, 2)), fetchedAt: new Date("2026-10-25T23:02:00.000Z") };
+  assert.equal(planUfcRankingSnapshotRefresh(degraded, fullGroups(24, 15)).shouldWrite, true);
+
+  const current = { payload: serializeUfcRankingGroups(fullGroups(24, 15)), fetchedAt: new Date("2026-10-25T06:00:00.000Z") };
+  assert.equal(planUfcRankingSnapshotRefresh(current, fullGroups(23, 15)).shouldWrite, true);
+});
