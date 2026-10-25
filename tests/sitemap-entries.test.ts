@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getFighterInitials } from "../lib/display";
-import { getArticleFreshness, getFighterPriority, isPlaceholderFightSlug } from "../lib/sitemap-entries";
+import { getArticleFreshness, getFighterPriority, isPlaceholderFightSlug, isThinLegacyFighter } from "../lib/sitemap-entries";
 
 const PHOTO = "https://fightbase.ru/media/fighters/abubakar-nurmagomedov-ceefd9b402bb.avif";
 const SILHOUETTE = "https://ufc.com/themes/custom/ufc/assets/img/silhouette.png";
@@ -51,4 +51,30 @@ test("свежесть статьи понижает частоту обхода
   assert.deepEqual(getArticleFreshness(daysAgo(14), now), { changeFrequency: "daily", priority: 0.9 });
   assert.deepEqual(getArticleFreshness(daysAgo(30), now), { changeFrequency: "weekly", priority: 0.7 });
   assert.deepEqual(getArticleFreshness(daysAgo(400), now), { changeFrequency: "monthly", priority: 0.5 });
+});
+
+function legacy(overrides: Partial<Parameters<typeof isThinLegacyFighter>[0]> = {}) {
+  return {
+    status: "retired",
+    photoUrl: null as string | null,
+    lastFightAt: new Date("2019-06-01T00:00:00Z"),
+    hasScheduledFight: false,
+    articleCount: 0,
+    ...overrides
+  };
+}
+
+test("старый ушедший боец без фото и без статей уходит из карты сайта", () => {
+  assert.equal(isThinLegacyFighter(legacy()), true);
+  assert.equal(isThinLegacyFighter(legacy({ photoUrl: SILHOUETTE })), true);
+  assert.equal(isThinLegacyFighter(legacy({ lastFightAt: null })), true);
+  assert.equal(isThinLegacyFighter(legacy({ lastFightAt: new Date("2022-12-31T00:00:00Z") })), true);
+});
+
+test("ветераны с фото, свежие бойцы и бойцы со статьями или боем остаются в карте сайта", () => {
+  assert.equal(isThinLegacyFighter(legacy({ photoUrl: PHOTO })), false);
+  assert.equal(isThinLegacyFighter(legacy({ status: "active" })), false);
+  assert.equal(isThinLegacyFighter(legacy({ lastFightAt: new Date("2023-01-01T00:00:00Z") })), false);
+  assert.equal(isThinLegacyFighter(legacy({ hasScheduledFight: true })), false);
+  assert.equal(isThinLegacyFighter(legacy({ articleCount: 1 })), false);
 });

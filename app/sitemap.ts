@@ -11,6 +11,7 @@ import {
   getArticleFreshness,
   getFighterPriority,
   isPlaceholderFightSlug,
+  isThinLegacyFighter,
   looksLikeLowQualitySlug
 } from "@/lib/sitemap-entries";
 
@@ -73,7 +74,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         slug: true,
         status: true,
         photoUrl: true,
-        updatedAt: true
+        updatedAt: true,
+        // Для isThinLegacyFighter: последний бой в истории, бой в расписании, статьи.
+        recentFights: { select: { date: true }, orderBy: { date: "desc" }, take: 1 },
+        fightsA: { where: { status: "scheduled" }, select: { id: true }, take: 1 },
+        fightsB: { where: { status: "scheduled" }, select: { id: true }, take: 1 },
+        _count: { select: { articleMap: true } }
       },
       orderBy: {
         updatedAt: "desc"
@@ -104,7 +110,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const rankingDivisionSlugs = [
     ...new Set((rankingSnapshot?.groups ?? []).map((group) => findRankingDivision(group.title)?.slug).filter(Boolean))
   ];
-  const fighterEntries = fighters.filter((fighter) => !looksLikeLowQualitySlug(fighter.slug));
+  const fighterEntries = fighters.filter(
+    (fighter) =>
+      !looksLikeLowQualitySlug(fighter.slug) &&
+      !isThinLegacyFighter({
+        status: fighter.status,
+        photoUrl: fighter.photoUrl,
+        lastFightAt: fighter.recentFights[0]?.date ?? null,
+        hasScheduledFight: fighter.fightsA.length > 0 || fighter.fightsB.length > 0,
+        articleCount: fighter._count.articleMap
+      })
+  );
   const staticEntries: MetadataRoute.Sitemap = staticRoutes
     .filter((path) => path !== "/quotes" || quotes.totalCount > 0)
     .map((path) => ({

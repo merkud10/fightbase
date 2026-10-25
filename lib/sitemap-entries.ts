@@ -14,6 +14,27 @@ export function isPlaceholderFightSlug(value: string | null | undefined) {
     .some((part) => part === "tba" || part === "tbd");
 }
 
+// Последний бой не позже этого года — «старый» ветеран для isThinLegacyFighter.
+export const LEGACY_LAST_FIGHT_YEAR = 2022;
+
+// Пустая карточка давно ушедшего бойца: без фото, без статей о нём и без боя в
+// расписании. Из карты сайта такие уходят, чтобы Google не тратил на них обход
+// (с 20.10.2026 копится «обнаружена, не проиндексирована»), но страница остаётся
+// доступной и индексируемой. По GSC за 3 месяца до 23.10.2026 у 293 таких
+// карточек 34 показа и ни одного клика; ветераны с фото дают десятки тысяч
+// показов, поэтому их не трогаем.
+export function isThinLegacyFighter(fighter: {
+  status: string;
+  photoUrl: string | null | undefined;
+  lastFightAt: Date | null | undefined;
+  hasScheduledFight: boolean;
+  articleCount: number;
+}) {
+  if (fighter.status !== "retired" || fighter.hasScheduledFight || fighter.articleCount > 0) return false;
+  if (isUsablePhoto(fighter.photoUrl)) return false;
+  return !fighter.lastFightAt || fighter.lastFightAt.getUTCFullYear() <= LEGACY_LAST_FIGHT_YEAR;
+}
+
 // Профили ушедших бойцов и карточки без фото остаются в индексе: рекорд, история
 // боёв и биография у них заполнены, а поисковый спрос по ветеранам не исчезает.
 // Приоритет понижаем, чтобы краулинг-бюджет уходил в первую очередь на актуальный ростер.
