@@ -184,6 +184,9 @@ export default async function ChampionsPage() {
                 </li>
               ))}
             </ul>
+            <Link href={localizePath("/russian-fighters", locale)} className="event-table-link">
+              Все российские бойцы UFC →
+            </Link>
           </section>
         ) : null}
 

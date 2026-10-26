@@ -244,6 +244,11 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                 <Link href={localizePath("/champions", locale)} className="event-table-link">
                   {locale === "ru" ? "Все чемпионы UFC: рекорды и ближайшие защиты →" : "All UFC champions: records and next title fights →"}
                 </Link>
+                {locale === "ru" ? (
+                  <Link href={localizePath("/russian-fighters", locale)} className="event-table-link">
+                    Российские бойцы UFC и их места в рейтинге →
+                  </Link>
+                ) : null}
               </>
             ) : null}
           </section>

@@ -335,6 +335,15 @@ export async function getPromotionRankingsPageData(filters: RankingsPageFilters 
   };
 }
 
+// Хаб /russian-fighters (lib/russian-fighters.ts): бойцы UFC, которых ESPN
+// записал в Россию; ручные исключения применяет isRussianFighter.
+export const getRussianFightersHubData = cache(async function getRussianFightersHubData() {
+  return prisma.fighter.findMany({
+    where: { country: "Россия", promotion: { slug: "ufc" } },
+    select: { slug: true, name: true, nameRu: true, photoUrl: true, record: true, weightClass: true, status: true, country: true }
+  });
+});
+
 export async function getUfcOfficialRankingLinks() {
   const fighters = await prisma.fighter.findMany({
     select: {

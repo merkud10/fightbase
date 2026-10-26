@@ -54,6 +54,7 @@ export async function getFreshPages(since: Date, { includeUpcomingEvents = false
   if (rankingSnapshot && rankingSnapshot.fetchedAt > since) {
     add("/rankings", rankingSnapshot.fetchedAt);
     add("/champions", rankingSnapshot.fetchedAt);
+    add("/russian-fighters", rankingSnapshot.fetchedAt);
     for (const group of rankingSnapshot.groups) {
       const division = findRankingDivision(group.title);
       if (division) add(`/rankings/${division.slug}`, rankingSnapshot.fetchedAt);
