@@ -176,6 +176,9 @@ export default async function RankingDivisionPage({ params }: DivisionPageProps)
                   ? ` · следующий бой: ${championDetails.nextFight.opponentNameRu ?? championDetails.nextFight.opponentName}, ${dateLabel(championDetails.nextFight.date)}`
                   : null}
               </p>
+              <Link href={localizePath("/champions", locale)} className="event-table-link">
+                Все чемпионы UFC →
+              </Link>
             </section>
           ) : null}
 

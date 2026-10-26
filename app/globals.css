@@ -1782,6 +1782,24 @@ img {
   gap: 16px;
 }
 
+/* Страница /champions: карточка на дивизион */
+.champions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.champion-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.champion-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
 .ranking-table-head {
   display: flex;
   justify-content: space-between;

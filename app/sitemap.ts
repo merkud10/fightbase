@@ -131,6 +131,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticEntries,
+    {
+      url: `${siteUrl}/ru/champions`,
+      lastModified: rankingSnapshot?.fetchedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.8
+    },
     ...rankingDivisionSlugs.map((slug) => ({
       url: `${siteUrl}/ru/rankings/${slug}`,
       lastModified: rankingSnapshot?.fetchedAt,

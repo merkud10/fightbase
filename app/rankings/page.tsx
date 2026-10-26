@@ -11,6 +11,7 @@ import { PageHero } from "@/components/page-hero";
 import { getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
 import { isPoundForPoundRankingGroup } from "@/lib/ufc-rankings";
+import { buildChampionList } from "@/lib/ufc-champions";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -117,20 +118,20 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
   const divisionOptions = allGroups.map((g) => g.title);
   const activeDivision = divisionOptions.includes(divisionParam) ? divisionParam : "";
   const groups = activeDivision ? allGroups.filter((g) => g.title === activeDivision) : allGroups;
-  const champions = allGroups
-    .filter((group) => !isPoundForPoundRankingGroup(group.title))
-    .map((group) => {
+  // Тот же список, что на /champions: без пустых дублей дивизионов из снимка ufc.ru.
+  const champions = buildChampionList(allGroups)
+    .filter((item) => !item.vacant)
+    .map(({ division, champion }) => {
       const link =
-        rankingLinks?.bySlug.get(group.champion.officialSlug.toLowerCase()) ??
-        rankingLinks?.byName.get(group.champion.name.toLowerCase()) ??
+        rankingLinks?.bySlug.get(champion.officialSlug.toLowerCase()) ??
+        rankingLinks?.byName.get(champion.name.toLowerCase()) ??
         null;
       return {
-        division: formatWeightClass(group.title, locale),
-        name: (locale === "ru" ? link?.nameRu : null) ?? group.champion.name,
+        division: locale === "ru" ? division.ruTitle : division.enTitle,
+        name: (locale === "ru" ? link?.nameRu : null) ?? champion.name,
         slug: link?.localSlug ?? null
       };
-    })
-    .filter((champion) => champion.name);
+    });
 
   const rankingListElements = groups
     .flatMap((group) =>
@@ -240,6 +241,9 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
                     </li>
                   ))}
                 </ul>
+                <Link href={localizePath("/champions", locale)} className="event-table-link">
+                  {locale === "ru" ? "Все чемпионы UFC: рекорды и ближайшие защиты →" : "All UFC champions: records and next title fights →"}
+                </Link>
               </>
             ) : null}
           </section>

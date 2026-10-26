@@ -63,6 +63,8 @@ export async function POST(request: Request) {
 
     revalidatePath("/rankings", "page");
     revalidatePath("/ru/rankings", "page");
+    revalidatePath("/champions", "page");
+    revalidatePath("/ru/champions", "page");
     logger.info("UFC ranking snapshot refreshed", {
       ...authorization.context,
       groupCount: responseBody.groupCount,

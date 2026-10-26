@@ -1,7 +1,7 @@
 // Разрешённые цели для /api/cron/revalidate: только публичные разделы, максимум 50 путей.
 // Пути с [сегментами] ревалидируются как маршрут целиком (type: "page").
 
-const ALLOWED_EXACT = new Set(["/", "/events", "/predictions", "/news", "/rankings"]);
+const ALLOWED_EXACT = new Set(["/", "/events", "/predictions", "/news", "/rankings", "/champions"]);
 const ALLOWED_PREFIXES = ["/events/", "/predictions/", "/news/", "/fighters/"];
 const MAX_PATHS = 50;
 
