@@ -2,6 +2,7 @@ import type { EventStatus } from "@prisma/client";
 import { cache } from "react";
 
 import { eventNightWindowBounds, isWithinEventNightWindow } from "@/lib/event-night";
+import { isContenderSeries } from "@/lib/event-results";
 import { sortFightsForCard } from "@/lib/fight-card";
 import { addToRoiBucket, emptyRoiBucket, resolvePickRoiUnits, roiPercent } from "@/lib/prediction-roi";
 import { resolveValuePick, resolveValueUnits } from "@/lib/prediction-value";
@@ -82,9 +83,12 @@ export const getEventsPageData = cache(async function getEventsPageData(filters:
 });
 
 // Хаб /events без фильтров — расписание (lib/event-schedule.ts): все предстоящие и
-// идущие турниры от ближайшего и три последних прошедших для блока результатов.
+// идущие турниры от ближайшего и три последних прошедших для блока результатов
+// (без Contender Series — как в верхних блоках /results).
 // Пагинация по всем статусам ставила после предстоящих турниры апреля.
 const RECENT_RESULTS_ON_SCHEDULE = 3;
+// DWCS идёт по вторникам между турнирами, поэтому берём с запасом и отсеиваем.
+const RECENT_RESULTS_SCAN = 8;
 
 export const getScheduleHubData = cache(async function getScheduleHubData() {
   const include = {
@@ -100,11 +104,14 @@ export const getScheduleHubData = cache(async function getScheduleHubData() {
     prisma.event.findMany({
       where: { promotion: { slug: "ufc" }, status: "completed" },
       orderBy: { date: "desc" },
-      take: RECENT_RESULTS_ON_SCHEDULE,
+      take: RECENT_RESULTS_SCAN,
       include
     })
   ]);
-  return { upcoming, recent };
+  return {
+    upcoming,
+    recent: recent.filter((event) => !isContenderSeries(event.name)).slice(0, RECENT_RESULTS_ON_SCHEDULE)
+  };
 });
 
 // Хаб /results (lib/event-results.ts): все прошедшие и идущие турниры UFC с
