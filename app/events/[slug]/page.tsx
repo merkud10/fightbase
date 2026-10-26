@@ -224,6 +224,8 @@ export default async function EventPage({
               : ""}
             {" "}
             <Link href={localizePath("/predictions/accuracy", locale)}>{locale === "ru" ? "История точности →" : "Accuracy history →"}</Link>
+            {" · "}
+            <Link href={localizePath("/results", locale)}>{locale === "ru" ? "Все результаты UFC →" : "All UFC results →"}</Link>
           </p>
         </section>
       ) : null}

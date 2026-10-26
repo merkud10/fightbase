@@ -81,6 +81,46 @@ export const getEventsPageData = cache(async function getEventsPageData(filters:
   };
 });
 
+// Хаб /results (lib/event-results.ts): все прошедшие и идущие турниры UFC с
+// итогами боёв и пиками модели. Турнир «live» нужен, чтобы в ночь турнира
+// результаты появлялись по мере боёв.
+export const getResultsHubData = cache(async function getResultsHubData() {
+  const fighter = { select: { id: true, slug: true, name: true, nameRu: true } };
+  return prisma.event.findMany({
+    where: { promotion: { slug: "ufc" }, status: { in: ["completed", "live"] } },
+    orderBy: { date: "desc" },
+    select: {
+      slug: true,
+      name: true,
+      date: true,
+      status: true,
+      updatedAt: true,
+      fights: {
+        select: {
+          id: true,
+          slug: true,
+          stage: true,
+          boutOrder: true,
+          isMainEvent: true,
+          createdAt: true,
+          weightClass: true,
+          status: true,
+          resultType: true,
+          winnerFighterId: true,
+          method: true,
+          resultRound: true,
+          resultTime: true,
+          fighterAId: true,
+          fighterBId: true,
+          fighterA: fighter,
+          fighterB: fighter,
+          predictionSnapshot: { select: { aiPickFighterId: true, percentA: true, percentB: true } }
+        }
+      }
+    }
+  });
+});
+
 export const getEventPageData = cache(async function getEventPageData(slug: string) {
   const event = await prisma.event.findUnique({
     where: { slug },

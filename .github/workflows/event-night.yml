@@ -92,7 +92,7 @@ jobs:
         env:
           SLUGS: ${{ steps.gate.outputs.slugs }}
         run: |
-          PATHS='["/events/[slug]","/predictions/[eventSlug]/[fightSlug]","/predictions","/events","/"]'
+          PATHS='["/events/[slug]","/predictions/[eventSlug]/[fightSlug]","/predictions","/events","/results","/"]'
           for slug in $SLUGS; do
             PATHS=$(echo "$PATHS" | jq -c --arg p "/events/$slug" '. + [$p]')
           done

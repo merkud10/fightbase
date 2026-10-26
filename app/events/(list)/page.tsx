@@ -128,6 +128,12 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         })()}
       />
 
+      <p className="table-note">
+        <Link href={localizePath("/results", locale)}>
+          {locale === "ru" ? "Результаты прошедших турниров UFC (ЮФС) →" : "Results of past UFC events →"}
+        </Link>
+      </p>
+
       <section className="page-grid">
         <aside className="stack">
           <div className="filter-group fighter-filters">

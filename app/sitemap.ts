@@ -56,6 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     prisma.event.findMany({
       select: {
         slug: true,
+        status: true,
         updatedAt: true
       },
       orderBy: {
@@ -131,6 +132,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticEntries,
+    {
+      url: `${siteUrl}/ru/results`,
+      lastModified: events.find((event) => event.status !== "upcoming")?.updatedAt,
+      changeFrequency: "daily" as const,
+      priority: 0.8
+    },
     {
       url: `${siteUrl}/ru/champions`,
       lastModified: rankingSnapshot?.fetchedAt,

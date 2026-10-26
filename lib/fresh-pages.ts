@@ -21,7 +21,7 @@ export async function getFreshPages(since: Date, { includeUpcomingEvents = false
       where: includeUpcomingEvents
         ? { OR: [{ updatedAt: { gt: since } }, { status: "upcoming" }] }
         : { updatedAt: { gt: since } },
-      select: { slug: true, updatedAt: true }
+      select: { slug: true, status: true, updatedAt: true }
     }),
     prisma.fightPredictionSnapshot.findMany({
       where: { updatedAt: { gt: since } },
@@ -43,6 +43,7 @@ export async function getFreshPages(since: Date, { includeUpcomingEvents = false
   for (const event of events) {
     add(`/events/${event.slug}`, event.updatedAt);
     add("/events", event.updatedAt);
+    if (event.status !== "upcoming") add("/results", event.updatedAt);
   }
   for (const snapshot of snapshots) {
     if (snapshot.fight.slug && !isPlaceholderFightSlug(snapshot.fight.slug)) {
