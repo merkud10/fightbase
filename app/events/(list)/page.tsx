@@ -8,9 +8,11 @@ import { FilterEmptyState, FilterSection } from "@/components/filter-section";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { Pagination } from "@/components/pagination";
-import { getEventsPageData } from "@/lib/db";
+import { getEventsPageData, getScheduleHubData } from "@/lib/db";
 import { formatEventLocation, formatFightMethod, formatWeightClass, getDisplayName } from "@/lib/display";
-import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
+import { buildScheduleRows } from "@/lib/event-schedule";
+import { formatCardTime } from "@/lib/event-time";
+import { formatWinnerlessFightResult, getMainEventFight, sortFightsForCard } from "@/lib/fight-card";
 import { getDictionary, getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { readParam } from "@/lib/search-params";
@@ -31,10 +33,11 @@ export async function generateMetadata({ searchParams }: EventsPageProps): Promi
   const localizedUrl = localizePath("/events", locale);
 
   const year = new Date().getFullYear();
-  const title = locale === "ru" ? `Расписание турниров UFC ${year} — даты, карды и результаты` : `UFC ${year} event schedule`;
+  const title =
+    locale === "ru" ? `Расписание UFC (ЮФС) ${year}: ближайшие турниры, даты и время по Москве` : `UFC ${year} event schedule`;
   const description =
     locale === "ru"
-      ? `Ближайшие турниры UFC (ЮФС) и полное расписание ${year}: даты, время по Москве, карды, прогнозы FightBase на каждый бой и результаты прошедших событий.`
+      ? `Расписание турниров UFC (ЮФС) на ${year} год: все ближайшие турниры одной таблицей — даты, главные бои, начало основного карда по Москве, полные карды с прогнозами FightBase и результаты последних турниров.`
       : `Upcoming UFC events and the full ${year} schedule: dates, start times, fight cards, FightBase picks for every bout, and results of past events.`;
 
   return {
@@ -63,11 +66,20 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
   const status = readParam(params.status);
   const pageParam = readParam(params.page);
   const page = Math.max(1, parseInt(pageParam, 10) || 1);
-  const { events, totalCount, page: currentPage, totalPages, filters, options } = await getEventsPageData({
-    promotion: "",
-    status,
-    page
-  });
+  // Без фильтра хаб — расписание: таблица всех предстоящих турниров, их карточки и
+  // последние результаты (lib/event-schedule.ts). Фильтр по статусу — прежний список.
+  const scheduleMode = !status;
+  const schedule = scheduleMode ? await getScheduleHubData() : null;
+  const listing = scheduleMode ? null : await getEventsPageData({ promotion: "", status, page });
+  const events = schedule ? schedule.upcoming : listing!.events;
+  const totalCount = schedule ? schedule.upcoming.length : listing!.totalCount;
+  const currentPage = listing?.page ?? 1;
+  const totalPages = listing?.totalPages ?? 1;
+  const filters = listing?.filters ?? { status: "" };
+  const options = { statuses: ["upcoming", "live", "completed"] as const };
+  const scheduleRows = schedule ? buildScheduleRows(schedule.upcoming) : [];
+  const dayMonth = (date: Date) =>
+    new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", timeZone: "UTC" }).format(date);
 
   const current = {
     status: filters.status
@@ -114,7 +126,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
         eyebrow="/events"
-        title={locale === "ru" ? "Расписание турниров UFC" : "UFC event schedule"}
+        title={locale === "ru" ? "Расписание турниров UFC (ЮФС)" : "UFC event schedule"}
         description={(() => {
           const nearest = !filters.status && currentPage === 1 ? events.find((event) => event.status !== "completed") : undefined;
           const nearestLine = nearest
@@ -128,11 +140,69 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         })()}
       />
 
-      <p className="table-note">
-        <Link href={localizePath("/results", locale)}>
-          {locale === "ru" ? "Результаты прошедших турниров UFC (ЮФС) →" : "Results of past UFC events →"}
-        </Link>
-      </p>
+      {scheduleRows.length > 0 ? (
+        <section className="table-card editorial-card">
+          <div className="ranking-table-head">
+            <div className="ranking-head-copy">
+              <h2>{locale === "ru" ? `Расписание UFC (ЮФС) на ${new Date().getFullYear()} год` : `UFC schedule ${new Date().getFullYear()}`}</h2>
+              <p className="table-note">
+                {locale === "ru"
+                  ? "Все объявленные турниры. Время начала основного карда и прелимов — по Москве."
+                  : "All announced events. Main card and prelims start times in UTC."}
+              </p>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table className="event-card-table">
+              <caption className="sr-only">{locale === "ru" ? "Расписание турниров UFC" : "UFC event schedule"}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{locale === "ru" ? "Дата" : "Date"}</th>
+                  <th scope="col">{locale === "ru" ? "Турнир" : "Event"}</th>
+                  <th scope="col">{locale === "ru" ? "Главный бой" : "Main event"}</th>
+                  <th scope="col">{locale === "ru" ? "Начало (мск)" : "Start (UTC)"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scheduleRows.map(({ event, mainFight, isNext }) => (
+                  <tr key={event.slug}>
+                    <td>
+                      <strong>{dayMonth(new Date(event.date))}</strong>
+                      {isNext ? <span className="event-table-pick">{locale === "ru" ? "Ближайший турнир" : "Next event"}</span> : null}
+                    </td>
+                    <td>
+                      <Link href={localizePath(`/events/${event.slug}`, locale)}>{event.name}</Link>
+                    </td>
+                    <td>
+                      {mainFight ? (
+                        `${getDisplayName(mainFight.fighterA, locale)} — ${getDisplayName(mainFight.fighterB, locale)}`
+                      ) : (
+                        <span className="table-note">{locale === "ru" ? "объявят позже" : "TBA"}</span>
+                      )}
+                    </td>
+                    <td>
+                      {event.mainCardAt ? (
+                        <>
+                          {locale === "ru" ? "основной кард " : "main card "}
+                          <strong>{formatCardTime(new Date(event.mainCardAt), locale)}</strong>
+                          {event.prelimsAt ? (
+                            <span className="event-table-pick">
+                              {locale === "ru" ? "прелимы " : "prelims "}
+                              {formatCardTime(new Date(event.prelimsAt), locale)}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="table-note">{locale === "ru" ? "время уточняется" : "time TBA"}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="page-grid">
         <aside className="stack">
@@ -286,13 +356,15 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                 );
               })}
             </div>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              basePath={localizePath("/events", locale)}
-              params={{ status: filters.status }}
-              locale={locale}
-            />
+            {scheduleMode ? null : (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                basePath={localizePath("/events", locale)}
+                params={{ status: filters.status }}
+                locale={locale}
+              />
+            )}
           </div>
         ) : (
           <FilterEmptyState
@@ -305,6 +377,45 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
           />
         )}
       </section>
+
+      {schedule && schedule.recent.length > 0 ? (
+        <section className="stack">
+          <h2>{locale === "ru" ? "Последние результаты UFC" : "Latest UFC results"}</h2>
+          <div className="champions-grid">
+            {schedule.recent.map((event) => {
+              const main = getMainEventFight(event.fights);
+              const winner = main?.winnerFighterId
+                ? getDisplayName(main.winnerFighterId === main.fighterAId ? main.fighterA : main.fighterB, locale)
+                : null;
+              return (
+                <section key={event.slug} className="policy-card champion-card">
+                  <h3>
+                    <Link href={localizePath(`/events/${event.slug}`, locale)}>{event.name}</Link>
+                  </h3>
+                  <p className="table-note">{dayMonth(new Date(event.date))}</p>
+                  {main ? (
+                    <p className="copy">
+                      {getDisplayName(main.fighterA, locale)} — {getDisplayName(main.fighterB, locale)}
+                      {winner ? (
+                        <>
+                          {locale === "ru" ? ". Победа: " : ". Winner: "}
+                          <strong>{winner}</strong>
+                          {main.method ? ` (${formatFightMethod(main.method, locale)})` : ""}
+                        </>
+                      ) : main.status === "completed" ? (
+                        `. ${formatWinnerlessFightResult(main.resultType, locale)}`
+                      ) : null}
+                    </p>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
+          <Link href={localizePath("/results", locale)} className="event-table-link">
+            {locale === "ru" ? "Все результаты UFC (ЮФС) →" : "All UFC results →"}
+          </Link>
+        </section>
+      ) : null}
     </main>
   );
 }

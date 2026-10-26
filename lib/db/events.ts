@@ -81,6 +81,32 @@ export const getEventsPageData = cache(async function getEventsPageData(filters:
   };
 });
 
+// Хаб /events без фильтров — расписание (lib/event-schedule.ts): все предстоящие и
+// идущие турниры от ближайшего и три последних прошедших для блока результатов.
+// Пагинация по всем статусам ставила после предстоящих турниры апреля.
+const RECENT_RESULTS_ON_SCHEDULE = 3;
+
+export const getScheduleHubData = cache(async function getScheduleHubData() {
+  const include = {
+    promotion: true,
+    fights: { include: { fighterA: true, fighterB: true, predictionSnapshot: true } }
+  } as const;
+  const [upcoming, recent] = await Promise.all([
+    prisma.event.findMany({
+      where: { promotion: { slug: "ufc" }, status: { in: ["upcoming", "live"] } },
+      orderBy: { date: "asc" },
+      include
+    }),
+    prisma.event.findMany({
+      where: { promotion: { slug: "ufc" }, status: "completed" },
+      orderBy: { date: "desc" },
+      take: RECENT_RESULTS_ON_SCHEDULE,
+      include
+    })
+  ]);
+  return { upcoming, recent };
+});
+
 // Хаб /results (lib/event-results.ts): все прошедшие и идущие турниры UFC с
 // итогами боёв и пиками модели. Турнир «live» нужен, чтобы в ночь турнира
 // результаты появлялись по мере боёв.
