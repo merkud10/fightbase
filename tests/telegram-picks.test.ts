@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   buildTelegramPicksPost,
+  buildTelegramResultsPost,
   decideTelegramPicksAction,
+  decideTelegramResultsAction,
   resolveEventStart,
   TELEGRAM_TEXT_MAX,
   type TelegramPicksEvent,
@@ -44,6 +46,7 @@ function event(fights: TelegramPicksFight[], overrides: Partial<TelegramPicksEve
     id: "e1",
     slug: "ufc-334",
     name: "UFC 334: Gane vs. Hokit",
+    status: "upcoming",
     date: new Date("2026-11-14T00:00:00Z"),
     earlyPrelimsAt: null,
     prelimsAt: new Date("2026-11-15T01:00:00Z"),
@@ -150,4 +153,98 @@ test("buildTelegramPicksPost stays within the Telegram message limit", () => {
   const text = buildTelegramPicksPost(event(fights), "https://fightbase.ru");
   assert.ok(text.length <= TELEGRAM_TEXT_MAX);
   assert.ok(!text.includes("💎"));
+});
+
+function settled(id: string, overrides: Partial<TelegramPicksFight> = {}): TelegramPicksFight {
+  return fight(id, { status: "completed", resultType: "win", winnerFighterId: `${id}-a`, ...overrides });
+}
+
+const accuracy = { eventsCount: 5, model: { correct: 43, judged: 78, percent: 55 }, favorite: { percent: 65 } };
+
+test("decideTelegramResultsAction waits for the event to complete and for every picked fight", () => {
+  const start = resolveEventStart(event([]));
+  const at = (hours: number) => new Date(start.getTime() + hours * HOUR);
+  const open = settled("f2", { status: "scheduled", resultType: null, winnerFighterId: null });
+
+  assert.equal(decideTelegramResultsAction({ event: event([settled("f1")]), hasResultsPost: false, now: at(5) }), "wait");
+  assert.equal(
+    decideTelegramResultsAction({ event: event([settled("f1")], { status: "completed" }), hasResultsPost: false, now: at(5) }),
+    "post"
+  );
+  assert.equal(
+    decideTelegramResultsAction({ event: event([settled("f1"), open], { status: "completed" }), hasResultsPost: false, now: at(10) }),
+    "wait"
+  );
+  assert.equal(
+    decideTelegramResultsAction({ event: event([settled("f1"), open], { status: "completed" }), hasResultsPost: false, now: at(18) }),
+    "post"
+  );
+});
+
+test("decideTelegramResultsAction posts once and never for a stale event", () => {
+  const start = resolveEventStart(event([]));
+  const done = event([settled("f1")], { status: "completed" });
+  assert.equal(decideTelegramResultsAction({ event: done, hasResultsPost: true, now: new Date(start.getTime() + 5 * HOUR) }), "skip");
+  assert.equal(decideTelegramResultsAction({ event: done, hasResultsPost: false, now: new Date(start.getTime() + 8 * 24 * HOUR) }), "skip");
+});
+
+test("buildTelegramResultsPost scores the card against the favorite and the recent events", () => {
+  const text = buildTelegramResultsPost(
+    event(
+      [
+        settled("main", { isMainEvent: true }),
+        settled("co", { boutOrder: 2, winnerFighterId: "co-b" }),
+        settled("upset", { stage: "prelims", boutOrder: 1, winnerFighterId: "upset-b", predictionSnapshot: { ...noPick, aiPickFighterId: "upset-b", percentA: 70, percentB: 30 } }),
+        settled("draw", { stage: "prelims", boutOrder: 2, resultType: "draw", winnerFighterId: null }),
+        settled("nopick", { stage: "prelims", boutOrder: 3, predictionSnapshot: noPick }),
+        fight("cancelled", { stage: "prelims" })
+      ],
+      { status: "completed" }
+    ),
+    accuracy,
+    "https://fightbase.ru/"
+  );
+
+  assert.equal(
+    text,
+    [
+      "📊 Итоги ИИ-модели FightBase: UFC 334: Gane vs. Hokit",
+      "Угадала 2 из 3 (67%) · фаворит по предматчевой оценке — 1 из 3",
+      "",
+      "Основной кард",
+      "✅ main Альфа — main Бета · победил main Альфа",
+      "❌ co Альфа — co Бета · пик co Альфа, победил co Бета",
+      "",
+      "Прелимы",
+      "✅ upset Альфа — upset Бета · победил upset Бета 🔥 против фаворита",
+      "➖ draw Альфа — draw Бета · ничья, в счёт не идёт",
+      "▫️ nopick Альфа — nopick Бета · победил nopick Альфа",
+      "",
+      "За последние 5 турниров: 55% (43 из 78), фаворит — 65%",
+      "Результаты и разборы: https://fightbase.ru/ru/events/ufc-334"
+    ].join("\n")
+  );
+});
+
+test("buildTelegramResultsPost reports value picks and handles thin accuracy data", () => {
+  const valued = settled("f1", {
+    winnerFighterId: "f1-b",
+    predictionSnapshot: { aiPickFighterId: "f1-a", percentA: 55, percentB: 45, aiWinChanceA: 40, oddsAAtPick: 1.5, oddsBAtPick: 2.4 }
+  });
+  const nc = settled("f2", { resultType: "no_contest", winnerFighterId: null });
+  const text = buildTelegramResultsPost(
+    event([valued, nc], { status: "completed" }),
+    { eventsCount: 1, model: { correct: 0, judged: 1, percent: 0 }, favorite: { percent: null } },
+    "https://fightbase.ru"
+  );
+  assert.match(text, /\n➖ f2 Альфа — f2 Бета · NC, в счёт не идёт\n/);
+  assert.match(text, /\n\n💎 Ценный выбор: f1 Бета \(кэф 2,40\) — сыграл\n\nЗа последний турнир: 0% \(0 из 1\)\nРезультаты/);
+
+  const empty = buildTelegramResultsPost(
+    event([nc], { status: "completed" }),
+    { eventsCount: 0, model: { correct: 0, judged: 0, percent: null }, favorite: { percent: null } },
+    "https://fightbase.ru"
+  );
+  assert.match(empty, /^📊 Итоги ИИ-модели FightBase: UFC 334: Gane vs\. Hokit\nПики модели в этом турнире в зачёт не попали\n/);
+  assert.ok(!empty.includes("За последн"));
 });

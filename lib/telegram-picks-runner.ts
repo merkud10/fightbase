@@ -1,10 +1,12 @@
-// Исполнение поста с пиками в Telegram-канале (решение и текст — lib/telegram-picks.ts):
-// отправка, правка до начала турнира, закреп нового поста и снятие закрепа с прошлого.
-// Запись о посте сохраняется сразу после отправки, поэтому сбой закрепа не приводит
-// к повторной отправке: закреп повторится на следующем запуске.
+// Исполнение постов ИИ-модели в Telegram-канале (решение и текст — lib/telegram-picks.ts).
+// Каждый прогон сначала публикует итоги прошедших турниров ответом на их пост с
+// пиками, затем ведёт пост с пиками ближайшего: отправка, правка до начала турнира,
+// закреп нового поста и снятие закрепа с прошлого. Id сообщений сохраняются сразу
+// после отправки, поэтому сбой закрепа или записи не приводит к повторной отправке.
 
 import { createHash } from "node:crypto";
 
+import { getPredictionAccuracy } from "@/lib/db/events";
 import { isContenderSeries } from "@/lib/event-results";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
@@ -12,10 +14,21 @@ import { getTelegramApiBase } from "@/lib/social-publish";
 import { recordSystemEvent } from "@/lib/system-events";
 import {
   buildTelegramPicksPost,
+  buildTelegramResultsPost,
   decideTelegramPicksAction,
+  decideTelegramResultsAction,
   type TelegramPicksAction,
-  type TelegramPicksEvent
+  type TelegramPicksEvent,
+  type TelegramResultsAccuracy,
+  type TelegramResultsAction
 } from "@/lib/telegram-picks";
+
+export type TelegramResultsRun = {
+  action: TelegramResultsAction | "skipped";
+  eventSlug: string;
+  text?: string;
+  messageId?: number;
+};
 
 export type TelegramPicksRunResult = {
   action: TelegramPicksAction | "none" | "skipped";
@@ -26,6 +39,8 @@ export type TelegramPicksRunResult = {
   changed?: boolean;
   pinned?: boolean;
   unpinned?: number;
+  results?: TelegramResultsRun[];
+  resultsError?: string;
 };
 
 class TelegramApiError extends Error {
@@ -40,52 +55,62 @@ class TelegramApiError extends Error {
 
 const fighterSelect = { id: true, name: true, nameRu: true } as const;
 
+const eventSelect = {
+  id: true,
+  slug: true,
+  name: true,
+  status: true,
+  date: true,
+  earlyPrelimsAt: true,
+  prelimsAt: true,
+  mainCardAt: true,
+  fights: {
+    select: {
+      id: true,
+      stage: true,
+      boutOrder: true,
+      isMainEvent: true,
+      createdAt: true,
+      status: true,
+      resultType: true,
+      winnerFighterId: true,
+      fighterAId: true,
+      fighterBId: true,
+      fighterA: { select: fighterSelect },
+      fighterB: { select: fighterSelect },
+      predictionSnapshot: {
+        select: {
+          aiPickFighterId: true,
+          percentA: true,
+          percentB: true,
+          aiWinChanceA: true,
+          oddsAAtPick: true,
+          oddsBAtPick: true
+        }
+      }
+    }
+  }
+} as const;
+
 async function loadNextEvent(): Promise<TelegramPicksEvent | null> {
   const events = await prisma.event.findMany({
     where: { status: "upcoming" },
     orderBy: { date: "asc" },
     take: 5,
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      date: true,
-      earlyPrelimsAt: true,
-      prelimsAt: true,
-      mainCardAt: true,
-      fights: {
-        select: {
-          id: true,
-          stage: true,
-          boutOrder: true,
-          isMainEvent: true,
-          createdAt: true,
-          status: true,
-          resultType: true,
-          winnerFighterId: true,
-          fighterAId: true,
-          fighterBId: true,
-          fighterA: { select: fighterSelect },
-          fighterB: { select: fighterSelect },
-          predictionSnapshot: {
-            select: {
-              aiPickFighterId: true,
-              percentA: true,
-              percentB: true,
-              aiWinChanceA: true,
-              oddsAAtPick: true,
-              oddsBAtPick: true
-            }
-          }
-        }
-      }
-    }
+    select: eventSelect
   });
   return events.find((event) => !isContenderSeries(event.name)) ?? null;
 }
 
 function hashText(text: string) {
   return createHash("sha256").update(text).digest("hex");
+}
+
+// Флаг стоит только в .env на сервере: локальный .env содержит тот же токен и
+// канал, а адрес сайта и при локальном запуске — https://fightbase.ru.
+function resolveChatId() {
+  const chatId = process.env.TELEGRAM_CHANNEL_ID;
+  return process.env.TELEGRAM_PICKS_ENABLED === "1" && process.env.TELEGRAM_BOT_TOKEN && chatId ? chatId : null;
 }
 
 async function callBot(method: string, body: Record<string, unknown>) {
@@ -129,8 +154,84 @@ async function pinAndReleasePrevious(chatId: string, eventId: string, messageId:
   return { pinned: true, unpinned: previous.length };
 }
 
-export async function runTelegramPicks({ now = new Date(), dryRun = false } = {}): Promise<TelegramPicksRunResult> {
-  const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
+// Итоги публикуются только для турниров, у которых в канале уже есть пост с пиками.
+async function runResultsStep({
+  now,
+  dryRun,
+  siteUrl,
+  chatId
+}: {
+  now: Date;
+  dryRun: boolean;
+  siteUrl: string;
+  chatId: string | null;
+}): Promise<Pick<TelegramPicksRunResult, "results" | "resultsError">> {
+  const pending = await prisma.telegramEventPost.findMany({
+    where: { resultsPostedAt: null },
+    select: { eventId: true, messageId: true }
+  });
+  const results: TelegramResultsRun[] = [];
+  let accuracy: TelegramResultsAccuracy | null = null;
+
+  for (const post of pending) {
+    const event = await prisma.event.findUnique({ where: { id: post.eventId }, select: eventSelect });
+    if (!event) continue;
+    const action = decideTelegramResultsAction({ event, hasResultsPost: false, now });
+    if (action !== "post") {
+      results.push({ action, eventSlug: event.slug });
+      continue;
+    }
+
+    accuracy ??= await getPredictionAccuracy();
+    const text = buildTelegramResultsPost(event, accuracy, siteUrl);
+    if (dryRun) {
+      results.push({ action, eventSlug: event.slug, text });
+      continue;
+    }
+    if (!chatId) {
+      results.push({ action: "skipped", eventSlug: event.slug });
+      continue;
+    }
+
+    try {
+      const sent = (await callBot("sendMessage", {
+        chat_id: chatId,
+        text,
+        link_preview_options: { is_disabled: true },
+        reply_parameters: { message_id: post.messageId, allow_sending_without_reply: true }
+      })) as { message_id: number };
+      await prisma.telegramEventPost.update({
+        where: { eventId: event.id },
+        data: { resultsMessageId: sent.message_id, resultsPostedAt: new Date() }
+      });
+      results.push({ action, eventSlug: event.slug, messageId: sent.message_id });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await recordSystemEvent({
+        level: "error",
+        category: "telegram.results",
+        message,
+        source: "api/cron/telegram-picks",
+        meta: { eventSlug: event.slug }
+      });
+      return { results, resultsError: message };
+    }
+  }
+
+  return { results };
+}
+
+async function runPicksStep({
+  now,
+  dryRun,
+  siteUrl,
+  chatId
+}: {
+  now: Date;
+  dryRun: boolean;
+  siteUrl: string;
+  chatId: string | null;
+}): Promise<TelegramPicksRunResult> {
   const event = await loadNextEvent();
   if (!event) return { action: "none" };
 
@@ -139,11 +240,7 @@ export async function runTelegramPicks({ now = new Date(), dryRun = false } = {}
   const text = buildTelegramPicksPost(event, siteUrl);
   const base = { action, eventSlug: event.slug };
   if (dryRun) return { ...base, text };
-
-  // Флаг стоит только в .env на сервере: локальный .env содержит тот же токен и
-  // канал, а адрес сайта и при локальном запуске — https://fightbase.ru.
-  const chatId = process.env.TELEGRAM_CHANNEL_ID;
-  if (process.env.TELEGRAM_PICKS_ENABLED !== "1" || !process.env.TELEGRAM_BOT_TOKEN || !chatId) {
+  if (!chatId) {
     return { action: "skipped", eventSlug: event.slug, reason: "TELEGRAM_PICKS_ENABLED is off or Telegram is not configured" };
   }
 
@@ -179,4 +276,11 @@ export async function runTelegramPicks({ now = new Date(), dryRun = false } = {}
     });
     throw error;
   }
+}
+
+export async function runTelegramPicks({ now = new Date(), dryRun = false } = {}): Promise<TelegramPicksRunResult> {
+  const options = { now, dryRun, siteUrl: getSiteUrl().toString().replace(/\/$/, ""), chatId: resolveChatId() };
+  // Ошибка итогов не мешает посту с пиками: она уже записана в системные события.
+  const results = await runResultsStep(options);
+  return { ...(await runPicksStep(options)), ...results };
 }

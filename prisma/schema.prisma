@@ -581,8 +581,12 @@ model TelegramEventPost {
   postedAt   DateTime  @default(now())
   pinnedAt   DateTime?
   unpinnedAt DateTime?
+  // Пост с итогами модели после турнира — ответом на пост с пиками.
+  resultsMessageId Int?
+  resultsPostedAt  DateTime?
   updatedAt  DateTime  @updatedAt
   event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([unpinnedAt])
+  @@index([resultsPostedAt])
 }
