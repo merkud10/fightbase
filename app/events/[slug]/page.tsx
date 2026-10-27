@@ -9,8 +9,9 @@ import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
-import { getEventPageData, resolveEventSlugRedirect } from "@/lib/db";
+import { getEventPageData, getScheduleHubData, resolveEventSlugRedirect } from "@/lib/db";
 import { describeFightPick, isPickPending, pickPendingText, summarizeEventPicks } from "@/lib/event-picks";
+import { buildNearbyEvents } from "@/lib/event-schedule";
 import { buildEventSeoName, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
@@ -132,6 +133,7 @@ export default async function EventPage({
   }
 
   const { event, relatedArticles } = data;
+  const nearbyEvents = buildNearbyEvents(event.slug, (await getScheduleHubData()).upcoming);
   const orderedFights = sortFightsForCard(event.fights);
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
   const eventUrl = `${siteUrl}${localizePath(`/events/${event.slug}`, locale)}`;
@@ -203,6 +205,50 @@ export default async function EventPage({
     images: eventImages
   });
 
+  const dayMonth = (date: Date) =>
+    new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", timeZone: "UTC" }).format(date);
+  // Прошедшему турниру и турниру без пиков блок нужен сразу под шапкой: человек
+  // узнал дату или результат, и дальше ему идти некуда. У турнира с готовыми
+  // пиками главное — кард, поэтому там блок уходит в боковую колонку.
+  const nearbyOnTop = isCompleted || picks.withPicks === 0;
+  const nearbyBlock =
+    nearbyEvents.length > 0 ? (
+      <section className="policy-card" aria-label={locale === "ru" ? "Ближайшие турниры UFC" : "Upcoming UFC events"}>
+        <h3>{locale === "ru" ? "Ближайшие турниры UFC" : "Upcoming UFC events"}</h3>
+        <ul className="event-side-list">
+          {nearbyEvents.map(({ event: next, mainFight, isNext, picksReady }) => {
+            const name =
+              locale === "ru" && mainFight
+                ? buildEventSeoName(next.name, {
+                    a: { slug: mainFight.fighterA.slug, name: getDisplayName(mainFight.fighterA, "ru") },
+                    b: { slug: mainFight.fighterB.slug, name: getDisplayName(mainFight.fighterB, "ru") }
+                  })
+                : next.name;
+            const details = [
+              `${dayMonth(new Date(next.date))}${isNext ? (locale === "ru" ? " (ближайший)" : " (next)") : ""}`,
+              next.mainCardAt
+                ? `${locale === "ru" ? "главный кард" : "main card"} ${formatCardTime(new Date(next.mainCardAt), locale)}${locale === "ru" ? " мск" : " UTC"}`
+                : null,
+              picksReady > 0
+                ? locale === "ru"
+                  ? `прогнозы готовы: ${fightWord(picksReady)}`
+                  : `picks ready: ${fightWord(picksReady)}`
+                : null
+            ].filter(Boolean);
+            return (
+              <li key={next.slug}>
+                <Link href={localizePath(`/events/${next.slug}`, locale)}>{name}</Link>
+                <span className="table-note"> · {details.join(" · ")}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="copy">
+          <Link href={localizePath("/events", locale)}>{locale === "ru" ? "Всё расписание UFC →" : "Full UFC schedule →"}</Link>
+        </p>
+      </section>
+    ) : null;
+
   return (
     <main className="container">
       <JsonLd data={breadcrumbJsonLd} />
@@ -264,6 +310,8 @@ export default async function EventPage({
           </p>
         </section>
       ) : null}
+
+      {nearbyOnTop ? nearbyBlock : null}
 
       <section className="detail-grid">
         <article className="table-card">
@@ -388,6 +436,7 @@ export default async function EventPage({
         </article>
 
         <aside className="stack">
+          {nearbyOnTop ? null : nearbyBlock}
           {leadFight ? (
             <div className="policy-card">
               <h3>{locale === "ru" ? "Главный бой" : "Main event"}</h3>

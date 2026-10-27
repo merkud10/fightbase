@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildScheduleRows } from "../lib/event-schedule";
+import { buildNearbyEvents, buildScheduleRows } from "../lib/event-schedule";
 
 function event(slug: string, date: string, status: string, fights: Array<{ id: string; isMainEvent?: boolean; boutOrder?: number }> = []) {
   return {
@@ -40,4 +40,32 @@ test("buildScheduleRows picks the main event fight and leaves it empty when the 
 
 test("buildScheduleRows returns nothing without upcoming events", () => {
   assert.deepEqual(buildScheduleRows([event("ufc-333", "2026-10-24", "completed")]), []);
+});
+
+test("buildNearbyEvents skips the current event and counts ready picks", () => {
+  const withPicks = event("moicano-nolan", "2026-11-01", "upcoming", [{ id: "a" }, { id: "b" }]);
+  (withPicks.fights[0] as { predictionSnapshot?: unknown }).predictionSnapshot = { id: "p" };
+  const rows = buildNearbyEvents("ufc-335", [
+    event("ufc-335", "2026-12-13", "upcoming"),
+    event("ufc-333", "2026-10-24", "completed"),
+    event("ufc-334", "2026-11-15", "upcoming"),
+    withPicks
+  ]);
+  assert.deepEqual(
+    rows.map((row) => [row.event.slug, row.picksReady, row.isNext]),
+    [
+      ["moicano-nolan", 1, true],
+      ["ufc-334", 0, false]
+    ]
+  );
+});
+
+test("buildNearbyEvents keeps at most the requested number of events", () => {
+  const rows = buildNearbyEvents(
+    "ufc-333",
+    ["2026-11-01", "2026-11-08", "2026-11-15", "2026-11-22"].map((date) => event(`e-${date}`, date, "upcoming")),
+    3
+  );
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0]?.event.slug, "e-2026-11-01");
 });

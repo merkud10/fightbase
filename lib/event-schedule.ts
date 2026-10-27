@@ -21,3 +21,20 @@ export function buildScheduleRows<E extends ScheduleEvent>(events: readonly E[])
       isNext: index === 0
     }));
 }
+
+// Блок «Ближайшие турниры» на странице турнира. По Метрике (октябрь 2026) со
+// страниц турниров уходили сразу 45% живых посетителей против 13% на прогнозах:
+// далёкий UFC 335 с пустым кардом и прошедшие турниры отвечали на запрос, но
+// ссылок на другие турниры со страницы не было вовсе.
+export function buildNearbyEvents<E extends Omit<ScheduleEvent, "fights"> & { slug: string; fights: readonly (FightCardSortable & { predictionSnapshot?: unknown })[] }>(
+  currentSlug: string,
+  events: readonly E[],
+  limit = 3
+) {
+  return buildScheduleRows<E>(events.filter((event) => event.slug !== currentSlug))
+    .slice(0, limit)
+    .map((row) => ({
+      ...row,
+      picksReady: row.event.fights.filter((fight) => fight.predictionSnapshot).length
+    }));
+}
