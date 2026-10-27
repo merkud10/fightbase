@@ -28,6 +28,7 @@ import { getSnapshotContent } from "@/lib/prediction-snapshot";
 import { clampDescription, ogImageUrl } from "@/lib/seo";
 import { isPlaceholderFightSlug } from "@/lib/sitemap-entries";
 import { ShareButtons } from "@/components/share-buttons";
+import { TelegramPicksCta } from "@/components/telegram-picks-cta";
 import { getSiteUrl } from "@/lib/site";
 import { buildSportsEventJsonLd, toAbsoluteUrl } from "@/lib/structured-data";
 
@@ -602,6 +603,8 @@ export default async function FightPredictionPage({
           ) : null}
 
           <CardPredictionsList fights={cardFights} currentFightId={fight.id} event={fight.event} locale={locale} />
+
+          <TelegramPicksCta locale={locale} className="prediction-section-card" />
 
           <ShareButtons url={pageUrl} title={prediction.headline} locale={locale} />
         </article>

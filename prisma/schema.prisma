@@ -200,6 +200,7 @@ model Event {
   predictionSnapshots FightPredictionSnapshot[]
   articles    Article[]
   slugAliases EventSlugAlias[]
+  telegramPost TelegramEventPost?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -569,4 +570,19 @@ model FighterSlugAlias {
   createdAt DateTime @default(now())
 
   @@index([fighterId])
+}
+
+// Пост с пиками турнира в Telegram-канале: id сообщения для правки и закрепа,
+// хэш текста — чтобы править только при изменениях (lib/telegram-picks-runner.ts).
+model TelegramEventPost {
+  eventId    String    @id
+  messageId  Int
+  textHash   String
+  postedAt   DateTime  @default(now())
+  pinnedAt   DateTime?
+  unpinnedAt DateTime?
+  updatedAt  DateTime  @updatedAt
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([unpinnedAt])
 }

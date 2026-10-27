@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { TelegramPicksCta } from "@/components/telegram-picks-cta";
 import { getPredictionAccuracy, getPredictionsPageData } from "@/lib/db";
 import { isPickPending, pickPendingText } from "@/lib/event-picks";
 import { formatUnits } from "@/lib/prediction-roi";
@@ -149,6 +150,8 @@ export default async function PredictionsPage() {
           </p>
         </section>
       ) : null}
+
+      <TelegramPicksCta locale={locale} />
 
       {eventsWithSnapshots.length === 0 ? (
         <section className="filter-empty-state">

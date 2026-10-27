@@ -500,8 +500,8 @@ export default async function HomePage() {
             <h3>{isRu ? "Не пропустить турнир" : "Never miss a card"}</h3>
             <p className="copy">
               {isRu
-                ? "Кард, пики и результаты турнирного вечера — в Telegram и VK, а push в браузере напомнит перед главным кардом."
-                : "Card, picks, and results of fight night in Telegram and VK, plus a browser push before the main card."}
+                ? "Пики на весь кард и новости UFC — в Telegram и VK, а push в браузере напомнит перед главным кардом."
+                : "Full-card picks and UFC news in Telegram and VK, plus a browser push before the main card."}
             </p>
             <div className="home-follow-row">
               {hasTelegram ? (

@@ -1,7 +1,7 @@
 // Цели Яндекс.Метрики. Вызывается только из клиентских компонентов; на сервере — no-op.
 // Имена целей регистрируются в кабинете Метрики как «JavaScript-событие»:
 // push_subscribe_click, social_telegram_click, social_vk_click,
-// share_telegram, share_vk, share_copy.
+// share_telegram, share_vk, share_copy, prediction_telegram_click.
 
 export function reachMetrikaGoal(goal: string) {
   if (typeof window === "undefined") {

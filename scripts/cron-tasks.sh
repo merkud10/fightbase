@@ -451,8 +451,22 @@ case "${TASK}" in
     log "bridge-check ok: ${body}"
     ;;
 
+  telegram-picks)
+    # Раз в час: пост с пиками ближайшего турнира в Telegram-канал, правка до
+    # начала турнира и закреп до следующего (lib/telegram-picks-runner.ts).
+    log "Starting telegram-picks"
+    response=$(call_api "/api/cron/telegram-picks") || {
+      rc=$?
+      log "telegram-picks FAILED ($(describe_curl_failure "${rc}"))"
+      exit 1
+    }
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | head -n -1)
+    log "telegram-picks HTTP ${http_code}: ${body}"
+    ;;
+
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check|retry-predictions}"
+    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check|retry-predictions|telegram-picks}"
     exit 1
     ;;
 esac
