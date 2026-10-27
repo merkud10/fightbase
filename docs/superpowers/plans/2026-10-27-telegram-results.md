@@ -100,13 +100,13 @@ test("buildTelegramResultsPost scores the card against the favorite and the rece
       "Угадала 2 из 3 (67%) · фаворит по предматчевой оценке — 1 из 3",
       "",
       "Основной кард",
-      "✅ main Альфа — main Бета · победил main Альфа",
-      "❌ co Альфа — co Бета · пик co Альфа, победил co Бета",
+      "✅ main Альфа — main Бета · победа: main Альфа",
+      "❌ co Альфа — co Бета · пик co Альфа, победа: co Бета",
       "",
       "Прелимы",
-      "✅ upset Альфа — upset Бета · победил upset Бета 🔥 против фаворита",
+      "✅ upset Альфа — upset Бета · победа: upset Бета 🔥 против фаворита",
       "➖ draw Альфа — draw Бета · ничья, в счёт не идёт",
-      "▫️ nopick Альфа — nopick Бета · победил nopick Альфа",
+      "▫️ nopick Альфа — nopick Бета · победа: nopick Альфа",
       "",
       "За последние 5 турниров: 55% (43 из 78), фаворит — 65%",
       "Результаты и разборы: https://fightbase.ru/ru/events/ufc-334"
@@ -348,12 +348,12 @@ function formatResultLine(fight: TelegramPicksFight) {
 
   const winner = fight.winnerFighterId === fight.fighterAId ? nameA : nameB;
   const pickId = fight.predictionSnapshot?.aiPickFighterId;
-  if (!pickId || (pickId !== fight.fighterAId && pickId !== fight.fighterBId)) return `▫️ ${pair} · победил ${winner}`;
+  if (!pickId || (pickId !== fight.fighterAId && pickId !== fight.fighterBId)) return `▫️ ${pair} · победа: ${winner}`;
   if (pickId === fight.winnerFighterId) {
     const favoriteId = favoriteFighterId(fight);
-    return `✅ ${pair} · победил ${winner}${favoriteId && favoriteId !== pickId ? " 🔥 против фаворита" : ""}`;
+    return `✅ ${pair} · победа: ${winner}${favoriteId && favoriteId !== pickId ? " 🔥 против фаворита" : ""}`;
   }
-  return `❌ ${pair} · пик ${pickId === fight.fighterAId ? nameA : nameB}, победил ${winner}`;
+  return `❌ ${pair} · пик ${pickId === fight.fighterAId ? nameA : nameB}, победа: ${winner}`;
 }
 
 function formatEventScoreLine(fights: TelegramPicksFight[]) {

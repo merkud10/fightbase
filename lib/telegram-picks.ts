@@ -204,12 +204,12 @@ function formatResultLine(fight: TelegramPicksFight) {
 
   const winner = fight.winnerFighterId === fight.fighterAId ? nameA : nameB;
   const pickId = fight.predictionSnapshot?.aiPickFighterId;
-  if (!pickId || (pickId !== fight.fighterAId && pickId !== fight.fighterBId)) return `▫️ ${pair} · победил ${winner}`;
+  if (!pickId || (pickId !== fight.fighterAId && pickId !== fight.fighterBId)) return `▫️ ${pair} · победа: ${winner}`;
   if (pickId === fight.winnerFighterId) {
     const favoriteId = favoriteFighterId(fight);
-    return `✅ ${pair} · победил ${winner}${favoriteId && favoriteId !== pickId ? " 🔥 против фаворита" : ""}`;
+    return `✅ ${pair} · победа: ${winner}${favoriteId && favoriteId !== pickId ? " 🔥 против фаворита" : ""}`;
   }
-  return `❌ ${pair} · пик ${pickId === fight.fighterAId ? nameA : nameB}, победил ${winner}`;
+  return `❌ ${pair} · пик ${pickId === fight.fighterAId ? nameA : nameB}, победа: ${winner}`;
 }
 
 function formatEventScoreLine(fights: TelegramPicksFight[]) {
