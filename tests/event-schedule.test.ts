@@ -44,7 +44,8 @@ test("buildScheduleRows returns nothing without upcoming events", () => {
 
 test("buildNearbyEvents skips the current event and counts ready picks", () => {
   const withPicks = event("moicano-nolan", "2026-11-01", "upcoming", [{ id: "a" }, { id: "b" }]);
-  (withPicks.fights[0] as { predictionSnapshot?: unknown }).predictionSnapshot = { id: "p" };
+  Object.assign(withPicks.fights[0]!, { predictionSnapshot: { aiPickFighterId: "fa" } });
+  Object.assign(withPicks.fights[1]!, { predictionSnapshot: { aiPickFighterId: null } });
   const rows = buildNearbyEvents("ufc-335", [
     event("ufc-335", "2026-12-13", "upcoming"),
     event("ufc-333", "2026-10-24", "completed"),
@@ -68,4 +69,12 @@ test("buildNearbyEvents keeps at most the requested number of events", () => {
   );
   assert.equal(rows.length, 3);
   assert.equal(rows[0]?.event.slug, "e-2026-11-01");
+});
+
+test("buildNearbyEvents does not mark a later event as next on the nearest event's own page", () => {
+  const rows = buildNearbyEvents("moicano-nolan", [
+    event("moicano-nolan", "2026-11-01", "upcoming"),
+    event("bonfim-brady", "2026-11-08", "upcoming")
+  ]);
+  assert.deepEqual(rows.map((row) => [row.event.slug, row.isNext]), [["bonfim-brady", false]]);
 });
