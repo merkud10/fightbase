@@ -532,6 +532,20 @@ export default async function FighterPage({
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" · ")} />
 
+      {hasProfileRecentFights || hasStructuredRecentFights || hasVitals || hasOfficialStats ? (
+        <nav className="fighter-section-nav" aria-label={locale === "ru" ? "Разделы профиля" : "Profile sections"}>
+          {hasProfileRecentFights || hasStructuredRecentFights ? (
+            <a href="#recent-fights">{locale === "ru" ? "Последние бои" : "Recent fights"}</a>
+          ) : null}
+          {hasOfficialStats ? (
+            <a href="#fighter-stats">{locale === "ru" ? "Статистика UFC" : "UFC stats"}</a>
+          ) : null}
+          {hasVitals ? (
+            <a href="#fighter-vitals">{locale === "ru" ? "Параметры" : "Vitals"}</a>
+          ) : null}
+        </nav>
+      ) : null}
+
       {nextFight && nextFightOpponent ? (
         <section className="policy-card" aria-label={locale === "ru" ? "Следующий бой" : "Next fight"}>
           <p className="kicker">{locale === "ru" ? "Следующий бой" : "Next fight"}</p>
@@ -582,7 +596,7 @@ export default async function FighterPage({
           </div>
 
           {hasProfileRecentFights || hasStructuredRecentFights ? (
-            <div className="table-card">
+            <div className="table-card" id="recent-fights" tabIndex={-1}>
               <h3>{locale === "ru" ? "Последние бои" : "Recent fights"}</h3>
 
               {hasProfileRecentFights ? (
@@ -681,7 +695,7 @@ export default async function FighterPage({
 
         <aside className="stack">
           {hasVitals ? (
-            <div className="policy-card">
+            <div className="policy-card" id="fighter-vitals" tabIndex={-1}>
               <h3>{locale === "ru" ? "Параметры" : "Vitals"}</h3>
               {fighter.age ? (
                 <p className="copy">
@@ -703,7 +717,7 @@ export default async function FighterPage({
           ) : null}
 
           {hasOfficialStats ? (
-            <div className="policy-card">
+            <div className="policy-card" id="fighter-stats" tabIndex={-1}>
               <h3>{locale === "ru" ? "Официальная статистика UFC" : "Official UFC stats"}</h3>
               <div className="recent-fight-grid">
                 <div>

@@ -1393,6 +1393,32 @@ img {
 
 /* ── FIGHTER ── */
 
+.fighter-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.fighter-section-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+}
+
+.fighter-section-nav a:hover,
+.fighter-section-nav a:focus-visible {
+  border-color: var(--red);
+}
+
+#recent-fights,
+#fighter-stats,
+#fighter-vitals {
+  scroll-margin-top: 112px;
+}
+
 .fighter-avatar {
   display: flex;
   align-items: center;
