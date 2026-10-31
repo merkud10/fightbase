@@ -52,7 +52,7 @@ export default async function PredictionsPage() {
   const collectionUrl = new URL(localizePath("/predictions", locale), siteUrl).toString();
   const eventsWithSnapshots = events.map((event) => ({
     ...event,
-    fights: event.fights.filter((fight) => fight.predictionSnapshot)
+    fights: event.fights.filter((fight) => fight.predictionSnapshot && fight.slug?.trim())
   })).filter((event) => event.fights.length > 0);
   const breadcrumbItems = [
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
@@ -118,6 +118,28 @@ export default async function PredictionsPage() {
         description={heroDescription}
       />
 
+      {eventsWithSnapshots.length > 0 ? (
+        <nav className="prediction-event-nav" aria-label={locale === "ru" ? "Выбрать турнир" : "Choose an event"}>
+          <h2>{locale === "ru" ? "Выбрать турнир" : "Choose an event"}</h2>
+          <ul>
+            {eventsWithSnapshots.map((event) => (
+              <li key={event.id}>
+                <a href={`#predictions-${event.slug}`}>
+                  <strong>{event.name}</strong>
+                  <span>
+                    {new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+                      day: "numeric", month: "long", timeZone: "UTC"
+                    }).format(new Date(event.date))}
+                    {" · "}
+                    {locale === "ru" ? `Разборов: ${event.fights.length}` : `Breakdowns: ${event.fights.length}`}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
       {accuracy.favorite.percent !== null || accuracy.model.percent !== null ? (
         <section className="policy-card" aria-label={locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}>
           <p className="kicker">{locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}</p>
@@ -166,7 +188,7 @@ export default async function PredictionsPage() {
 
       <section className="stack predictions-stack">
         {eventsWithSnapshots.map((event) => (
-          <article key={event.id} className="table-card prediction-event-card prediction-event-card--featured">
+          <article key={event.id} id={`predictions-${event.slug}`} tabIndex={-1} className="table-card prediction-event-card prediction-event-card--featured">
             <div className="prediction-event-head">
               <div>
                 <p className="kicker">

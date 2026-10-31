@@ -3041,6 +3041,45 @@ th {
   gap: 20px;
 }
 
+.prediction-event-nav {
+  margin: 24px 0;
+}
+
+.prediction-event-nav ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.prediction-event-nav a {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  min-height: 44px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow-wrap: anywhere;
+}
+
+.prediction-event-nav a:hover,
+.prediction-event-nav a:focus-visible {
+  border-color: var(--red);
+}
+
+.prediction-event-nav span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.prediction-event-card[id] {
+  scroll-margin-top: 120px;
+}
+
 .prediction-match-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
