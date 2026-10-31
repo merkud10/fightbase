@@ -4413,6 +4413,13 @@ th {
   .event-card-table td:nth-child(5) {
     width: 100%;
   }
+
+  .event-card-table .event-table-link {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 0;
+  }
 }
 
 /* Пик модели в таблице карда турнира */

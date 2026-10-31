@@ -416,12 +416,14 @@ export default async function EventPage({
                             ) : isPickPending(fight) ? (
                               <span className="event-table-pick">{pickPendingText(locale, "short")}</span>
                             ) : null}
-                            <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
-                              {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
-                            </Link>
                           </span>
                         ) : null;
                       })()}
+                      {fight.predictionSnapshot && fight.slug ? (
+                        <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
+                          {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
+                        </Link>
+                      ) : null}
                       {fight.status !== "completed" && !fight.predictionSnapshot ? (
                         <span className="event-table-pending">{pickPendingText(locale, "short")}</span>
                       ) : null}
@@ -480,7 +482,7 @@ export default async function EventPage({
             <h3>{locale === "ru" ? "Быстрые переходы к прогнозам" : "Quick prediction links"}</h3>
             <ul className="event-side-list">
               {orderedFights
-                .filter((fight) => fight.predictionSnapshot)
+                .filter((fight) => fight.predictionSnapshot && fight.slug)
                 .slice(0, 6)
                 .map((fight) => (
                   <li key={fight.id}>
