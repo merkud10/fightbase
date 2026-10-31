@@ -644,6 +644,19 @@ export default async function FighterPage({
                         </div>
                       </div>
 
+                      {fight.eventSlug ? (
+                        <div className="recent-fight-links">
+                          <Link href={localizePath(`/events/${fight.eventSlug}`, locale)}>
+                            {locale === "ru" ? "Кард и результаты турнира" : "Event card and results"}
+                          </Link>
+                          {fight.predictionSlug ? (
+                            <Link href={localizePath(`/predictions/${fight.eventSlug}/${fight.predictionSlug}`, locale)}>
+                              {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
+                            </Link>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                     </article>
                   ))}
                 </div>

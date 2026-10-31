@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
 import { fighterNameKey, getFighterNameIndex } from "@/lib/fighter-name-index";
+import { resolveFighterHistoryLinks } from "@/lib/fighter-history-links";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -557,7 +558,8 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
       include: {
         event: true,
         fighterA: true,
-        fighterB: true
+        fighterB: true,
+        predictionSnapshot: { select: { id: true } }
       },
       orderBy: { createdAt: "desc" },
       take: 50
@@ -605,9 +607,14 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
   const linkedProfileRecentFights = visibleProfileRecentFights.map((fight) => {
     const opponent = nameIndex.get(fighterNameKey(fight.opponentName));
     if (!opponent || opponent.slug === fighter.slug) {
-      return { ...fight, opponentSlug: null as string | null };
+      return { ...fight, opponentSlug: null as string | null, eventSlug: null, predictionSlug: null };
     }
-    return { ...fight, opponentNameRu: opponent.nameRu || fight.opponentNameRu, opponentSlug: opponent.slug };
+    return {
+      ...fight,
+      opponentNameRu: opponent.nameRu || fight.opponentNameRu,
+      opponentSlug: opponent.slug,
+      ...resolveFighterHistoryLinks({ date: fight.date, opponentSlug: opponent.slug }, fighter.id, recentFights)
+    };
   });
 
   const visibleRecentFights = recentFights.filter((fight) => {
