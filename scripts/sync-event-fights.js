@@ -4,6 +4,7 @@ const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
 const { fighterNameKey, findExactFighterMatch, findFighterByNameKey } = require("./fighter-name-matching");
+const { parseResultTime } = require("./espn-result-time");
 
 const prisma = new PrismaClient();
 
@@ -97,21 +98,6 @@ function parseResultType(competition, winnerOrder) {
   if (/no[\s-]*contest|\bn\/?c\b/i.test(resultText)) return "no_contest";
   if (/draw/i.test(resultText)) return "draw";
   return null;
-}
-
-function parseResultTime(competition) {
-  const status = competition.status || {};
-  const totalSeconds = Math.round(status.clock ?? 0);
-  const roundLength = 300;
-  const elapsed = roundLength - totalSeconds;
-
-  if (elapsed > 0 && elapsed < roundLength) {
-    const minutes = Math.floor(elapsed / 60);
-    const seconds = elapsed % 60;
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return status.displayClock || null;
 }
 
 function inferStage(reversedIndex, total) {
