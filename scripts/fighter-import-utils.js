@@ -926,7 +926,9 @@ const preferredRussianNameMap = {
   "Valentina Shevchenko": "Валентина Шевченко",
   "Jon Jones": "Джон Джонс",
   // gpt-6.1-sol с поиском взял полное «Джозеф»; в UFC и в запросах он Joe.
-  "Joe Kropschot": "Джо Кропшот"
+  "Joe Kropschot": "Джо Кропшот",
+  // Был «Пифер»; в выдаче Google по UFC 335 (31.10.2026) все пишут «Пайфер».
+  "Joe Pyfer": "Джо Пайфер"
 };
 
 function getManualRussianName(name) {
