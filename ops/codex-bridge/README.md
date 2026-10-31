@@ -5,8 +5,8 @@
 ## Установка / обновление
 
 ```bash
-scp -i ~/.ssh/fightbase_deploy -r ops/codex-bridge root@201.51.10.131:/root/codex-bridge-src
-ssh -i ~/.ssh/fightbase_deploy root@201.51.10.131 'bash /root/codex-bridge-src/install-vps.sh'
+scp -i ~/.ssh/fightbase_deploy -r ops/codex-bridge root@31.56.48.34:/root/codex-bridge-src
+ssh -i ~/.ssh/fightbase_deploy root@31.56.48.34 'bash /root/codex-bridge-src/install-vps.sh'
 ```
 
 ## Логин (один раз и при протухании)
@@ -14,7 +14,7 @@ ssh -i ~/.ssh/fightbase_deploy root@201.51.10.131 'bash /root/codex-bridge-src/i
 В ChatGPT: Settings → Security → Device code authorization → включить. Затем:
 
 ```bash
-ssh -i ~/.ssh/fightbase_deploy root@201.51.10.131 'sudo -H -u codexbridge codex login --device-auth'
+ssh -i ~/.ssh/fightbase_deploy root@31.56.48.34 'sudo -H -u codexbridge codex login --device-auth'
 ```
 
 Код из вывода подтвердить на своём устройстве. Проверка: `curl -s 127.0.0.1:8787/healthz` → `"loggedIn": true`.
@@ -50,8 +50,9 @@ Codex разлогинился. Ручной запуск: `sudo -u fightbase ba
 
 ## Переезд на новый VPS
 
-С 13.10.2026 мост живёт на `201.51.10.131` (Timeweb, Амстердам, рядом Amnezia
-в Docker); прежний `31.59.185.86` (HostVDS) недоступен.
+С 31.10.2026 мост живёт на `31.56.48.34` (HostVDS, Франция, рядом Amnezia
+в Docker, UDP 35176); прежние `201.51.10.131` (Timeweb, Амстердам) и
+`31.59.185.86` (HostVDS) недоступны.
 
 1. Положить на VPS `/etc/codex-bridge/env` с тем же `CODEX_BRIDGE_TOKEN`, что в
    `/opt/fightbase/.env` прода, — тогда `.env` прода не меняется. Затем установка
