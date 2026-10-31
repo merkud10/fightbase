@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MetrikaInternalLink } from "@/components/metrika-goal-link";
 
 import { buildCardPredictionRows, type CardPredictionFight, type CardPredictionState } from "@/lib/card-predictions";
 import { formatWeightClass, getDisplayName } from "@/lib/display";
@@ -64,7 +65,8 @@ export function CardPredictionsList({
       </h3>
       <div className="event-fight-list">
         {rows.map(({ fight, state }) => (
-          <Link
+          <MetrikaInternalLink
+            goal="prediction_next_click"
             key={fight.id}
             href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}
             className="event-fight-row card-predictions-row"
@@ -79,7 +81,7 @@ export function CardPredictionsList({
               </span>
             </span>
             <span className="event-table-pick">{describeState(state, fight.fighterA, fight.fighterB, locale)}</span>
-          </Link>
+          </MetrikaInternalLink>
         ))}
       </div>
       <Link href={localizePath(`/events/${event.slug}`, locale)} className="event-table-link">

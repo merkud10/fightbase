@@ -6,6 +6,7 @@ export const revalidate = 3600;
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
+import { MetrikaInternalLink } from "@/components/metrika-goal-link";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
 import { buildPairSlug } from "@/lib/compare-pairs";
@@ -420,9 +421,9 @@ export default async function EventPage({
                         ) : null;
                       })()}
                       {fight.predictionSnapshot && fight.slug ? (
-                        <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
+                        <MetrikaInternalLink goal="event_prediction_click" href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)} className="event-table-link">
                           {locale === "ru" ? "Разбор боя" : "Fight breakdown"}
-                        </Link>
+                        </MetrikaInternalLink>
                       ) : null}
                       {fight.status !== "completed" && !fight.predictionSnapshot ? (
                         <span className="event-table-pending">{pickPendingText(locale, "short")}</span>
@@ -467,9 +468,9 @@ export default async function EventPage({
               </p>
               <p className="copy">
                 {leadFight.predictionSnapshot && leadFight.slug ? (
-                  <Link href={localizePath(`/predictions/${event.slug}/${leadFight.slug}`, locale)}>
+                  <MetrikaInternalLink goal="event_prediction_click" href={localizePath(`/predictions/${event.slug}/${leadFight.slug}`, locale)}>
                     {locale === "ru" ? "Разбор и прогноз боя →" : "Breakdown and pick →"}
-                  </Link>
+                  </MetrikaInternalLink>
                 ) : (
                   <Link href={localizePath(`/compare/${buildPairSlug(leadFight.fighterA.slug, leadFight.fighterB.slug)}`, locale)}>
                     {locale === "ru" ? "Сравнить бойцов →" : "Compare fighters →"}
@@ -486,10 +487,10 @@ export default async function EventPage({
                 .slice(0, 6)
                 .map((fight) => (
                   <li key={fight.id}>
-                    <Link href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}>
+                    <MetrikaInternalLink goal="event_prediction_click" href={localizePath(`/predictions/${event.slug}/${fight.slug}`, locale)}>
                       {locale === "ru" ? fight.fighterA.nameRu ?? fight.fighterA.name : fight.fighterA.name} vs{" "}
                       {locale === "ru" ? fight.fighterB.nameRu ?? fight.fighterB.name : fight.fighterB.name}
-                    </Link>
+                    </MetrikaInternalLink>
                   </li>
                 ))}
             </ul>
