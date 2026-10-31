@@ -39,3 +39,28 @@ export function buildEventSeoName(eventName: string, main: MainEvent) {
 
   return eventName;
 }
+
+// Заголовок предстоящего турнира. Google режет title примерно на 60 символах,
+// и у «UFC 335 (ЮФС 335) Оливейра — Лопес: кард участников…» в выдаче (31.10.2026)
+// осталось только имя турнира, а запросы — «юфс 335 кард», «ufc 335 кард».
+// Поэтому у номерных турниров «кард» сразу после номера.
+export function buildUpcomingEventTitle(eventName: string, main: MainEvent) {
+  const numbered = eventName.match(/^UFC\s+(\d+)\b/i);
+  if (numbered) {
+    const base = `UFC ${numbered[1]} (ЮФС ${numbered[1]})`;
+    return isRealMainEvent(main)
+      ? `${base} кард: ${surname(main.a.name)} — ${surname(main.b.name)}, дата и время по Москве`
+      : `${base}: кард участников, дата и время по Москве`;
+  }
+  return `${buildEventSeoName(eventName, main)}: кард участников, дата и время по Москве`;
+}
+
+// Пары после главного боя для описания: конкуренты в сниппете перечисляют
+// громкие бои карда («Павлович — Перейра, Морено — Джонсон»), а у нас было
+// только «Кард из 6 боёв».
+export function buildCardHighlights(fights: MainEvent[], limit = 3) {
+  return fights
+    .filter(isRealMainEvent)
+    .slice(0, limit)
+    .map((fight) => `${surname(fight.a.name)} — ${surname(fight.b.name)}`);
+}

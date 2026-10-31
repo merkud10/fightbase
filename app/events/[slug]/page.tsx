@@ -12,7 +12,7 @@ import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData, getScheduleHubData, resolveEventSlugRedirect } from "@/lib/db";
 import { describeFightPick, isPickPending, pickPendingText, summarizeEventPicks } from "@/lib/event-picks";
 import { buildNearbyEvents } from "@/lib/event-schedule";
-import { buildEventSeoName, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
+import { buildCardHighlights, buildEventSeoName, buildUpcomingEventTitle, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
@@ -75,11 +75,18 @@ export async function generateMetadata({
   const whenWhere = `${dateLabel}${location ? `, ${location}` : ""}`.replace(/\.$/, "");
   // После «всех»/«из» нужен родительный падеж: «из 1 боя», «из 5 боёв».
   const fightsGenitive = `${fightCount} ${fightCount % 10 === 1 && fightCount % 100 !== 11 ? "боя" : "боёв"}`;
+  const highlights = buildCardHighlights(
+    orderedFights.slice(1).map((fight) => ({
+      a: { slug: fight.fighterA.slug, name: getDisplayName(fight.fighterA, "ru") },
+      b: { slug: fight.fighterB.slug, name: getDisplayName(fight.fighterB, "ru") }
+    }))
+  );
+  const highlightsLine = highlights.length ? ` Также в карде: ${highlights.join(", ")}.` : "";
   const description =
     locale === "ru"
       ? isCompleted
         ? `${seoName}: результаты ${fightCount === 1 ? "боя" : `всех ${fightsGenitive}`}, ${whenWhere}.${mainEventLine} Итоги пиков ИИ-модели FightBase и разборы боёв.`
-        : `${seoName}: ${whenWhere}. Кард из ${fightsGenitive}, время по Москве, прогнозы FightBase на каждый бой.${mainEventLine}${startLine}`
+        : `${seoName}: ${whenWhere}.${mainEventLine}${highlightsLine} Кард из ${fightsGenitive}, время по Москве, прогнозы FightBase на каждый бой.${startLine}`
       : isCompleted
         ? `${event.name}: results of all ${fightCount} fights, ${whenWhere}.${mainEventLine} FightBase AI pick tally and fight breakdowns.`
         : `${event.name}: ${whenWhere}. ${fightCount}-fight card, start times, FightBase picks for every bout.${mainEventLine}${startLine}`;
@@ -89,7 +96,7 @@ export async function generateMetadata({
       ? `${seoName}: результаты и кард турнира`
       : `${event.name} — results and card`
     : locale === "ru"
-      ? `${seoName}: кард участников, дата и время по Москве`
+      ? buildUpcomingEventTitle(event.name, main)
       : `${event.name} — date, start time, and card`;
   const ogTitle = locale === "ru" ? `${event.name}: кард турнира UFC` : `${event.name}: UFC event page`;
   const leadPhoto = orderedFights[0]?.fighterA?.photoUrl ?? orderedFights[0]?.fighterB?.photoUrl;
