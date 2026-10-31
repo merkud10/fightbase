@@ -128,7 +128,7 @@ test("buildTelegramPicksPost lists the card in order with groups, picks and the 
       "• prelim Альфа — prelim Бета → prelim Альфа, 64%",
       "• late Альфа — late Бета → пик позже",
       "",
-      "Все разборы: https://fightbase.ru/ru/events/ufc-334"
+      "Все разборы: https://fightbase.ru/ru/events/ufc-334?utm_source=telegram&utm_medium=social&utm_campaign=event_picks"
     ].join("\n")
   );
 });
@@ -221,7 +221,7 @@ test("buildTelegramResultsPost scores the card against the favorite and the rece
       "▫️ nopick Альфа — nopick Бета · победа: nopick Альфа",
       "",
       "За последние 5 турниров: 55% (43 из 78), фаворит — 65%",
-      "Результаты и разборы: https://fightbase.ru/ru/events/ufc-334"
+      "Результаты и разборы: https://fightbase.ru/ru/events/ufc-334?utm_source=telegram&utm_medium=social&utm_campaign=event_results"
     ].join("\n")
   );
 });

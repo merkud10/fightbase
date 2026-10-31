@@ -3,14 +3,14 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
-const METRIKA_ID = 108511042;
+import { METRIKA_ID } from "@/lib/metrika-config";
 
 function MetrikaPageHit() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (typeof window !== "undefined" && typeof window.ym === "function") {
+    if (METRIKA_ID && typeof window !== "undefined" && typeof window.ym === "function") {
       window.ym(METRIKA_ID, "hit", window.location.href);
     }
   }, [pathname, searchParams]);

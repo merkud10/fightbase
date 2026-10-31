@@ -4,6 +4,7 @@
 // считают те же функции, что сайт, чтобы канал и страницы не расходились.
 
 import { getDisplayName } from "@/lib/display";
+import { buildCampaignUrl } from "@/lib/campaign-url";
 import { describeFightPick } from "@/lib/event-picks";
 import { formatCardNightLabel, formatCardTime } from "@/lib/event-time";
 import { sortFightsForCard, type FightCardSortable } from "@/lib/fight-card";
@@ -177,7 +178,7 @@ export function buildTelegramPicksPost(event: TelegramPicksEvent, siteUrl: strin
   const fights = event.fights.filter((fight) => fight.status === "scheduled");
   const head = `🥊 Пики ИИ-модели FightBase: ${event.name}\n${formatEventDateLine(event)}`;
   const cardBlocks = buildCardBlocks(fights, formatPickLine);
-  const link = `Все разборы: ${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`;
+  const link = `Все разборы: ${buildCampaignUrl(`${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`, "telegram", "event_picks")}`;
   const valueLines = sortFightsForCard(fights).flatMap((fight) => {
     const valuePick = resolveFightValuePick(fight);
     return valuePick ? [formatValuePickLabel(fight, valuePick)] : [];
@@ -259,7 +260,7 @@ export function buildTelegramResultsPost(event: TelegramPicksEvent, accuracy: Te
   const head = `📊 Итоги ИИ-модели FightBase: ${event.name}\n${formatEventScoreLine(fights)}`;
   const cardBlocks = buildCardBlocks(fights, formatResultLine);
   const accuracyLine = formatAccuracyLine(accuracy);
-  const footer = [accuracyLine, `Результаты и разборы: ${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`]
+  const footer = [accuracyLine, `Результаты и разборы: ${buildCampaignUrl(`${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`, "telegram", "event_results")}`]
     .filter(Boolean)
     .join("\n");
   const valueLines = sortFightsForCard(fights).flatMap((fight) => {

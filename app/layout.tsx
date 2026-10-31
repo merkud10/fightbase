@@ -9,6 +9,7 @@ import { Header } from "@/components/header";
 import { ScrollToTop } from "@/components/header-shell";
 import { JsonLd } from "@/components/json-ld";
 import { YandexMetrikaHit } from "@/components/yandex-metrika";
+import { METRIKA_ID } from "@/lib/metrika-config";
 import { getLocale } from "@/lib/i18n";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
 import { getSiteUrl } from "@/lib/site";
@@ -126,7 +127,7 @@ export default async function RootLayout({
 }>) {
   const locale = await getLocale();
   const siteUrl = getSiteUrl().toString().replace(/\/$/, "");
-  const metrikaId = (process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID || "108511042").trim();
+  const metrikaId = METRIKA_ID;
 
   return (
     <html lang={locale}>
