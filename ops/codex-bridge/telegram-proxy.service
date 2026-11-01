@@ -1,0 +1,18 @@
+[Unit]
+Description=Telegram Bot API relay (SSH loopback only)
+After=network-online.target
+
+[Service]
+User=codexbridge
+Group=codexbridge
+ExecStart=/usr/bin/python3 /opt/codex-bridge/telegram-proxy.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=160M
+
+[Install]
+WantedBy=multi-user.target

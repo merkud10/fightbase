@@ -108,7 +108,8 @@ async function sendTelegram(text) {
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const apiBase = (getEnv("TELEGRAM_API_BASE_URL") || "https://api.telegram.org").replace(/\/+$/, "");
+    const response = await fetch(`${apiBase}/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

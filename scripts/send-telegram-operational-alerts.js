@@ -208,7 +208,8 @@ async function recordAlertDeliveryEvent(level, message, meta) {
 }
 
 async function sendTelegramMessage(token, chatId, text) {
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const apiBase = (process.env.TELEGRAM_API_BASE_URL || "https://api.telegram.org").replace(/\/+$/, "");
+  const response = await fetch(`${apiBase}/bot${token}/sendMessage`, {
     method: "POST",
     headers: {
       "content-type": "application/json"
