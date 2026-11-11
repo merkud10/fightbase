@@ -288,6 +288,12 @@ case "${TASK}" in
     if [ "${updated:-0}" != "0" ]; then
       send_tg_alert "✅ Карточки к ближайшим турнирам: обновлено ${updated}"
     fi
+    # Пустая запись-дубль бойца с ближайшего карда (пара «дубль=полный профиль»):
+    # сама она не заполнится, склеивать нужно руками.
+    duplicates="$(echo "${output}" | sed -n 's/^Suspected duplicates: //p' | tail -n 1)"
+    if [ -n "${duplicates}" ]; then
+      send_tg_alert "⚠️ Дубли бойцов ближайших турниров (пустая карточка=полный профиль): ${duplicates}"
+    fi
     ;;
 
   sync-photos-upcoming)

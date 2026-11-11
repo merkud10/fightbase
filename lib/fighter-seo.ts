@@ -126,7 +126,8 @@ export function buildFighterSeo({ fighter, ranking, nextFight, lastFight, locale
       ? `чемпион UFC в ${divisionCase(ranking.division, "prepositional")}`
       : ranking
         ? `боец UFC${country ? ` (${country})` : ""}, №${ranking.rank} ${divisionCase(ranking.division, "genitive")}`
-        : `боец UFC${country ? ` (${country})` : ""}, ${weightClass.toLowerCase()}`;
+        : // У записи без весовой категории не оставляем висящую запятую («боец UFC, .»).
+          `боец UFC${country ? ` (${country})` : ""}${weightClass ? `, ${weightClass.toLowerCase()}` : ""}`;
     const tail = [record ? `рекорд ${record}` : null, fighter.age ? ageLabel(fighter.age, "ru") : null].filter(Boolean).join(", ");
     lead.push(`${who} — ${role}${tail ? `, ${tail}` : ""}.`);
     if (nextFight) {
@@ -138,11 +139,12 @@ export function buildFighterSeo({ fighter, ranking, nextFight, lastFight, locale
     lead.push("Статистика UFC, последние бои, параметры и прогнозы FightBase.");
   } else {
     const who = `${fighter.name}${nickname ? ` "${nickname}"` : ""}`;
+    const division = weightClass ? `${weightClass.toLowerCase()} ` : "";
     const role = ranking?.champion
-      ? `UFC ${weightClass.toLowerCase()} champion`
+      ? `UFC ${division}champion`
       : ranking
-        ? `UFC ${weightClass.toLowerCase()} fighter ranked #${ranking.rank}`
-        : `UFC ${weightClass.toLowerCase()} fighter`;
+        ? `UFC ${division}fighter ranked #${ranking.rank}`
+        : `UFC ${division}fighter`;
     const tail = [country ? `from ${country}` : null, record ? `record ${record}` : null, fighter.age ? ageLabel(fighter.age, "en") : null].filter(Boolean).join(", ");
     lead.push(`${who} — ${role}${tail ? `, ${tail}` : ""}.`);
     if (nextFight) {

@@ -92,3 +92,15 @@ test("formatFightMethod translates verbose decision and stoppage strings", () =>
   assert.equal(formatFightMethod("Decision - Unanimous", "ru"), "Единогласное решение");
   assert.equal(formatFightMethod("something odd", "ru"), "something odd");
 });
+
+test("a profile without a weight class or record leaves no dangling comma in the description", () => {
+  const seo = buildFighterSeo({
+    fighter: { ...fighter, name: "Gabriel Lorenço", nameRu: "Габриэль Лоренсо", nickname: null, record: "", weightClass: "", country: "", age: 0, team: "" },
+    ranking: null,
+    nextFight: null,
+    lastFight: null,
+    locale: "ru"
+  });
+  assert.ok(seo.description.startsWith("Габриэль Лоренсо — боец UFC. "), seo.description);
+  assert.ok(!seo.description.includes(", ."), seo.description);
+});

@@ -198,7 +198,7 @@ async function runCli(script: string, outcomes: Array<EnrichmentResult | Error>,
       async $disconnect() { disconnected = true; }
     } },
     "./fighter-import-utils": { parseArgs },
-    "./fighter-name-matching": { findExactFighterMatch: () => null },
+    "./fighter-name-matching": { findExactFighterMatch: () => null, findSuspectedDuplicates: () => [] },
     "./espn-roster-utils": { collectScoreboardCompetitors: () => fighters.map(f => ({ espnId: f.espnId, fullName: f.name })) },
     "./espn-enrich": {
       ESPN_FIGHTER_SELECT, needsEspnBackfill, isProfileIncomplete, REQUEST_DELAY_MS: 0, sleep: async () => {}, fetchJson: async () => ({}),

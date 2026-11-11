@@ -5,6 +5,7 @@ import { cache } from "react";
 import { getWeightClassFilterValues, isUsablePhoto, normalizeWeightClassValue } from "@/lib/display";
 import { fighterNameKey, getFighterNameIndex } from "@/lib/fighter-name-index";
 import { resolveFighterHistoryLinks } from "@/lib/fighter-history-links";
+import { buildHistoryFromOwnFights, mergeOwnFightsIntoHistory } from "@/lib/fighter-own-history";
 import { prisma } from "@/lib/prisma";
 import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "./articles";
 
@@ -647,11 +648,21 @@ export const getFighterPageData = cache(async function getFighterPageData(slug: 
     }
   });
 
+  // Запасные данные из наших боёв: свежий бой, которого ещё нет в истории
+  // профиля, и весовая категория для записи, которую синк профилей не заполнил.
+  const ownHistory = buildHistoryFromOwnFights(recentFights, fighter.id);
+  const history = mergeOwnFightsIntoHistory(
+    linkedProfileRecentFights.map((fight) => ({ ...fight, weightClass: fight.weightClass ?? null })),
+    ownHistory
+  );
+  const latestOwnFight = [...recentFights].sort((a, b) => b.event.date.getTime() - a.event.date.getTime())[0];
+  const weightClass = fighter.weightClass.trim() || latestOwnFight?.weightClass || "";
+
   return {
-    fighter,
+    fighter: { ...fighter, weightClass },
     nextFight,
     recentFights: visibleRecentFights,
-    profileRecentFights: linkedProfileRecentFights,
+    profileRecentFights: history,
     relatedArticles: relatedArticles.filter((article) => hasRenderablePublicArticleImage(article.coverImageUrl)).slice(0, 20)
   };
 });

@@ -20,7 +20,7 @@
 const { PrismaClient } = require("@prisma/client");
 
 const { parseArgs } = require("./fighter-import-utils");
-const { findExactFighterMatch } = require("./fighter-name-matching");
+const { findExactFighterMatch, findSuspectedDuplicates } = require("./fighter-name-matching");
 const { collectScoreboardCompetitors } = require("./espn-roster-utils");
 const { enrichFighter, fetchJson, isProfileIncomplete, ESPN_FIGHTER_SELECT, REQUEST_DELAY_MS, sleep } = require("./espn-enrich");
 
@@ -105,6 +105,13 @@ async function main() {
   const batch = limit ? eligible.slice(0, limit) : eligible;
 
   console.log(`Matched: ${matched.length}, unmatched (not in roster): ${unmatched}, enriching: ${batch.length}`);
+
+  // Вторая запись того же бойца остаётся пустой навсегда: обогащение идёт в ту,
+  // что держит espnId. Строку ниже читает cron-tasks.sh и шлёт оповещение.
+  const duplicates = findSuspectedDuplicates(competitors, fighters);
+  if (duplicates.length > 0) {
+    console.log(`Suspected duplicates: ${duplicates.map((pair) => `${pair.duplicate}=${pair.canonical}`).join(", ")}`);
+  }
 
   let updated = 0;
   let unchanged = 0;

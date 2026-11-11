@@ -13,7 +13,7 @@ import { getArticleHref } from "@/lib/article-routes";
 import { getFighterPageData, getUfcOfficialRankingLinks, getUfcRankingSnapshot, resolveFighterSlugAlias } from "@/lib/db";
 import { buildFighterSeo, findFighterRanking } from "@/lib/fighter-seo";
 import { getNamedCuratedComparisonPairs } from "@/lib/db/comparison";
-import { formatFightMethod, formatFightStatus, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
+import { formatFightMethod, formatWeightClass, getDisplayName, getFighterInitials } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { buildLocaleAlternates, localizePath } from "@/lib/locale-path";
@@ -444,7 +444,7 @@ export default async function FighterPage({
     notFound();
   }
 
-  const { fighter, nextFight, recentFights, profileRecentFights, relatedArticles } = data;
+  const { fighter, nextFight, profileRecentFights, relatedArticles } = data;
   const displayName = locale === "ru" ? fighter.nameRu ?? fighter.name : fighter.name;
   const nextFightOpponent = nextFight
     ? nextFight.fighterAId === fighter.id
@@ -497,7 +497,6 @@ export default async function FighterPage({
 
   const hasVitals = Boolean(fighter.age || fighter.heightCm || fighter.reachCm || fighter.country);
   const hasProfileRecentFights = profileRecentFights.length > 0;
-  const hasStructuredRecentFights = recentFights.length > 0;
   const hasOfficialStats =
     fighter.sigStrikesLandedPerMin != null ||
     fighter.strikeAccuracy != null ||
@@ -532,9 +531,9 @@ export default async function FighterPage({
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero eyebrow={fighter.promotion?.shortName || "UFC"} title={displayName} description={descriptionBits.join(" · ")} />
 
-      {hasProfileRecentFights || hasStructuredRecentFights || hasVitals || hasOfficialStats ? (
+      {hasProfileRecentFights || hasVitals || hasOfficialStats ? (
         <nav className="fighter-section-nav" aria-label={locale === "ru" ? "Разделы профиля" : "Profile sections"}>
-          {hasProfileRecentFights || hasStructuredRecentFights ? (
+          {hasProfileRecentFights ? (
             <a href="#recent-fights">{locale === "ru" ? "Последние бои" : "Recent fights"}</a>
           ) : null}
           {hasOfficialStats ? (
@@ -595,7 +594,7 @@ export default async function FighterPage({
             <p className="copy">{localizedBio}</p>
           </div>
 
-          {hasProfileRecentFights || hasStructuredRecentFights ? (
+          {hasProfileRecentFights ? (
             <div className="table-card" id="recent-fights" tabIndex={-1}>
               <h3>{locale === "ru" ? "Последние бои" : "Recent fights"}</h3>
 
@@ -660,48 +659,7 @@ export default async function FighterPage({
                     </article>
                   ))}
                 </div>
-              ) : (
-                <div className="table-wrap">
-                  <table>
-                    <caption className="sr-only">
-                      {locale === "ru" ? `Последние бои: ${displayName}` : `${displayName}: recent fights`}
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">{locale === "ru" ? "Турнир" : "Event"}</th>
-                        <th scope="col">{locale === "ru" ? "Соперник" : "Opponent"}</th>
-                        <th scope="col">{locale === "ru" ? "Вес" : "Weight"}</th>
-                        <th scope="col">{locale === "ru" ? "Статус" : "Status"}</th>
-                        <th scope="col">{locale === "ru" ? "Итог" : "Result"}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentFights.map((fight) => (
-                        <tr key={fight.id}>
-                          <td>{fight.event.name}</td>
-                          <td>
-                            {(() => {
-                              const opponent = fight.fighterAId === fighter.id ? fight.fighterB : fight.fighterA;
-                              return opponent ? (
-                                <Link href={localizePath(`/fighters/${opponent.slug}`, locale)}>{getDisplayName(opponent, locale)}</Link>
-                              ) : null;
-                            })()}
-                          </td>
-                          <td>{formatWeightClass(fight.weightClass, locale)}</td>
-                          <td>{formatFightStatus(fight.status, locale)}</td>
-                          <td>
-                            {fight.method && fight.resultRound
-                              ? `${fight.method} R${fight.resultRound}`
-                              : locale === "ru"
-                                ? "Назначен"
-                                : "Scheduled"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              ) : null}
             </div>
           ) : null}
         </article>
@@ -798,18 +756,20 @@ export default async function FighterPage({
             </div>
           ) : null}
 
-          <div className="policy-card">
-            <h3>{locale === "ru" ? "Связанные материалы" : "Related stories"}</h3>
-            <ul>
-              {relatedArticles.map((article) => (
-                <li key={article.id}>
-                  <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
-                    {article.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {relatedArticles.length > 0 ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Связанные материалы" : "Related stories"}</h3>
+              <ul>
+                {relatedArticles.map((article) => (
+                  <li key={article.id}>
+                    <Link href={localizePath(getArticleHref(article.category, article.slug), locale)}>
+                      {article.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </aside>
       </section>
     </main>

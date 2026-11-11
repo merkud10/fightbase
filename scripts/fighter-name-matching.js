@@ -59,8 +59,34 @@ function findFighterByNameKey(name, candidates) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+// Подозрение на дубль: скорборд ESPN знает бойца под espnId одной записи, а по
+// имени он совпадает с другой. Так выглядели gabriel-lorenco и jose-souza в
+// ноябре 2026: импорт карда завёл новую пустую запись под новым написанием имени,
+// полный профиль остался под старым слагом, и карточка с боем и прогнозом была
+// пустой. Сам синк такую пару не склеивает — только сообщает.
+function findSuspectedDuplicates(competitors, fighters) {
+  const byEspnId = new Map(fighters.filter((fighter) => fighter.espnId).map((fighter) => [fighter.espnId, fighter]));
+  const pairs = new Map();
+
+  for (const competitor of Array.isArray(competitors) ? competitors : []) {
+    const canonical = byEspnId.get(competitor.espnId);
+    if (!canonical) continue;
+    const sameName = findExactFighterMatch({ name: competitor.fullName }, fighters);
+    if (sameName && sameName.id !== canonical.id) {
+      pairs.set(`${sameName.slug}:${canonical.slug}`, {
+        duplicate: sameName.slug,
+        canonical: canonical.slug,
+        espnId: competitor.espnId
+      });
+    }
+  }
+
+  return [...pairs.values()];
+}
+
 module.exports = {
   fighterNameKey,
+  findSuspectedDuplicates,
   findFighterByNameKey,
   findExactFighterMatch,
   normalizeFighterName,
