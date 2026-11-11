@@ -82,7 +82,78 @@ function parseRankingRows(sectionHtml: string): UfcOfficialRankingRow[] {
 // throw so a transient upstream failure preserves the last successful database snapshot.
 const UFC_RANKINGS_FETCH_TIMEOUT_MS = 15_000;
 
+export type RankChange = { direction: "up" | "down"; delta: number } | { direction: "new" };
+
+// UFC.com пишет изменение позиции в соседней ячейке: «Rank increased by 1»,
+// «Rank decreased by 2», «NR» (на ufc.ru — «НОВ») для новичка рейтинга.
+// Остальные пометки изменением позиции не считаем.
+export function parseRankChange(badge: string | null | undefined): RankChange | null {
+  const text = (badge ?? "").trim();
+  if (!text) return null;
+
+  const moved = text.match(/rank\s+(increased|decreased)\s+by\s+(\d+)/i);
+  if (moved) {
+    const delta = Number(moved[2]);
+    if (!Number.isFinite(delta) || delta <= 0) return null;
+    return { direction: moved[1]?.toLowerCase() === "increased" ? "up" : "down", delta };
+  }
+
+  return /^(nr|нов)$/i.test(text) ? { direction: "new" } : null;
+}
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11
+};
+
+const LAST_UPDATED_PATTERN = String.raw`Last\s+updated:\s*(?:[A-Za-z]+,\s*)?([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2})(?:,\s*(\d{4}))?`;
+
+// «Last updated: Tuesday, Nov. 10» — дата, когда UFC в последний раз пересчитал
+// рейтинг. На странице таких строк две: первая относится к официальному рейтингу
+// (data-rankings-footer="media"), вторая — к алгоритмическому Meta UFC Rankings.
+// Года в строке нет: берём год опроса, а если дата оказалась в будущем — прошлый.
+// В настоящей разметке между «Last» и «updated» стоит перевод строки с отступом.
+export function parseUfcRankingsUpdatedAt(html: string, now = new Date()): Date | null {
+  const match =
+    html.match(new RegExp(String.raw`data-rankings-footer="media"[^>]*>\s*` + LAST_UPDATED_PATTERN, "i")) ??
+    html.match(new RegExp(LAST_UPDATED_PATTERN, "i"));
+  if (!match) return null;
+
+  const month = MONTH_INDEX[(match[1] ?? "").toLowerCase()];
+  const day = Number(match[2]);
+  if (month === undefined || !Number.isInteger(day) || day < 1 || day > 31) return null;
+
+  const build = (year: number) => new Date(Date.UTC(year, month, day, 12));
+  let date = build(match[3] ? Number(match[3]) : now.getUTCFullYear());
+  if (!match[3] && date.getTime() - now.getTime() > 2 * 86_400_000) {
+    date = build(now.getUTCFullYear() - 1);
+  }
+
+  return date.getUTCMonth() === month && date.getUTCDate() === day ? date : null;
+}
+
+export type UfcOfficialRankingsPage = {
+  groups: UfcOfficialRankingGroup[];
+  // Когда UFC обновил рейтинг; null — строку с датой на странице не нашли.
+  sourceUpdatedAt: Date | null;
+};
+
 export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGroup[]> {
+  return (await fetchUfcOfficialRankingsPage()).groups;
+}
+
+export async function fetchUfcOfficialRankingsPage(): Promise<UfcOfficialRankingsPage> {
+  const empty: UfcOfficialRankingsPage = { groups: [], sourceUpdatedAt: null };
   let html: string;
 
   try {
@@ -96,13 +167,13 @@ export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGrou
 
     if (!response.ok) {
       console.error(`[ufc-rankings] upstream responded ${response.status}; serving empty rankings`);
-      return [];
+      return empty;
     }
 
     html = await response.text();
   } catch (error) {
     console.error("[ufc-rankings] failed to fetch UFC rankings; serving empty rankings", error);
-    return [];
+    return empty;
   }
 
   const groupingMatches = [
@@ -138,5 +209,5 @@ export async function fetchUfcOfficialRankings(): Promise<UfcOfficialRankingGrou
     })
     .filter((group): group is UfcOfficialRankingGroup => group !== null);
 
-  return parsedGroups;
+  return { groups: parsedGroups, sourceUpdatedAt: parseUfcRankingsUpdatedAt(html) };
 }

@@ -8,9 +8,10 @@ export const revalidate = 3600;
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { RankChangeBadge } from "@/components/rank-change";
 import { getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
 import { formatWeightClass } from "@/lib/display";
-import { isPoundForPoundRankingGroup } from "@/lib/ufc-rankings";
+import { isPoundForPoundRankingGroup, parseRankChange } from "@/lib/ufc-rankings";
 import { buildChampionList } from "@/lib/ufc-champions";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -45,21 +46,23 @@ export async function generateMetadata({ searchParams }: RankingsPageProps): Pro
   // Яндекс показывает страницу по «рейтинг юфс (на сегодня)» на 8–9 месте с CTR 0,3–0,6%:
   // в заголовке нужны «ЮФС», «на сегодня» и дата снимка, чтобы было видно, что рейтинг свежий.
   const snapshot = await getUfcRankingSnapshot();
-  const updatedLabel = snapshot
-    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
-        day: "numeric",
-        month: "long",
-        timeZone: "Europe/Moscow"
-      }).format(snapshot.fetchedAt)
-    : null;
+  const dayMonth = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/Moscow"
+  });
+  // «Обновлён» — день, когда рейтинг пересчитал сам UFC, а не день нашего опроса:
+  // опрос идёт ежедневно, и дата опроса выдавала бы за свежее то, что не менялось.
+  const updatedLabel = snapshot ? dayMonth.format(snapshot.sourceUpdatedAt ?? snapshot.fetchedAt) : null;
+  const checkedLabel = snapshot ? dayMonth.format(snapshot.fetchedAt) : null;
   const title =
     locale === "ru"
       ? `Рейтинг UFC (ЮФС) на сегодня по весовым категориям${updatedLabel ? ` — обновлён ${updatedLabel}` : ""}`
       : `UFC rankings today by weight class${updatedLabel ? ` — updated ${updatedLabel}` : ""}`;
   const description =
     locale === "ru"
-      ? `Актуальный рейтинг бойцов UFC (ЮФС)${updatedLabel ? ` на ${updatedLabel}` : ""}: чемпионы, топ-15 всех весовых категорий и pound-for-pound с переходом к профилям бойцов. Обновляется после каждого турнира.`
-      : `Current UFC fighter rankings${updatedLabel ? ` as of ${updatedLabel}` : ""}: champions, the top 15 of every weight class and pound-for-pound, with links to fighter profiles. Updated after every event.`;
+      ? `Актуальный рейтинг бойцов UFC (ЮФС)${checkedLabel ? ` на ${checkedLabel}` : ""}: чемпионы, топ-15 всех весовых категорий и pound-for-pound, кто поднялся и опустился после последнего обновления. Обновляется после каждого турнира.`
+      : `Current UFC fighter rankings${checkedLabel ? ` as of ${checkedLabel}` : ""}: champions, the top 15 of every weight class and pound-for-pound, plus who moved up and down in the latest update. Updated after every event.`;
 
   return {
     title,
@@ -114,6 +117,84 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
         timeZone: "Europe/Moscow"
       }).format(rankingSnapshot.fetchedAt)
     : null;
+
+  const sourceUpdatedLabel = rankingSnapshot?.sourceUpdatedAt
+    ? new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC"
+      }).format(rankingSnapshot.sourceUpdatedAt)
+    : null;
+
+  const resolveName = (officialSlug: string, name: string) => {
+    const link = rankingLinks?.bySlug.get(officialSlug.toLowerCase()) ?? rankingLinks?.byName.get(name.toLowerCase()) ?? null;
+    return { name: (locale === "ru" ? link?.nameRu : null) ?? name, slug: link?.localSlug ?? null };
+  };
+  // Кто сдвинулся в последнем обновлении UFC — по дивизионам, в порядке мест.
+  const rankingChanges = allGroups
+    .map((group) => ({
+      title: group.title,
+      division: findRankingDivision(group.title),
+      movers: group.rows
+        .filter((row) => parseRankChange(row.badge) !== null)
+        .map((row) => ({ ...resolveName(row.officialSlug, row.name), rank: row.rank, badge: row.badge }))
+    }))
+    .filter((item) => item.movers.length > 0);
+  const rankingChangeCount = rankingChanges.reduce((total, item) => total + item.movers.length, 0);
+
+  const faq =
+    locale === "ru"
+      ? [
+          {
+            question: "Как составляется рейтинг UFC?",
+            answer:
+              "Рейтинг определяет голосование журналистов. Участники панели из профильных изданий называют лучших, по их мнению, бойцов в каждой весовой категории и вне зависимости от категорий. Голосовать можно только за действующих бойцов UFC."
+          },
+          {
+            question: "Почему чемпиона нет в топ-15?",
+            answer:
+              "Чемпион и временный чемпион считаются первыми в своём дивизионе и в голосовании по весу не участвуют, поэтому топ-15 — это список претендентов. В рейтинге P4P чемпионы участвуют наравне со всеми."
+          },
+          {
+            question: "Как часто обновляется рейтинг UFC?",
+            answer: `Обычно через два-три дня после каждого турнира.${
+              sourceUpdatedLabel ? ` Последний раз UFC обновил рейтинг ${sourceUpdatedLabel}.` : ""
+            } FightBase сверяет таблицы с UFC.com каждый день.`
+          },
+          {
+            question: "Что такое рейтинг P4P (pound-for-pound)?",
+            answer:
+              "Это список лучших бойцов без учёта веса: кто был бы сильнейшим, если бы все выступали в одной категории. У UFC два таких списка — мужской и женский."
+          },
+          {
+            question: "Что означают стрелки рядом с местом?",
+            answer:
+              "▲ и ▼ показывают, на сколько позиций боец поднялся или опустился после последнего обновления рейтинга, «нов.» — боец вошёл в рейтинг."
+          }
+        ]
+      : [
+          {
+            question: "How are the UFC rankings made?",
+            answer:
+              "The rankings come from a voting panel of media members, who name the top fighters in each weight class and pound-for-pound. Only active UFC fighters are eligible."
+          },
+          {
+            question: "Why is the champion not in the top 15?",
+            answer:
+              "The champion and interim champion hold the top spots of their division and are not voted on by weight class, so the top 15 lists contenders. Champions are eligible for the pound-for-pound list."
+          },
+          {
+            question: "How often are the UFC rankings updated?",
+            answer: `Usually two or three days after each event.${
+              sourceUpdatedLabel ? ` The UFC last updated them on ${sourceUpdatedLabel}.` : ""
+            } FightBase checks UFC.com every day.`
+          },
+          {
+            question: "What do the arrows next to a rank mean?",
+            answer: "▲ and ▼ show how many places a fighter moved in the latest update; “new” marks a fighter who entered the rankings."
+          }
+        ];
 
   const divisionOptions = allGroups.map((g) => g.title);
   const activeDivision = divisionOptions.includes(divisionParam) ? divisionParam : "";
@@ -175,6 +256,17 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
           }}
         />
       ) : null}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faq.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: { "@type": "Answer", text: item.answer }
+          }))
+        }}
+      />
 
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
       <PageHero
@@ -196,9 +288,21 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
               <a href="https://www.ufc.com/rankings" target="_blank" rel="noreferrer">
                 UFC.com
               </a>
+              {sourceUpdatedLabel ? (
+                <>
+                  {locale === "ru" ? " · Рейтинг обновлён UFC " : " · Updated by the UFC on "}
+                  <time dateTime={rankingSnapshot?.sourceUpdatedAt?.toISOString().slice(0, 10)}>{sourceUpdatedLabel}</time>
+                </>
+              ) : null}
               {fetchedAtLabel ? (
                 <>
-                  {locale === "ru" ? " · Обновлено " : " · Updated "}
+                  {sourceUpdatedLabel
+                    ? locale === "ru"
+                      ? " · Сверено с UFC.com "
+                      : " · Checked against UFC.com "
+                    : locale === "ru"
+                      ? " · Обновлено "
+                      : " · Updated "}
                   <time dateTime={rankingSnapshot?.fetchedAt.toISOString()}>{fetchedAtLabel}</time>
                   {rankingSnapshot?.isStale
                     ? locale === "ru"
@@ -252,6 +356,51 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
               </>
             ) : null}
           </section>
+
+          {rankingChanges.length > 0 ? (
+            <section className="policy-card">
+              <h2>
+                {locale === "ru"
+                  ? `Изменения в рейтинге UFC${sourceUpdatedLabel ? ` на ${sourceUpdatedLabel}` : ""}`
+                  : `UFC rankings changes${sourceUpdatedLabel ? ` as of ${sourceUpdatedLabel}` : ""}`}
+              </h2>
+              <p className="table-note">
+                {locale === "ru"
+                  ? `Позиций изменилось в последнем обновлении: ${rankingChangeCount}`
+                  : `Positions changed in the latest update: ${rankingChangeCount}`}
+              </p>
+              <ul className="ranking-changes-list">
+                {rankingChanges.map((item) => (
+                  <li key={item.title}>
+                    {item.division ? (
+                      <Link href={localizePath(`/rankings/${item.division.slug}`, locale)}>
+                        {formatWeightClass(item.title, locale)}
+                      </Link>
+                    ) : (
+                      formatWeightClass(item.title, locale)
+                    )}
+                    {": "}
+                    {item.movers.map((mover, index) => (
+                      <span key={`${item.title}-${mover.rank}`}>
+                        {index > 0 ? ", " : null}
+                        {mover.slug ? (
+                          <Link href={localizePath(`/fighters/${mover.slug}`, locale)}>{mover.name}</Link>
+                        ) : (
+                          mover.name
+                        )}
+                        {" "}
+                        <span className="rank-change-group">
+                          {`(№${mover.rank}`}
+                          <RankChangeBadge badge={mover.badge} locale={locale} />
+                          {")"}
+                        </span>
+                      </span>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {allGroups.length === 0 ? (
             <section className="filter-empty-state">
@@ -340,7 +489,10 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
 
                         return (
                           <tr key={`${group.title}-${fighter.rank}`} className="ranking-row">
-                            <td>{fighter.rank}</td>
+                            <td>
+                              {fighter.rank}
+                              <RankChangeBadge badge={fighter.badge} locale={locale} />
+                            </td>
                             <td>
                               <div className="ranking-fighter-cell">
                                 {link?.photoUrl ? (
@@ -381,6 +533,18 @@ export default async function RankingsPage({ searchParams }: RankingsPageProps) 
               </section>
             );
           })}
+
+          {allGroups.length > 0 ? (
+            <section className="policy-card ranking-faq">
+              <h2>{locale === "ru" ? "Как составляется рейтинг UFC" : "How the UFC rankings work"}</h2>
+              {faq.map((item) => (
+                <div key={item.question}>
+                  <h3>{item.question}</h3>
+                  <p className="copy">{item.answer}</p>
+                </div>
+              ))}
+            </section>
+          ) : null}
         </div>
       </section>
     </main>

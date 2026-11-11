@@ -8,6 +8,7 @@ export const revalidate = 3600;
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
+import { RankChangeBadge } from "@/components/rank-change";
 import { getRankingFighterDetails, getUfcOfficialRankingLinks, getUfcRankingSnapshot } from "@/lib/db";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -114,6 +115,9 @@ export default async function RankingDivisionPage({ params }: DivisionPageProps)
   const updatedLabel = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Moscow" }).format(
     snapshot.fetchedAt
   );
+  const sourceUpdatedLabel = snapshot.sourceUpdatedAt
+    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(snapshot.sourceUpdatedAt)
+    : null;
   const dateLabel = (date: Date) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(date);
 
   return (
@@ -191,7 +195,7 @@ export default async function RankingDivisionPage({ params }: DivisionPageProps)
                   <a href="https://www.ufc.com/rankings" target="_blank" rel="noreferrer">
                     UFC.com
                   </a>{" "}
-                  · обновлено {updatedLabel}
+                  {sourceUpdatedLabel ? `· рейтинг обновлён UFC ${sourceUpdatedLabel} · сверено ${updatedLabel}` : `· обновлено ${updatedLabel}`}
                 </p>
               </div>
             </div>
@@ -213,7 +217,10 @@ export default async function RankingDivisionPage({ params }: DivisionPageProps)
 
                     return (
                       <tr key={`${row.rank}-${row.officialSlug}`} className="ranking-row">
-                        <td>{row.rank}</td>
+                        <td>
+                          {row.rank}
+                          <RankChangeBadge badge={row.badge} locale={locale} />
+                        </td>
                         <td>
                           <div className="ranking-fighter-cell">
                             {row.link?.photoUrl ? (

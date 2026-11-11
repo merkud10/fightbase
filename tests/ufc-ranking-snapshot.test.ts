@@ -176,3 +176,43 @@ test("a full upstream snapshot replaces a degraded one and small changes still w
   const current = { payload: serializeUfcRankingGroups(fullGroups(24, 15)), fetchedAt: new Date("2026-10-25T06:00:00.000Z") };
   assert.equal(planUfcRankingSnapshotRefresh(current, fullGroups(23, 15)).shouldWrite, true);
 });
+
+test("normalizeUfcRankingGroups drops empty duplicates of divisions that already have rows", () => {
+  // Вторая таблица ufc.com (Meta UFC Rankings) даёт те же заголовки без строк.
+  const groups = normalizeUfcRankingGroups([
+    makeGroup("Вне зависимости от категорий Top Rank", [1, 2]),
+    makeGroup("Легкий вес", [1, 2, 3]),
+    makeGroup("Женский полулегкий вес", []),
+    makeGroup("Легкий вес", [])
+  ]);
+  assert.deepEqual(
+    groups.map((group) => [group.title, group.rows.length]),
+    [
+      ["Вне зависимости от категорий", 2],
+      ["Легкий вес", 3],
+      ["Женский полулегкий вес", 0]
+    ]
+  );
+});
+
+test("a refresh stores the UFC update date next to the groups and legacy payloads read without it", () => {
+  const fetchedAt = new Date("2026-11-11T06:00:00.000Z");
+  const sourceUpdatedAt = new Date("2026-11-10T12:00:00.000Z");
+  const plan = planUfcRankingSnapshotRefresh(null, rankingGroups, fetchedAt, sourceUpdatedAt);
+  assert.equal(plan.shouldWrite, true);
+  if (!plan.shouldWrite) return;
+  assert.equal(plan.snapshot.sourceUpdatedAt?.toISOString(), sourceUpdatedAt.toISOString());
+
+  const view = toUfcRankingSnapshotView({ payload: plan.payload, fetchedAt });
+  assert.deepEqual(view?.groups, rankingGroups);
+  assert.equal(view?.sourceUpdatedAt?.toISOString(), sourceUpdatedAt.toISOString());
+
+  const legacy = toUfcRankingSnapshotView({ payload: serializeUfcRankingGroups(rankingGroups), fetchedAt });
+  assert.deepEqual(legacy?.groups, rankingGroups);
+  assert.equal(legacy?.sourceUpdatedAt, null);
+
+  // Следующее обновление сравнивает новый снимок с сохранённым конвертом.
+  const next = planUfcRankingSnapshotRefresh({ payload: plan.payload, fetchedAt }, [], new Date("2026-11-12T06:00:00.000Z"));
+  assert.equal(next.shouldWrite, false);
+  assert.equal(next.snapshot?.sourceUpdatedAt?.toISOString(), sourceUpdatedAt.toISOString());
+});

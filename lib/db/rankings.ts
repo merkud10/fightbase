@@ -8,7 +8,7 @@ import {
   UFC_RANKING_SNAPSHOT_KEY
 } from "@/lib/ufc-ranking-snapshot";
 import { applyAthleteSlugAliases, collectAthleteSlugs } from "@/lib/ufc-athlete-slug";
-import { fetchUfcOfficialRankings, type UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
+import { fetchUfcOfficialRankingsPage, type UfcOfficialRankingGroup } from "@/lib/ufc-rankings";
 
 import { resolveEnglishAthleteSlugs } from "./ufc-athlete-slugs";
 
@@ -44,14 +44,14 @@ export async function refreshUfcRankingSnapshot() {
       fetchedAt: true
     }
   });
-  const rawGroups = await fetchUfcOfficialRankings();
+  const { groups: rawGroups, sourceUpdatedAt } = await fetchUfcOfficialRankingsPage();
   // UFC.com редиректит наш IP на ufc.ru, откуда слаги приходят русскими и с
   // локальными Fighter.slug не совпадают. Резолв не имеет права уронить
   // обновление: любая ошибка оставляет русский слаг, и строка ведёт себя как
   // раньше.
   const incomingGroups = await resolveRankingSlugs(rawGroups);
   const fetchedAt = new Date();
-  const plan = planUfcRankingSnapshotRefresh(current, incomingGroups, fetchedAt);
+  const plan = planUfcRankingSnapshotRefresh(current, incomingGroups, fetchedAt, sourceUpdatedAt);
 
   if (!plan.shouldWrite) {
     return {

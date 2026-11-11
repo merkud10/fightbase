@@ -1901,6 +1901,52 @@ img {
   vertical-align: middle;
 }
 
+.rank-change {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rank-change-group {
+  white-space: nowrap;
+}
+
+.rank-change--up {
+  color: var(--green);
+}
+
+.rank-change--down {
+  color: var(--red);
+}
+
+.rank-change--new {
+  color: var(--blue);
+}
+
+.ranking-changes-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking-faq {
+  display: grid;
+  gap: 14px;
+}
+
+.ranking-faq h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.ranking-faq p {
+  margin: 0;
+}
+
 .champion-row {
   background: rgba(227, 27, 35, 0.06);
 }

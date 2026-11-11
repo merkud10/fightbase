@@ -2,7 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { formatWeightClass } from "../lib/display";
-import { fetchUfcOfficialRankings, isPoundForPoundRankingGroup } from "../lib/ufc-rankings";
+import {
+  fetchUfcOfficialRankings,
+  fetchUfcOfficialRankingsPage,
+  isPoundForPoundRankingGroup,
+  parseRankChange,
+  parseUfcRankingsUpdatedAt
+} from "../lib/ufc-rankings";
 
 const realFetch = globalThis.fetch;
 
@@ -153,6 +159,60 @@ test("fetchUfcOfficialRankings reads athlete links with the /index%2ephp prefix 
         [2, "charles-oliveira"]
       ]
     );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("parseRankChange reads UFC rank movement badges", () => {
+  assert.deepEqual(parseRankChange("Rank increased by 1"), { direction: "up", delta: 1 });
+  assert.deepEqual(parseRankChange("Rank decreased by 2"), { direction: "down", delta: 2 });
+  assert.deepEqual(parseRankChange("NR"), { direction: "new" });
+  assert.deepEqual(parseRankChange("НОВ"), { direction: "new" });
+  assert.equal(parseRankChange(null), null);
+  assert.equal(parseRankChange(""), null);
+  assert.equal(parseRankChange("—"), null);
+  assert.equal(parseRankChange("Interim Champion"), null);
+});
+
+test("parseUfcRankingsUpdatedAt takes the official (media) date and infers the year", () => {
+  const html = `
+    <p class="list-denotions__updated list-denotions__updated--media is-hidden" data-rankings-footer="media" hidden>Last
+                      updated: Tuesday, Nov. 10</p>
+    <p class="list-denotions__updated list-denotions__updated--meta" data-rankings-footer="meta">Last updated: Saturday, Nov. 07</p>`;
+  const now = new Date("2026-11-11T06:00:00.000Z");
+  assert.equal(parseUfcRankingsUpdatedAt(html, now)?.toISOString(), "2026-11-10T12:00:00.000Z");
+  // Январский опрос видит декабрьскую дату — это прошлый год.
+  assert.equal(
+    parseUfcRankingsUpdatedAt("<p>Last updated: Tuesday, Dec. 29</p>", new Date("2027-01-03T06:00:00.000Z"))?.toISOString(),
+    "2026-12-29T12:00:00.000Z"
+  );
+  assert.equal(parseUfcRankingsUpdatedAt("<p>Last updated: Tuesday, March 3</p>", now)?.toISOString(), "2026-03-03T12:00:00.000Z");
+  assert.equal(parseUfcRankingsUpdatedAt("<p>Last updated: Feb. 31</p>", now), null);
+  assert.equal(parseUfcRankingsUpdatedAt("<p>no date here</p>", now), null);
+});
+
+test("fetchUfcOfficialRankingsPage returns the groups together with the UFC update date", async () => {
+  const html = `
+    <div class="view-grouping-header">Flyweight</div>
+    <div class="view-grouping-content"><table class="cols-0">
+      <caption><h5><a href="/athlete/champ-guy">Champ Guy</a></h5></caption>
+      <img src="https://img.example/champ.png" />
+      <tbody>
+        <tr>
+          <td class="views-field views-field-weight-class-rank">1</td>
+          <td class="views-field views-field-name"><a href="/athlete/contender-one">Contender One</a></td>
+          <td class="views-field views-field-weight-class-rank-change"><span class="athlete-rankings--rank-change athlete-rankings--rank-increase">Rank increased by</span> 1</td>
+        </tr>
+      </tbody>
+    </table></div>
+    <p data-rankings-footer="media" hidden>Last updated: Tuesday, Nov. 10, 2026</p>`;
+  mockFetch(async () => new Response(html, { status: 200 }));
+  try {
+    const page = await fetchUfcOfficialRankingsPage();
+    assert.equal(page.groups.length, 1);
+    assert.deepEqual(parseRankChange(page.groups[0]?.rows[0]?.badge), { direction: "up", delta: 1 });
+    assert.equal(page.sourceUpdatedAt?.toISOString(), "2026-11-10T12:00:00.000Z");
   } finally {
     globalThis.fetch = realFetch;
   }
