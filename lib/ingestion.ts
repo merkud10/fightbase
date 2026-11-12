@@ -7,6 +7,7 @@ import { generateTelegramDigestForArticle, localizeIngestionInput } from "@/lib/
 import { slugify } from "@/lib/admin";
 import { buildRussianMeaningBlock, cleanNewsText, cleanNewsTitle } from "@/lib/article-quality";
 import { persistImageLocally } from "@/lib/local-image-storage";
+import { dropPrefixShadowedFighters, textMentionsRussianName } from "@/lib/fighter-text-match";
 import { logger } from "@/lib/logger";
 import {
   buildMeaningBlock,
@@ -604,23 +605,6 @@ async function inferRelations(input: IngestDraftInput) {
     matchEventByNumberedCode(events, text) ??
     findBestMatch(events, (item) => buildAliases([item.slug, item.name]), text, 0.72);
 
-  const russianStems = (nameRu: string) => {
-    const words = nameRu.toLowerCase().trim().split(/\s+/);
-    const stems: string[] = [];
-
-    for (const word of words) {
-      if (word.length >= 7) {
-        stems.push(word.slice(0, -2));
-      } else if (word.length >= 6) {
-        stems.push(word.slice(0, -1));
-      } else if (word.length >= 5) {
-        stems.push(word);
-      }
-    }
-
-    return stems;
-  };
-
   const matchFighterInText = (fighter: (typeof fighters)[number]) => {
     const aliases = buildAliases([fighter.slug, fighter.name, fighter.nameRu, fighter.nickname]);
 
@@ -628,23 +612,8 @@ async function inferRelations(input: IngestDraftInput) {
       return true;
     }
 
-    if (fighter.nameRu) {
-      const stems = russianStems(fighter.nameRu);
-
-      if (stems.length >= 2) {
-        const positions = stems.map((stem) => text.indexOf(stem));
-
-        if (positions.every((pos) => pos >= 0)) {
-          const span = Math.max(...positions) - Math.min(...positions);
-          if (span <= 80) {
-            return true;
-          }
-        }
-      }
-
-      if (stems.length === 1 && (stems[0]?.length ?? 0) >= 6 && text.includes(stems[0] ?? "")) {
-        return true;
-      }
+    if (fighter.nameRu && textMentionsRussianName(fighter.nameRu, text)) {
+      return true;
     }
 
     return false;
@@ -666,8 +635,8 @@ async function inferRelations(input: IngestDraftInput) {
     });
   }
 
-  const inferredFighters = fighters.filter(
-    (fighter) => confirmedProvidedSlugs.has(fighter.slug) || matchFighterInText(fighter)
+  const inferredFighters = dropPrefixShadowedFighters(
+    fighters.filter((fighter) => confirmedProvidedSlugs.has(fighter.slug) || matchFighterInText(fighter))
   );
 
   const inferredTags =

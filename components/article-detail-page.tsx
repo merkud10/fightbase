@@ -12,10 +12,12 @@ import { prepareArticleIntro } from "@/lib/article-intro";
 import { getArticleRouteBase, resolveMovedArticlePath } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
 import { selectArticleFights } from "@/lib/article-fights";
-import { getArticlePageData, getPredictionFightsForFighters, getRelatedArticles } from "@/lib/db";
+import { getArticlePageData, getPredictionFightsForFighters, getRelatedArticles, getScheduleHubData } from "@/lib/db";
 import { segmentFighterMentions } from "@/lib/fighter-mentions";
 import { formatArticleTagLabel } from "@/lib/display";
 import { isPickPending, pickPendingText } from "@/lib/event-picks";
+import { buildNearbyEvents } from "@/lib/event-schedule";
+import { buildEventSeoName } from "@/lib/event-seo";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/locale-config";
@@ -165,15 +167,23 @@ export async function ArticleDetailPage({
 
   const intro = prepareArticleIntro(article.excerpt, article.sections);
   const articleFighterIds = article.fighterMap.map(({ fighter }) => fighter.id);
-  const [relatedArticles, fightCandidates] = await Promise.all([
+  const [relatedArticles, fightCandidates, schedule] = await Promise.all([
     getRelatedArticles({
       articleId: article.id,
       category,
       eventId: article.eventId,
       fighterIds: articleFighterIds
     }),
-    getPredictionFightsForFighters(articleFighterIds)
+    getPredictionFightsForFighters(articleFighterIds),
+    getScheduleHubData()
   ]);
+  // Следующий шаг для читателя новости. По Метрике (15.10–11.11.2026) из новостей
+  // почти не уходят дальше по сайту: глубина 1,1 страницы, а у материала без
+  // привязанных бойцов и турнира в боковой колонке не было ни одной полезной ссылки.
+  const nextEvent = buildNearbyEvents("", schedule.upcoming, 1)[0] ?? null;
+  const mentionsRussians = /росси[яйюие]|российск|россиян/i.test(
+    `${article.title} ${article.excerpt} ${article.sections.map((section) => section.body).join(" ")}`
+  );
   // Бои бойцов из материала со снапшотом прогноза: главная перекрёстная ссылка
   // из новостей на уникальный контент сайта.
   const articleFights = selectArticleFights(
@@ -381,17 +391,57 @@ export async function ArticleDetailPage({
             </div>
           ) : null}
 
-          <div className="policy-card">
-            <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
-            <p className="copy">
-              {linkedEvent ? (
+          {linkedEvent ? (
+            <div className="policy-card">
+              <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
+              <p className="copy">
                 <Link href={localizePath(`/events/${linkedEvent.slug}`, locale)}>{linkedEvent.name}</Link>
-              ) : locale === "ru" ? (
-                "Для этого материала отдельный турнир не указан."
-              ) : (
-                "No standalone event is linked to this story."
-              )}
-            </p>
+              </p>
+            </div>
+          ) : null}
+
+          <div className="policy-card">
+            <h3>{locale === "ru" ? "Дальше в UFC" : "Next in the UFC"}</h3>
+            <ul className="event-side-list">
+              {nextEvent ? (
+                <li>
+                  {locale === "ru" ? "Ближайший турнир: " : "Next event: "}
+                  <Link href={localizePath(`/events/${nextEvent.event.slug}`, locale)}>
+                    {locale === "ru" && nextEvent.mainFight
+                      ? buildEventSeoName(nextEvent.event.name, {
+                          a: { slug: nextEvent.mainFight.fighterA.slug, name: nextEvent.mainFight.fighterA.nameRu ?? nextEvent.mainFight.fighterA.name },
+                          b: { slug: nextEvent.mainFight.fighterB.slug, name: nextEvent.mainFight.fighterB.nameRu ?? nextEvent.mainFight.fighterB.name }
+                        })
+                      : nextEvent.event.name}
+                  </Link>
+                  <span className="table-note">
+                    {" · "}
+                    {new Intl.DateTimeFormat(dateLocale, { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(nextEvent.event.date))}
+                    {nextEvent.picksReady > 0
+                      ? locale === "ru"
+                        ? ` · готово прогнозов: ${nextEvent.picksReady}`
+                        : ` · picks ready: ${nextEvent.picksReady}`
+                      : ""}
+                  </span>
+                </li>
+              ) : null}
+              <li>
+                <Link href={localizePath("/predictions", locale)}>
+                  {locale === "ru" ? "Прогнозы на ближайшие бои" : "Picks for upcoming fights"}
+                </Link>
+              </li>
+              <li>
+                <Link href={localizePath("/rankings", locale)}>{locale === "ru" ? "Рейтинг UFC на сегодня" : "UFC rankings today"}</Link>
+              </li>
+              {mentionsRussians && locale === "ru" ? (
+                <li>
+                  <Link href={localizePath("/russian-fighters", locale)}>Российские бойцы UFC</Link>
+                </li>
+              ) : null}
+              <li>
+                <Link href={localizePath("/events", locale)}>{locale === "ru" ? "Расписание турниров" : "Event schedule"}</Link>
+              </li>
+            </ul>
           </div>
 
           {article.sourceMap.length > 0 ? (
