@@ -21,6 +21,14 @@ export async function Footer() {
         </div>
 
         <div className="footer-links">
+          {/* Хабы под частотные запросы («чемпионы юфс», «юфс результаты»): в шапке их нет,
+              и без сквозной ссылки на них вели одна-две страницы сайта. */}
+          <Link href={localizePath("/champions", locale)}>{locale === "ru" ? "Чемпионы UFC" : "UFC champions"}</Link>
+          <Link href={localizePath("/results", locale)}>{locale === "ru" ? "Результаты UFC" : "UFC results"}</Link>
+          {locale === "ru" ? <Link href={localizePath("/russian-fighters", locale)}>Российские бойцы UFC</Link> : null}
+          <Link href={localizePath("/predictions/accuracy", locale)}>
+            {locale === "ru" ? "Точность прогнозов" : "Prediction accuracy"}
+          </Link>
           <Link href={localizePath("/about", locale)}>{t.nav.about}</Link>
           <Link href={localizePath("/analysis", locale)}>{locale === "ru" ? "Аналитика" : "Analysis"}</Link>
           <Link href={localizePath("/quotes", locale)}>{t.nav.quotes}</Link>
