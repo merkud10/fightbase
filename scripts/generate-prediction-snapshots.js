@@ -756,7 +756,7 @@ async function main() {
   }
 }
 
-module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, buildConfidenceLabel, main };
+module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, buildConfidenceLabel, buildSnapshotCopy, normalizeRuSnapshot, main };
 
 if (require.main === module) main()
   .catch((error) => {

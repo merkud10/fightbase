@@ -5,6 +5,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 
+const { isLineFrozen } = require("./odds-freeze");
+
 const prisma = new PrismaClient();
 
 const API_BASE = "https://api.the-odds-api.com/v4/sports/mma_mixed_martial_arts/odds";
@@ -206,19 +208,28 @@ async function main() {
 
   let updated = 0;
   let skipped = 0;
+  let frozen = 0;
+  const now = new Date();
 
   for (const fight of fights) {
     let matched = null;
+    let matchedEvent = null;
     for (const ev of events) {
       const m = tryMatchFightToEvent(fight, ev);
       if (m) {
         matched = m;
+        matchedEvent = ev;
         break;
       }
     }
 
     if (!matched) {
       skipped += 1;
+      continue;
+    }
+
+    if (isLineFrozen(fight.event, matchedEvent, now)) {
+      frozen += 1;
       continue;
     }
 
@@ -238,6 +249,7 @@ async function main() {
   console.log("");
   console.log(`Updated: ${updated}`);
   console.log(`No API match: ${skipped}`);
+  console.log(`Frozen after card start: ${frozen}`);
 
   if (!options.skipSnapshots) {
     console.log("");

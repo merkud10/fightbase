@@ -6,6 +6,7 @@ const { parseArgs } = require("./fighter-import-utils");
 const { fighterNameKey, findExactFighterMatch, findFighterByNameKey } = require("./fighter-name-matching");
 const { parseResultTime } = require("./espn-result-time");
 const { resolveWinnerlessResults } = require("./espn-winnerless-result");
+const { planExistingFightUpdate } = require("./fight-card-update");
 
 const prisma = new PrismaClient();
 
@@ -332,7 +333,7 @@ async function syncEventFightCard(event) {
 
     const existing = existingByKey.get(key);
     if (existing) {
-      const updateData = { ...data };
+      const updateData = planExistingFightUpdate(data);
       if (!existing.slug) {
         updateData.slug = await generateFightSlug(fighterA.slug, fighterB.slug);
       }
