@@ -40,7 +40,7 @@ const parsed = (overrides: Record<string, unknown>) => ({
 test("only finished fights without a winner or a result type are looked up", async () => {
   const requested: string[] = [];
   const fights = [
-    parsed({ espnCompetitionId: "draw" }),
+    parsed({ espnCompetitionId: "draw", method: "Submission" }),
     parsed({ espnCompetitionId: "won", winnerOrder: "a", resultType: "win", method: "Decision" }),
     parsed({ espnCompetitionId: "scheduled", hasResult: false }),
     parsed({ espnCompetitionId: "known", resultType: "no_contest", method: "No Contest" }),

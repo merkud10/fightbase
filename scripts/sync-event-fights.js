@@ -72,6 +72,8 @@ function parseMethod(competition) {
 
   for (const detail of details) {
     const text = detail.type?.text || "";
+    // «Submission Attempt», «Takedown Attempt» — события хода боя, а не исход.
+    if (/attempt/i.test(text)) continue;
     if (text.includes("Decision")) return "Decision";
     if (text.includes("Submission")) return "Submission";
     if (text.includes("Kotko") || text.includes("KO") || text.includes("TKO")) return "KO/TKO";

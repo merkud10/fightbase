@@ -30,7 +30,9 @@ async function resolveWinnerlessResults(fights, fetchJson, warn = console.warn) 
       );
       if (!resolved) continue;
       fight.resultType = resolved.resultType;
-      fight.method = fight.method ?? resolved.method;
+      // Метод из scoreboard здесь ненадёжен: у ничьей он брался из хода боя
+      // («Submission Attempt» давал «Submission»).
+      fight.method = resolved.method;
     } catch (error) {
       warn(`  ESPN result lookup for competition ${fight.espnCompetitionId} failed: ${error.message}`);
     }
