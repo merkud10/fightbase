@@ -52,4 +52,28 @@ function planFieldMerge(keeper, loser) {
   return data;
 }
 
-module.exports = { planFieldMerge, totalBouts };
+function hasSettledResult(fight) {
+  if (fight?.status !== "completed") return false;
+  if (fight.resultType === "draw" || fight.resultType === "no_contest") return true;
+  return fight.resultType === "win" && Boolean(fight.winnerFighterId);
+}
+
+// Один и тот же бой заведён дважды — на основном профиле и на дубле. Остаётся
+// копия основного профиля (на ней пик модели и адрес страницы), но результат мог
+// прийти только на копию дубля: синк карда после появления дубля обновлял её.
+// Так бой Кинг — Росас (Noche UFC, 12.09.2026) остался без победителя.
+// Возвращает поля результата для боя основного профиля либо null.
+function planDuplicateFightResult(keeperFight, loserFight, keeperId, loserId) {
+  if (hasSettledResult(keeperFight) || !hasSettledResult(loserFight)) return null;
+
+  return {
+    status: "completed",
+    resultType: loserFight.resultType,
+    winnerFighterId: loserFight.winnerFighterId === loserId ? keeperId : loserFight.winnerFighterId ?? null,
+    method: loserFight.method ?? null,
+    resultRound: loserFight.resultRound ?? null,
+    resultTime: loserFight.resultTime ?? null
+  };
+}
+
+module.exports = { planFieldMerge, planDuplicateFightResult, totalBouts };

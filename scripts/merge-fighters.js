@@ -10,7 +10,7 @@
 
 const { PrismaClient } = require("@prisma/client");
 
-const { planFieldMerge } = require("./fighter-merge");
+const { planDuplicateFightResult, planFieldMerge } = require("./fighter-merge");
 
 const prisma = new PrismaClient();
 
@@ -42,17 +42,21 @@ async function mergePair(tx, keeperSlug, loserSlug, apply) {
 
   const loserFights = await tx.fight.findMany({
     where: { OR: [{ fighterAId: loser.id }, { fighterBId: loser.id }] },
-    select: { id: true, slug: true, eventId: true, fighterAId: true, fighterBId: true, status: true }
+    select: { id: true, slug: true, eventId: true, fighterAId: true, fighterBId: true, status: true, resultType: true, winnerFighterId: true, method: true, resultRound: true, resultTime: true }
   });
   const keeperFights = await tx.fight.findMany({
     where: { OR: [{ fighterAId: keeper.id }, { fighterBId: keeper.id }] },
-    select: { eventId: true, fighterAId: true, fighterBId: true }
+    select: { id: true, slug: true, eventId: true, fighterAId: true, fighterBId: true, status: true, resultType: true, winnerFighterId: true, method: true, resultRound: true, resultTime: true }
   });
   const opponent = (fight, selfId) => (fight.fighterAId === selfId ? fight.fighterBId : fight.fighterAId);
   // Тот же бой, заведённый дважды (на дубле и на основном профиле) — копию дубля удаляем.
-  const duplicateFights = loserFights.filter((fight) =>
-    keeperFights.some((kf) => kf.eventId === fight.eventId && opponent(kf, keeper.id) === opponent(fight, loser.id))
-  );
+  const keeperCopy = (fight) =>
+    keeperFights.find((kf) => kf.eventId === fight.eventId && opponent(kf, keeper.id) === opponent(fight, loser.id));
+  const duplicateFights = loserFights.filter((fight) => keeperCopy(fight));
+  // Результат мог прийти только на копию дубля — переносим его до удаления.
+  const carriedResults = duplicateFights
+    .map((fight) => ({ keeperFight: keeperCopy(fight), data: planDuplicateFightResult(keeperCopy(fight), fight, keeper.id, loser.id) }))
+    .filter((item) => item.data);
   const movedFights = loserFights.filter((fight) => !duplicateFights.includes(fight));
   const articleLinks = await tx.articleFighter.findMany({ where: { fighterId: loser.id }, select: { articleId: true } });
   const keeperRecent = await tx.fighterRecentFight.count({ where: { fighterId: keeper.id } });
@@ -65,11 +69,15 @@ async function mergePair(tx, keeperSlug, loserSlug, apply) {
   console.log(`\n${keeperSlug} <- ${loserSlug}`);
   console.log(`  fights moved: ${movedFights.map((f) => f.slug || f.id).join(", ") || "-"}`);
   console.log(`  duplicate fights removed: ${duplicateFights.map((f) => f.slug || f.id).join(", ") || "-"}`);
+  console.log(`  results carried over: ${carriedResults.map((item) => item.keeperFight.slug || item.keeperFight.id).join(", ") || "-"}`);
   console.log(`  article links: ${articleLinks.length}, recent fights: ${loserRecent} (${keeperRecent ? "dropped, keeper has own" : "moved"}), pins: ${pins.length}`);
   console.log(`  keeper fields: ${JSON.stringify(fields)}`);
 
   if (!apply) return;
 
+  for (const { keeperFight, data } of carriedResults) {
+    await tx.fight.update({ where: { id: keeperFight.id }, data });
+  }
   if (duplicateFights.length > 0) {
     await tx.fight.deleteMany({ where: { id: { in: duplicateFights.map((f) => f.id) } } });
   }
