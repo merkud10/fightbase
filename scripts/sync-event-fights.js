@@ -5,6 +5,7 @@ const { PrismaClient } = require("@prisma/client");
 const { parseArgs } = require("./fighter-import-utils");
 const { fighterNameKey, findExactFighterMatch, findFighterByNameKey } = require("./fighter-name-matching");
 const { parseResultTime } = require("./espn-result-time");
+const { resolveWinnerlessResults } = require("./espn-winnerless-result");
 
 const prisma = new PrismaClient();
 
@@ -157,6 +158,8 @@ function parseFightsFromEspn(data) {
         slug: slugify(fighterB.athlete?.displayName || "unknown"),
         espnId: fighterB.athlete?.id ? String(fighterB.athlete.id) : null
       },
+      espnEventId: event.id ? String(event.id) : null,
+      espnCompetitionId: comp.id ? String(comp.id) : null,
       hasResult: isCompleted,
       winnerOrder,
       resultType,
@@ -282,6 +285,8 @@ async function syncEventFightCard(event) {
       skipped: true
     };
   }
+
+  await resolveWinnerlessResults(parsedFights, fetchJson);
 
   const existingFights = await prisma.fight.findMany({
     where: { eventId: event.id },
