@@ -240,6 +240,9 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
     take: lastEvents,
     select: {
       id: true,
+      slug: true,
+      name: true,
+      date: true,
       fights: {
         where: {
           status: "completed",
@@ -264,8 +267,25 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
   const favoriteRoi = emptyRoiBucket();
   const modelRoi = emptyRoiBucket();
   const valueRoi = emptyRoiBucket();
+  // Разбивка по турнирам для графика на странице прогнозов.
+  const perEvent: Array<{
+    slug: string;
+    name: string;
+    date: Date;
+    model: { correct: number; judged: number };
+    favorite: { correct: number; judged: number };
+  }> = [];
 
   for (const event of completedEvents) {
+    const eventTally = {
+      slug: event.slug,
+      name: event.name,
+      date: event.date,
+      model: { correct: 0, judged: 0 },
+      favorite: { correct: 0, judged: 0 }
+    };
+    perEvent.push(eventTally);
+
     for (const fight of event.fights) {
       const snapshot = fight.predictionSnapshot;
       if (!snapshot || !fight.fighterAId || !fight.fighterBId) {
@@ -284,8 +304,11 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
       if (favoriteVerdict === "correct") {
         favorite.correct += 1;
         favorite.judged += 1;
+        eventTally.favorite.correct += 1;
+        eventTally.favorite.judged += 1;
       } else if (favoriteVerdict === "wrong") {
         favorite.judged += 1;
+        eventTally.favorite.judged += 1;
       }
 
       const modelVerdict = resolveAiPickVerdict({
@@ -297,8 +320,11 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
       if (modelVerdict === "correct") {
         model.correct += 1;
         model.judged += 1;
+        eventTally.model.correct += 1;
+        eventTally.model.judged += 1;
       } else if (modelVerdict === "wrong") {
         model.judged += 1;
+        eventTally.model.judged += 1;
       }
 
       const pickOdds =
@@ -329,6 +355,10 @@ export const getPredictionAccuracy = cache(async function getPredictionAccuracy(
 
   return {
     eventsCount: completedEvents.length,
+    // От старого турнира к новому — так столбики читаются слева направо.
+    events: perEvent
+      .map((event) => ({ ...event, model: withPercent(event.model), favorite: withPercent(event.favorite) }))
+      .reverse(),
     favorite: withPercent(favorite),
     model: withPercent(model),
     modelRoi: { ...modelRoi, percent: roiPercent(modelRoi) },

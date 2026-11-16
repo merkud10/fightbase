@@ -1809,3 +1809,472 @@ td .event-table-link,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── СТРАНИЦА ПРОГНОЗОВ: панель точности, вкладки турниров ── */
+
+:root {
+  /* Две серии графиков: модель и фаворит по линии. Пара проверена на
+     различимость при дальтонизме и на контраст с фоном панели. */
+  --series-model: #e5333b;
+  --series-fav: #4a90d9;
+  --chart-track: #2a2a2d;
+  --good: #58b784;
+}
+
+.pstats {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 230px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+}
+
+.pstats > div {
+  min-width: 0;
+  padding: 26px 28px;
+}
+
+.pstats > div + div {
+  border-left: 1px solid var(--line);
+}
+
+/* Без графика (меньше двух турниров) цифра и ставки делят панель пополам. */
+.pstats:not(:has(.pstats-chart-col)) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.pstats-label {
+  margin: 0;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pstats-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 10px 0 2px;
+}
+
+.pstats-hero strong {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 4rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-strong);
+}
+
+.pstats-hero span {
+  max-width: 9rem;
+  font-size: var(--s-small);
+  line-height: 1.35;
+  color: var(--text-2);
+}
+
+.pstats-hint {
+  margin: 0;
+  font-size: var(--s-label);
+  color: var(--muted);
+}
+
+.pstats-versus {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.pstats-versus-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+
+.pstats-versus-row b,
+.pstats-bank dd {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+.pstats-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--chart-track);
+  overflow: hidden;
+}
+
+.pstats-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+
+.pstats-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 2px;
+  vertical-align: 1px;
+}
+
+.pstats-dot--model,
+.pstats-fill--model,
+.pstats-bar--model {
+  background: var(--series-model);
+}
+
+.pstats-dot--fav,
+.pstats-fill--fav,
+.pstats-bar--fav {
+  background: var(--series-fav);
+}
+
+.pstats-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pstats-legend {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  font-size: var(--s-label);
+  color: var(--text-2);
+}
+
+/* Одна шкала 0–100 %, столбики модели и фаворита рядом. */
+.pstats-chart {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  height: 168px;
+  margin-top: 26px;
+  padding-left: 38px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pstats-chart::before,
+.pstats-chart::after {
+  content: "";
+  position: absolute;
+  left: 38px;
+  right: 0;
+  border-top: 1px dashed var(--line);
+}
+
+.pstats-chart::before {
+  top: 0;
+}
+
+.pstats-chart::after {
+  top: 50%;
+}
+
+.pstats-axis {
+  position: absolute;
+  left: 0;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.pstats-axis--100 {
+  top: 0;
+}
+
+.pstats-axis--50 {
+  top: 50%;
+}
+
+.pstats-group {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  outline: none;
+}
+
+.pstats-bar {
+  position: relative;
+  width: 22px;
+  border-radius: 4px 4px 0 0;
+}
+
+.pstats-bar em {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -4px);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-strong);
+}
+
+.pstats-group:hover .pstats-bar,
+.pstats-group:focus-visible .pstats-bar {
+  filter: brightness(1.15);
+}
+
+.pstats-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: none;
+  transform: translateX(-50%);
+  padding: 10px 12px;
+  background: #232326;
+  border: 1px solid #34343a;
+  border-radius: 6px;
+  font-size: var(--s-label);
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.pstats-tip b,
+.pstats-tip span {
+  display: block;
+}
+
+.pstats-tip b {
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.pstats-group:hover .pstats-tip,
+.pstats-group:focus-visible .pstats-tip {
+  display: block;
+}
+
+.pstats-xlabels {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding-left: 38px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--muted);
+}
+
+.pstats-xlabels b {
+  display: block;
+  font-weight: 500;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.pstats-bank strong {
+  display: block;
+  margin: 10px 0 2px;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 2.5rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-strong);
+}
+
+.pstats-bank strong.is-up {
+  color: var(--good);
+}
+
+.pstats-bank p:not(.pstats-label) {
+  margin: 0 0 14px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.pstats-bank dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.pstats-bank dt {
+  color: var(--text-2);
+}
+
+.pstats-bank dd {
+  margin: 0;
+}
+
+.pstats-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 20px;
+  margin: 12px 0 0;
+  font-size: var(--s-label);
+  color: var(--muted);
+}
+
+.pstats-foot a {
+  color: var(--red);
+  white-space: nowrap;
+}
+
+/* Турниры — вкладками с датой. */
+.ptabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 36px 0 0;
+}
+
+.ptab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 10px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-size: var(--s-small);
+  font-weight: 500;
+  color: var(--text-strong);
+}
+
+.ptab:hover,
+.ptab:focus-visible {
+  background: var(--panel-strong);
+}
+
+.ptab--next {
+  box-shadow: inset 0 -2px 0 var(--red);
+}
+
+.ptab-date {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 4px;
+  background: var(--panel-strong);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.ptab-date small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ptab-copy small {
+  display: block;
+  font-size: var(--s-label);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Telegram — одной строкой с кнопкой. */
+.ptg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin: 20px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.ptg h3 {
+  display: none;
+}
+
+.ptg .copy {
+  flex: 1 1 320px;
+  margin: 0;
+  font-size: var(--s-small);
+  color: var(--text-2);
+}
+
+.ptg .button {
+  min-height: 38px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-strong);
+}
+
+.ptg .button:hover {
+  border-color: #3a3a3d;
+  background: transparent;
+}
+
+.ptg + .predictions-stack {
+  margin-top: 44px;
+}
+
+@media (max-width: 1000px) {
+  .pstats,
+  .pstats:not(:has(.pstats-chart-col)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pstats > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 640px) {
+  .pstats > div {
+    padding: 22px 18px;
+  }
+
+  .pstats-hero strong {
+    font-size: 3.375rem;
+  }
+
+  .pstats-chart,
+  .pstats-xlabels {
+    gap: 6px;
+  }
+
+  .pstats-bar {
+    width: 16px;
+  }
+
+  .ptabs {
+    flex-direction: column;
+  }
+
+  /* На телефоне подсказке негде открыться — цифры есть в подписях столбиков. */
+  .pstats-tip {
+    display: none !important;
+  }
+}

@@ -8,7 +8,8 @@ import { PageHero } from "@/components/page-hero";
 import { TelegramPicksCta } from "@/components/telegram-picks-cta";
 import { getPredictionAccuracy, getPredictionsPageData } from "@/lib/db";
 import { isPickPending, pickPendingText } from "@/lib/event-picks";
-import { formatUnits } from "@/lib/prediction-roi";
+import { PredictionStatsPanel } from "@/components/prediction-stats-panel";
+import { tabEventLabel } from "@/lib/prediction-chart";
 import { formatEventLocation, formatWeightClass, getDisplayName } from "@/lib/display";
 import { getLocale } from "@/lib/i18n";
 import { getDisplayImageUrl } from "@/lib/image-proxy";
@@ -65,14 +66,26 @@ export default async function PredictionsPage() {
     : null;
   const nextEventPicks = nextEvent ? nextEvent.fights.filter((fight) => fight.predictionSnapshot?.aiPickFighterId).length : 0;
   const totalPicks = eventsWithSnapshots.reduce((sum, event) => sum + event.fights.length, 0);
-  const heroDescription =
+  const dateLocale = locale === "ru" ? "ru-RU" : "en-US";
+  // Главный бой турнира для русского названия на вкладке.
+  const mainEventOf = (event: (typeof eventsWithSnapshots)[number]) => {
+    const fight = event.fights.find((item) => item.isMainEvent) ?? event.fights[0];
+    if (!fight) return null;
+    const side = (fighter: { slug: string; name: string; nameRu: string | null }) => ({
+      slug: fighter.slug,
+      name: (locale === "ru" ? fighter.nameRu : null) ?? fighter.name
+    });
+    return { a: side(fight.fighterA), b: side(fight.fighterB) };
+  };
+  // Видимая строка под заголовком — коротко; подробный текст остаётся в description страницы.
+  const heroLead =
     locale === "ru"
       ? nextEvent
-        ? `Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): ближайший турнир ${nextEvent.name} ${nextEventDate}, ${nextEventPicks > 0 ? `пики готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв` : "пики появятся за 2–3 дня до турнира"}. Всего ${totalPicks} прогнозов на ${eventsWithSnapshots.length} ближайших турниров: пик, проценты и разбор по каждому матчапу. Пик на каждый бой публикуется за 2–3 дня до турнира.`
-        : "Прогнозы ИИ-модели FightBase на бои UFC (ЮФС): пик, проценты и разбор по каждому матчапу ближайших турниров. Пик на каждый бой публикуется за 2–3 дня до турнира."
+        ? `Ближайший турнир — ${tabEventLabel(nextEvent.name, mainEventOf(nextEvent), locale)}, ${nextEventDate}. ${nextEventPicks > 0 ? `Пики модели готовы на ${nextEventPicks} из ${nextEvent.fights.length} боёв.` : "Пики модели на все бои появятся за 2–3 дня до турнира."}`
+        : "Пики ИИ-модели FightBase на бои UFC появляются за 2–3 дня до турнира."
       : nextEvent
-        ? `FightBase AI predictions for UFC fights: next card ${nextEvent.name} on ${nextEventDate}, ${nextEventPicks > 0 ? `picks ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts` : "picks are published 2–3 days before the event"}. ${totalPicks} predictions across the next ${eventsWithSnapshots.length} events with pick, percentages and a breakdown for every matchup. Each pick is published 2–3 days before the event.`
-        : "FightBase AI predictions for UFC fights: pick, percentages and a breakdown for every matchup on upcoming cards. Each pick is published 2–3 days before the event.";
+        ? `Next card: ${tabEventLabel(nextEvent.name, mainEventOf(nextEvent), locale)}, ${nextEventDate}. ${nextEventPicks > 0 ? `Model picks are ready for ${nextEventPicks} of ${nextEvent.fights.length} bouts.` : "Model picks are published 2–3 days before the event."}`
+        : "FightBase AI picks for UFC fights are published 2–3 days before each event.";
   const itemList = eventsWithSnapshots
     .flatMap((event) =>
       event.fights.map((fight) => ({
@@ -115,65 +128,42 @@ export default async function PredictionsPage() {
       <PageHero
         eyebrow="/predictions"
         title={locale === "ru" ? "Прогнозы на бои UFC" : "UFC fight predictions"}
-        description={heroDescription}
+        description={heroLead}
       />
 
+      <PredictionStatsPanel locale={locale} accuracy={accuracy} sinceNote={sinceNote} />
+
       {eventsWithSnapshots.length > 0 ? (
-        <nav className="prediction-event-nav" aria-label={locale === "ru" ? "Выбрать турнир" : "Choose an event"}>
-          <h2>{locale === "ru" ? "Выбрать турнир" : "Choose an event"}</h2>
-          <ul>
-            {eventsWithSnapshots.map((event) => (
-              <li key={event.id}>
-                <a href={`#predictions-${event.slug}`}>
-                  <strong>{event.name}</strong>
-                  <span>
-                    {new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
-                      day: "numeric", month: "long", timeZone: "UTC"
-                    }).format(new Date(event.date))}
-                    {" · "}
-                    {locale === "ru" ? `Разборов: ${event.fights.length}` : `Breakdowns: ${event.fights.length}`}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
+        <nav className="ptabs" aria-label={locale === "ru" ? "Турниры" : "Events"}>
+          {eventsWithSnapshots.map((event, index) => {
+            const picksReady = event.fights.filter((fight) => fight.predictionSnapshot?.aiPickFighterId).length;
+            const eventDate = new Date(event.date);
+            return (
+              <a href={`#predictions-${event.slug}`} className={`ptab${index === 0 ? " ptab--next" : ""}`} key={event.id}>
+                <span className="ptab-date">
+                  {new Intl.DateTimeFormat(dateLocale, { day: "numeric", timeZone: "UTC" }).format(eventDate)}
+                  <small>{new Intl.DateTimeFormat(dateLocale, { month: "short", timeZone: "UTC" }).format(eventDate).replace(".", "")}</small>
+                </span>
+                <span className="ptab-copy">
+                  {tabEventLabel(event.name, mainEventOf(event), locale)}
+                  <small>
+                    {locale === "ru" ? `Боёв: ${event.fights.length}` : `Bouts: ${event.fights.length}`}
+                    {picksReady > 0
+                      ? locale === "ru"
+                        ? ` · пики готовы: ${picksReady}`
+                        : ` · picks ready: ${picksReady}`
+                      : locale === "ru"
+                        ? " · пики за 2–3 дня"
+                        : " · picks 2–3 days before"}
+                  </small>
+                </span>
+              </a>
+            );
+          })}
         </nav>
       ) : null}
 
-      {accuracy.favorite.percent !== null || accuracy.model.percent !== null ? (
-        <section className="policy-card" aria-label={locale === "ru" ? "Сколько прогнозов сбылось" : "Prediction track record"}>
-          <p className="kicker">{locale === "ru" ? "Сколько прогнозов сбылось" : "Prediction track record"}</p>
-          {accuracy.model.percent !== null ? (
-            <p className="copy">
-              {locale === "ru"
-                ? `Прогноз FightBase угадал победителя в ${accuracy.model.correct} из ${accuracy.model.judged} боёв (${accuracy.model.percent}%) на последних ${accuracy.eventsCount} турнирах.`
-                : `The FightBase pick called ${accuracy.model.correct} of ${accuracy.model.judged} bouts (${accuracy.model.percent}%) across the last ${accuracy.eventsCount} events.`}
-            </p>
-          ) : null}
-          {accuracy.favorite.percent !== null ? (
-            <p className="copy">
-              {locale === "ru"
-                ? `Для сравнения: фаворит по предматчевой оценке побеждал в ${accuracy.favorite.correct} из ${accuracy.favorite.judged} боёв (${accuracy.favorite.percent}%). Итог каждого боя — на его странице прогноза.`
-                : `For reference, the pre-fight favorite won ${accuracy.favorite.correct} of ${accuracy.favorite.judged} bouts (${accuracy.favorite.percent}%). Each fight page shows its result.`}
-            </p>
-          ) : null}
-          {accuracy.modelRoi.percent !== null ? (
-            <p className="copy">
-              {locale === "ru"
-                ? `Виртуальный банкролл (1 у.е. на прогноз, по кэфам на момент публикации): ${formatUnits(accuracy.modelRoi.units, "ru")} на ${accuracy.modelRoi.staked} прогнозах, ROI ${accuracy.modelRoi.percent > 0 ? "+" : ""}${accuracy.modelRoi.percent}% · стратегия «всегда фаворит»: ${accuracy.favoriteRoi.percent === null ? "—" : `${accuracy.favoriteRoi.percent > 0 ? "+" : ""}${accuracy.favoriteRoi.percent}%`}.`
-                : `Virtual bankroll (1 unit per pick at publication-time odds): ${formatUnits(accuracy.modelRoi.units, "en")} across ${accuracy.modelRoi.staked} picks, ROI ${accuracy.modelRoi.percent > 0 ? "+" : ""}${accuracy.modelRoi.percent}% · "always the favorite": ${accuracy.favoriteRoi.percent === null ? "—" : `${accuracy.favoriteRoi.percent > 0 ? "+" : ""}${accuracy.favoriteRoi.percent}%`}.`}
-            </p>
-          ) : null}
-          {sinceNote ? <p className="copy">{sinceNote}</p> : null}
-          <p className="copy">
-            <Link href={localizePath("/predictions/accuracy", locale)}>
-              {locale === "ru" ? "Полная история точности по турнирам →" : "Full accuracy history by event →"}
-            </Link>
-          </p>
-        </section>
-      ) : null}
-
-      <TelegramPicksCta locale={locale} />
+      <TelegramPicksCta locale={locale} className="ptg" />
 
       {eventsWithSnapshots.length === 0 ? (
         <section className="filter-empty-state">
