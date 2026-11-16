@@ -1,0 +1,1811 @@
+/*
+ * Редизайн, ноябрь 2026. Слой поверх globals.css: издание вместо «панели».
+ * Правила: капс только у коротких подписей, красный только у ссылок-действий и
+ * рубрик, блоки разделяются отступами и линиями, а не рамками. По мере переноса
+ * страниц соответствующие старые правила из globals.css удаляются.
+ */
+
+/* ── ОСНОВА ── */
+
+body {
+  font-size: 1rem;
+}
+
+h1 {
+  font-size: clamp(1.875rem, 3.4vw, var(--s-h1));
+}
+
+h2 {
+  font-size: var(--s-h2);
+}
+
+h3 {
+  font-size: var(--s-h3);
+  line-height: 1.25;
+}
+
+.copy,
+.table-note,
+.policy-card p,
+.policy-card ul {
+  color: var(--text-2);
+}
+
+/* Подписи: единственное место, где остаётся капс. */
+.eyebrow,
+.kicker,
+.footer-kicker,
+.page-hero-topline,
+.share-buttons-label {
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+/* ── ШАПКА ── */
+
+.header-wrap,
+.header-wrap--pinned {
+  padding: 0;
+}
+
+.header-wrap .site-header,
+.header-wrap--pinned .site-header {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.site-header {
+  background: rgba(12, 12, 13, 0.94);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-header::before {
+  display: none;
+}
+
+.site-header-inner {
+  min-height: 60px;
+  padding: 0;
+  gap: 32px;
+}
+
+.brand {
+  gap: 10px;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.1875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-strong);
+}
+
+.brand-mark {
+  width: 32px;
+  height: 28px;
+  border-radius: 3px;
+  clip-path: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.nav-links {
+  gap: 26px;
+}
+
+.nav-link {
+  font-size: var(--s-small);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.nav-link:hover {
+  color: var(--text-strong);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--text-strong);
+}
+
+.nav-link[aria-current="page"]::after {
+  display: none;
+}
+
+/* Подписка — обычная кнопка-ссылка, а не самый яркий элемент страницы. */
+.header-actions .button {
+  min-height: 34px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: var(--s-small);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.header-actions .button:hover {
+  background: transparent;
+  border-color: #3a3a3d;
+  color: var(--text-strong);
+}
+
+.header-menu-toggle {
+  border-color: var(--line);
+  background: transparent;
+  border-radius: 4px;
+}
+
+/* ── КНОПКИ, ПЛАШКИ ── */
+
+.button,
+.button-secondary,
+.button-danger,
+.button-ghost,
+.pill,
+.status-pill {
+  border-radius: 4px;
+  font-size: var(--s-small);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.button-secondary:hover {
+  border-color: #3a3a3d;
+  color: var(--text-strong);
+}
+
+.pill.active,
+.status-pill,
+.tag-row span {
+  background: var(--panel-strong);
+  border-color: var(--line);
+}
+
+.share-buttons {
+  gap: 8px 20px;
+  padding: 0;
+  margin-top: 36px;
+  border-top: 0;
+}
+
+.share-buttons-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--s-small);
+  font-weight: 400;
+}
+
+.share-button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-2);
+  font-size: var(--s-small);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.share-button:hover {
+  color: var(--text-strong);
+}
+
+/* ── КАРТОЧКИ И ПАНЕЛИ ── */
+
+.panel:hover,
+.story-card:hover,
+.event-card:hover,
+.fighter-card:hover,
+.feature-card:hover,
+.mini-card:hover {
+  border-color: #3a3a3d;
+}
+
+/* ── ШАПКА СТРАНИЦЫ, ХЛЕБНЫЕ КРОШКИ, ЗАГОЛОВКИ СЕКЦИЙ ── */
+
+.page-hero {
+  margin: 8px 0 28px;
+  padding: 0;
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.page-hero::after,
+.page-hero-topline,
+.page-hero-accent {
+  display: none;
+}
+
+.page-hero h1,
+.section-head h2 {
+  font-size: clamp(1.875rem, 3.4vw, var(--s-h1));
+}
+
+.section-head h2 {
+  font-size: var(--s-h2);
+}
+
+.page-hero .copy {
+  max-width: 44rem;
+  font-size: var(--s-lead);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.page-hero .eyebrow {
+  margin: 0;
+  color: var(--red);
+  text-transform: uppercase;
+}
+
+.section-head {
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.section-link {
+  font-family: var(--font-body), sans-serif;
+}
+
+.breadcrumbs {
+  margin: 28px 0 18px;
+}
+
+.breadcrumbs-list {
+  font-size: var(--s-label);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.breadcrumbs-item + .breadcrumbs-item::before {
+  content: "/";
+  color: #4a4a4e;
+  font-weight: 400;
+}
+
+.breadcrumbs-item a:hover {
+  color: var(--text-strong);
+}
+
+/* Последняя крошка повторяет заголовок страницы — оставляем путь, а не дубль. */
+.breadcrumbs-item:last-child:not(:first-child) {
+  display: none;
+}
+
+/* ── ПОДВАЛ ── */
+
+.site-footer {
+  margin-top: 64px;
+  padding: 28px 0 44px;
+  border-top: 1px solid var(--line);
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.site-footer strong {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-strong);
+}
+
+.footer-links a:hover {
+  color: var(--text-strong);
+}
+
+/* ── ПЛАВАЮЩИЕ КНОПКИ ── */
+
+.scroll-top {
+  width: 44px;
+  height: 44px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  clip-path: none;
+  color: var(--text);
+}
+
+.scroll-top:hover {
+  background: #232326;
+}
+
+.floating-social-link {
+  width: 44px;
+  height: 44px;
+  background: var(--panel-strong);
+  border-color: var(--line);
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--text-2);
+}
+
+.floating-social-link:hover {
+  color: var(--text-strong);
+  border-color: #3a3a3d;
+  transform: none;
+  box-shadow: none;
+}
+
+.floating-social-link--vk {
+  font-family: var(--font-body), sans-serif;
+  font-weight: 600;
+}
+
+/* ── СТРАНИЦА МАТЕРИАЛА ── */
+
+.article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 680px) 300px;
+  gap: 72px;
+  align-items: start;
+  padding-bottom: 24px;
+}
+
+.article-main {
+  min-width: 0;
+}
+
+.article-rubric {
+  margin: 0;
+  color: var(--red);
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.article-head h1 {
+  margin: 14px 0 18px;
+  text-wrap: balance;
+}
+
+.article-lead {
+  margin: 0 0 22px;
+  font-size: var(--s-lead);
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+
+.article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin: 0;
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.article-meta > *:not(:last-child)::after {
+  content: "·";
+  margin: 0 12px;
+  color: #4a4a4e;
+}
+
+.article-meta a {
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+
+.article-meta a:hover {
+  color: var(--text-strong);
+  border-color: #4a4a4e;
+}
+
+.article-figure {
+  margin: 30px 0 34px;
+}
+
+.article-figure .article-cover-shell {
+  border: 0;
+  background: var(--bg-elevated);
+}
+
+.article-body {
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.article-body p {
+  margin: 0 0 1.15em;
+}
+
+.article-body h2 {
+  margin: 1.7em 0 0.6em;
+}
+
+.article-body a {
+  color: var(--text-strong);
+  border-bottom: 1px solid #4a4a4e;
+}
+
+.article-body a:hover {
+  border-color: var(--red);
+}
+
+.article-body blockquote {
+  margin: 1.6em 0;
+  padding: 2px 0 2px 22px;
+  border-left: 3px solid var(--red);
+  font-size: var(--s-lead);
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+
+.article-picks {
+  margin: 34px 0 0;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.article-picks h3,
+.aside-block h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.article-picks ul,
+.aside-block ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-picks li + li {
+  margin-top: 12px;
+}
+
+.article-picks li a {
+  display: block;
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.article-picks li a:hover {
+  color: var(--red);
+}
+
+.article-picks li span {
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.article-aside {
+  display: grid;
+  gap: 36px;
+  font-size: var(--s-small);
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.aside-block p {
+  margin: 0;
+}
+
+.aside-block li {
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+
+.aside-block li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.aside-block a:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
+  text-decoration-color: #4a4a4e;
+  text-underline-offset: 3px;
+}
+
+.aside-block .table-note {
+  color: var(--muted);
+}
+
+@media (max-width: 1000px) {
+  .article-layout {
+    grid-template-columns: minmax(0, 680px);
+    justify-content: center;
+    gap: 48px;
+  }
+}
+
+@media (max-width: 600px) {
+  .article-body {
+    font-size: 1.0625rem;
+  }
+
+  .article-figure {
+    margin: 22px -16px 26px;
+  }
+
+  .article-figure .article-cover-shell {
+    border-radius: 0;
+  }
+}
+
+/* ── ГЛАВНАЯ ── */
+
+.home-top {
+  padding-top: 32px;
+}
+
+/* h1 главной — рубрика над лентой: заголовком экрана работает главная новость. */
+.home-kicker {
+  margin: 0 0 16px;
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+.home-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.home-lead-cover {
+  display: block;
+  margin-bottom: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.home-lead-cover img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.home-item-date,
+.home-headline-list time {
+  display: block;
+  margin: 0 0 6px;
+  font-size: var(--s-label);
+  color: var(--muted);
+}
+
+.home-lead h2 {
+  margin: 0 0 12px;
+  font-size: clamp(1.625rem, 2.6vw, 2.25rem);
+  text-wrap: balance;
+}
+
+.home-lead h2 a:hover,
+.home-headline-list a:hover,
+.home-card-list a:hover,
+.home-block a:hover {
+  color: var(--red);
+}
+
+.home-lead-excerpt {
+  margin: 0;
+  max-width: 44rem;
+  font-size: var(--s-body);
+  line-height: 1.55;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-headline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-headline-list li {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.home-headline-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.home-headline-list a {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.1875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--text-strong);
+}
+
+.home-more {
+  display: inline-block;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  width: 100%;
+  font-size: var(--s-small);
+  color: var(--red);
+}
+
+/* Ближайший бой: полоса вместо постера на весь экран. */
+.home-fight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+  margin-top: 56px;
+  padding: 28px 32px 0;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.home-fight-info {
+  padding-bottom: 28px;
+}
+
+.home-fight-label,
+.home-block h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.home-fight h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.625rem, 2.8vw, 2.25rem);
+}
+
+.home-fight-sub {
+  margin: 0;
+  font-size: var(--s-small);
+  color: var(--text-2);
+}
+
+.home-fight-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 18px 0 0;
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.home-fight-pick strong {
+  font-size: var(--s-lead);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.home-fight-pick em {
+  font-style: normal;
+  color: var(--red);
+}
+
+.home-fight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.home-fight-faces {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.home-fight-faces img {
+  width: 150px;
+  height: 184px;
+  object-fit: cover;
+  object-position: top;
+}
+
+.home-three {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
+  margin-top: 48px;
+  align-items: start;
+}
+
+.home-block {
+  min-width: 0;
+  font-size: var(--s-small);
+  line-height: 1.45;
+}
+
+.home-block h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.home-block h3 .section-link,
+.section-head .section-link {
+  font-size: var(--s-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--red);
+  white-space: nowrap;
+}
+
+.home-card-list,
+.home-block .home-p4p,
+.home-block .home-upcoming {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-card-list li,
+.home-block .home-p4p li,
+.home-block .home-upcoming li {
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.home-card-list li:first-child,
+.home-block .home-p4p li:first-child,
+.home-block .home-upcoming li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.home-card-list a {
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.home-card-pick {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--s-label);
+  color: var(--muted);
+}
+
+.home-note {
+  margin: 12px 0 0;
+  font-size: var(--s-label);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.home-block .home-p4p .home-rank {
+  color: var(--muted);
+  font-family: var(--font-body), sans-serif;
+  font-weight: 500;
+}
+
+.home-accuracy-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  color: var(--text-2);
+}
+
+.home-accuracy-figure strong {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 2.25rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-strong);
+}
+
+.home-two {
+  gap: 56px;
+}
+
+.home-block .copy {
+  margin: 0 0 14px;
+}
+
+/* ── КАРТОЧКА МАТЕРИАЛА В СЕТКЕ ── */
+
+.story-grid {
+  gap: 40px 32px;
+}
+
+.story-card,
+.story-card.editorial-card {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.story-art {
+  min-height: 0;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+
+.story-art-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story-art-label,
+.story-card-accent {
+  display: none;
+}
+
+.story-card-meta .kicker {
+  margin: 0 0 6px;
+  font-size: var(--s-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.story-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.1875rem;
+  line-height: 1.25;
+}
+
+.story-card h3 a:hover {
+  color: var(--red);
+}
+
+.story-card .copy {
+  margin: 0;
+  font-size: var(--s-small);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.story-card .tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 10px;
+}
+
+.story-card .tag-row span {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: var(--s-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+@media (max-width: 1000px) {
+  .home-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .home-three {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+@media (max-width: 720px) {
+  .home-fight {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 22px 18px 0;
+  }
+
+  .home-fight-info {
+    padding-bottom: 18px;
+  }
+
+  .home-fight-faces {
+    justify-content: center;
+  }
+
+  .home-fight-faces img {
+    width: 34vw;
+    height: auto;
+    aspect-ratio: 9 / 11;
+  }
+
+  .home-lead-cover {
+    margin-left: -16px;
+    margin-right: -16px;
+    border-radius: 0;
+  }
+}
+
+/* ── ОБЩИЕ БЛОКИ: без рамок, разделение отступом и линией ── */
+
+.policy-card,
+.table-card,
+.feature-card {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.panel,
+.stat-card,
+.mini-card,
+.fighter-card,
+.event-card {
+  background: var(--bg-elevated);
+  border-color: transparent;
+}
+
+.stack {
+  gap: 32px;
+}
+
+/* Боковая колонка: подписи вместо заголовков, пункты через линию. */
+aside .policy-card h3,
+aside.stack h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+aside .policy-card ul,
+aside .policy-card ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--s-small);
+  line-height: 1.45;
+  color: var(--text);
+}
+
+aside .policy-card li,
+aside .policy-card li + li {
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+aside .policy-card li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+aside .policy-card a:hover {
+  color: var(--red);
+}
+
+aside .policy-card p,
+aside .policy-card .copy {
+  margin: 0 0 8px;
+  font-size: var(--s-small);
+}
+
+/* Ссылки-действия: красные, обычным регистром. */
+.event-table-link,
+.section-link {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.detail-grid {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 64px;
+}
+
+/* ── СТРАНИЦА ПРОГНОЗА ── */
+
+.prediction-hero-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+  margin: 0 0 20px;
+  padding: 28px 32px 0;
+  border: 0;
+  overflow: hidden;
+}
+
+.prediction-hero-card::before {
+  display: none;
+}
+
+.prediction-hero-fighter,
+.prediction-hero-fighter--reverse {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 150px;
+}
+
+.prediction-hero-fighter--reverse {
+  align-items: flex-end;
+}
+
+.prediction-hero-fighter > div {
+  order: -1;
+}
+
+.prediction-hero-fighter h3 {
+  margin: 0 0 2px;
+  font-size: 1.125rem;
+}
+
+.prediction-hero-fighter .copy {
+  margin: 0;
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.prediction-hero-photo {
+  width: 150px;
+  height: 184px;
+  border: 0;
+  border-radius: 0;
+}
+
+.prediction-hero-center {
+  align-self: center;
+  gap: 10px;
+  padding-bottom: 28px;
+  text-align: left;
+}
+
+.prediction-label {
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.prediction-hero-center > strong {
+  font-size: var(--s-small);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Пик — главный элемент страницы. */
+.prediction-meter-caption {
+  font-size: var(--s-body);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.prediction-meter-caption > strong:first-child {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.625rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-strong);
+}
+
+.prediction-meter-caption + .prediction-meter-caption {
+  font-size: var(--s-small);
+  color: var(--text-2);
+}
+
+.prediction-meter-caption + .prediction-meter-caption > strong:first-child {
+  display: inline;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.prediction-meter {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: #2a2a2d;
+}
+
+.prediction-meter-scale {
+  font-size: var(--s-label);
+  color: var(--muted);
+}
+
+.compare-cta {
+  margin: 0 0 36px;
+  font-size: var(--s-small);
+}
+
+.prediction-detail-card {
+  gap: 0;
+}
+
+.prediction-sections,
+.prediction-sections--editorial {
+  gap: 0;
+}
+
+.prediction-section-card {
+  padding: 28px 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.prediction-section-card:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.prediction-section-card h3 {
+  margin: 0 0 12px;
+  font-size: var(--s-h2);
+}
+
+.prediction-section-card .copy {
+  max-width: 44rem;
+  margin: 0 0 1em;
+  font-size: var(--s-body);
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.prediction-article-heading {
+  margin: 1.4em 0 0.5em;
+  font-size: var(--s-h3);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+@media (max-width: 860px) {
+  .prediction-hero-card {
+    grid-template-columns: 1fr 1fr;
+    padding: 22px 18px 0;
+    gap: 18px;
+  }
+
+  .prediction-hero-center {
+    grid-column: 1 / -1;
+    order: -1;
+    padding-bottom: 0;
+  }
+
+  .prediction-hero-fighter,
+  .prediction-hero-fighter--reverse {
+    width: auto;
+  }
+
+  .prediction-hero-photo {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 9 / 11;
+  }
+
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+/* ── ГЛАВНАЯ: мелочи ── */
+
+.home-block .home-upcoming .home-up-date {
+  color: var(--muted);
+  font-family: var(--font-body), sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.home-follow-row .push-subscribe .button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.prediction-meter-caption {
+  text-align: left;
+}
+
+/* ── КАРТОЧКА БОЙЦА ── */
+
+.fighter-profile-photo,
+.fighter-avatar-large {
+  width: 220px;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+}
+
+.fighter-section-nav a {
+  border-radius: 4px;
+  border-color: var(--line);
+  font-size: var(--s-small);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Последние бои: строки через линию вместо карточек. */
+.recent-fight-cards {
+  gap: 0;
+}
+
+.recent-fight-card {
+  padding: 16px 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.recent-fight-card:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.recent-fight-opponent {
+  font-size: var(--s-body);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.recent-fight-opponent a:hover {
+  color: var(--red);
+}
+
+.recent-fight-meta {
+  margin-top: 2px;
+  font-size: var(--s-small);
+}
+
+.recent-fight-head .status-pill {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: var(--s-small);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.recent-fight-head .status-pill.is-live {
+  color: #58b784;
+}
+
+.recent-fight-grid {
+  grid-template-columns: auto auto;
+  justify-content: start;
+  gap: 2px 28px;
+  margin-top: 8px;
+}
+
+.recent-fight-grid > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.recent-fight-grid .eyebrow {
+  font-size: var(--s-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.recent-fight-grid .copy {
+  margin: 0;
+  font-size: var(--s-small);
+  color: var(--text);
+}
+
+.recent-fight-links {
+  margin-top: 6px;
+  font-size: var(--s-small);
+}
+
+.recent-fight-links a {
+  min-height: 0;
+  color: var(--red);
+  text-decoration: none;
+}
+
+/* Подписи показателей в боковой колонке. */
+aside .policy-card .eyebrow {
+  font-size: var(--s-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── ОСТАТКИ КАПСА: действия и названия — обычным регистром ── */
+
+.filter-chip,
+.editorial-inline-link,
+.event-fight-link,
+.event-fight-link--pending,
+.event-table-pending,
+.event-listing-fight-link,
+.ranking-status,
+.compare-table-name,
+.compare-hub-title,
+.event-night-banner,
+.event-card-table td:nth-child(1),
+.event-card-table td:nth-child(3) {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.filter-chip {
+  border-radius: 4px;
+  font-size: var(--s-small);
+  font-weight: 500;
+}
+
+.event-listing-fight-link,
+.editorial-inline-link {
+  font-size: var(--s-small);
+  font-weight: 500;
+}
+
+/* Подписи колонок и групп остаются прописными, но одного размера и веса. */
+th,
+.ranking-table th,
+.filter-group span,
+.fighter-search-label,
+.event-listing-status,
+.event-listing-label,
+.event-card-status,
+.event-card-headliner-label,
+.compare-table-head-label,
+.compare-label {
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.event-listing-status {
+  color: var(--red);
+}
+
+/* ── РЕЙТИНГ ── */
+
+.ranking-intro-card {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-left: 0;
+}
+
+.ranking-intro-card h2 {
+  font-size: var(--s-h2);
+}
+
+/* ── СПИСКИ: панель фильтров ── */
+
+.panel {
+  border-radius: 4px;
+}
+
+/* ── СТРАНИЦЫ «О САЙТЕ» И ПОЛИТИК ── */
+
+.policy-grid {
+  gap: 40px 56px;
+}
+
+.policy-grid .policy-card .kicker {
+  margin: 0 0 8px;
+  color: var(--red);
+  text-transform: uppercase;
+}
+
+.policy-grid .policy-card h3 {
+  margin: 0 0 10px;
+  font-size: var(--s-h3);
+}
+
+/* ── ТЕЛЕФОН ── */
+
+@media (max-width: 720px) {
+  .page-hero .copy {
+    font-size: var(--s-body);
+  }
+
+  .story-grid {
+    gap: 32px;
+  }
+
+  .fighter-profile-photo,
+  .fighter-avatar-large {
+    width: 160px;
+  }
+
+  .section-head h2 {
+    font-size: 1.5rem;
+  }
+}
+
+.fighter-profile-photo,
+.fighter-avatar-large {
+  height: auto;
+  aspect-ratio: 4 / 5;
+}
+
+/* ── АДМИНКА: формам и таблицам рамки и отступы нужны ── */
+
+.admin-scope .policy-card,
+.admin-scope .table-card,
+.admin-scope .feature-card {
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.admin-scope .stack {
+  gap: 18px;
+}
+
+.admin-scope .detail-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+/* ── ШАПКА СТРАНИЦЫ БЕЗ ХЛЕБНЫХ КРОШЕК ── */
+
+main > .page-hero:first-child,
+.container > .page-hero:first-child {
+  margin-top: 40px;
+}
+
+/* ── ПУСТЫЕ СОСТОЯНИЯ ── */
+
+.filter-empty-state {
+  background: var(--bg-elevated);
+  border: 0;
+  border-radius: 4px;
+}
+
+/* ── ЧЕМПИОНЫ ── */
+
+.champions-grid {
+  gap: 40px 48px;
+}
+
+.champion-card {
+  gap: 12px;
+}
+
+.champion-card h2 {
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.champion-card .copy,
+.champion-card .table-note {
+  margin: 0;
+  font-size: var(--s-small);
+}
+
+/* ── СПИСОК ПРОГНОЗОВ ── */
+
+.predictions-stack {
+  gap: 44px;
+}
+
+.prediction-event-nav a {
+  background: var(--bg-elevated);
+  border: 0;
+  border-radius: 4px;
+}
+
+.prediction-event-nav a:hover,
+.prediction-event-nav a:focus-visible {
+  background: var(--panel-strong);
+}
+
+.prediction-event-card--featured {
+  background: transparent;
+  border-left: 0;
+  overflow: visible;
+}
+
+.prediction-event-card--featured::before {
+  display: none;
+}
+
+.prediction-event-card {
+  padding-top: 36px;
+  border-top: 1px solid var(--line);
+}
+
+.prediction-match-card,
+.prediction-match-card--pending,
+.prediction-match-card--pending:hover {
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 0;
+  border-radius: 4px;
+}
+
+.prediction-match-card:hover {
+  transform: none;
+  background: var(--panel-strong);
+}
+
+.prediction-match-copy small,
+.prediction-match-card--pending .prediction-match-copy small {
+  color: var(--muted);
+  font-size: var(--s-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.prediction-match-card--pending .prediction-match-copy small::before {
+  display: none;
+}
+
+/* Шкала занимала первую колонку шириной с фото — растягиваем на всю карточку. */
+.prediction-match-meter {
+  grid-column: 1 / -1;
+}
+
+.prediction-match-meter .prediction-meter-scale {
+  gap: 12px;
+}
+
+/* ── ТОЧНОСТЬ ПРОГНОЗОВ: в таблице ссылка — название боя, а не действие ── */
+
+.predictions-stack td .event-table-link {
+  color: var(--text-strong);
+}
+
+.predictions-stack td .event-table-link:hover {
+  color: var(--red);
+}
+
+/* ── ПРОВЕРКА ПЕРЕД ВЫКЛАДКОЙ: найденное ── */
+
+/* Списки «Интервью» и «Аналитика»: обложка выходила за карточку, у которой
+   больше нет внутренних отступов. */
+.feature-grid {
+  gap: 40px 32px;
+}
+
+.feature-card.editorial-card,
+.editorial-card,
+.editorial-mini-card {
+  background: transparent;
+  border: 0;
+}
+
+.editorial-card-cover {
+  margin: 0 0 14px;
+  border-bottom: 0;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+}
+
+.feature-card .eyebrow {
+  margin: 0 0 6px;
+}
+
+.feature-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.1875rem;
+  line-height: 1.25;
+}
+
+.feature-card h3 a:hover {
+  color: var(--red);
+}
+
+.feature-card .copy {
+  margin: 0 0 10px;
+  font-size: var(--s-small);
+  line-height: 1.5;
+}
+
+/* Анонс обрезаем только у карточек материалов с обложкой; текстовые блоки
+   («О сайте», политики) показываются целиком. */
+.feature-card:has(.editorial-card-cover) .copy {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.editorial-inline-link {
+  color: var(--red);
+}
+
+/* Хаб сравнений: группы были карточками с отступом, строки — с общим
+   правилом `li + li`, из-за которого первая строка стояла выше остальных. */
+.compare-hub-group + .compare-hub-group {
+  margin-top: 8px;
+}
+
+.compare-hub-list {
+  gap: 0 32px;
+}
+
+.compare-hub-list .compare-hub-item,
+.compare-hub-list .compare-hub-item + .compare-hub-item {
+  margin: 0;
+  padding: 10px 0;
+  justify-content: space-between;
+}
+
+.compare-hub-badge,
+.compare-hub-count {
+  font-size: var(--s-label);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.compare-hub-badge {
+  color: var(--muted);
+}
+
+.compare-links li,
+.compare-links li + li {
+  margin: 0;
+}
+
+/* Поиск: поле без класса оставалось белым системным. */
+.fighter-search-form:has(> input) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  max-width: 640px;
+}
+
+.fighter-search-form input:not([type="submit"]):not([type="hidden"]),
+.fighter-search-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-strong);
+}
+
+.fighter-search-form input::placeholder {
+  color: var(--muted);
+}
+
+.fighter-search-form input:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 2px;
+}
+
+/* Панель фильтров: без градиента, липнет под новой шапкой высотой 60px. */
+.filter-group,
+.timeline-item {
+  background: var(--bg-elevated);
+  border-color: transparent;
+  border-radius: 4px;
+  top: 84px;
+}
+
+/* 404 и другие пустые состояния первым блоком страницы. */
+main > .filter-empty-state:first-child {
+  margin-top: 40px;
+}
+
+/* Минимальный размер подписей — 13px. */
+.event-listing-month,
+.event-listing-year,
+.event-listing-location,
+.home-up-date,
+.home-up-meta,
+.home-block .home-upcoming .home-up-date,
+.ranking-champion-badge span,
+td .event-table-link,
+.compare-inline-link {
+  font-size: var(--s-label);
+}
+
+.event-listing-month {
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.policy-card .compare-hub-list,
+.policy-card .compare-links {
+  padding: 0;
+}
+
+/* Список с фильтрами после таблицы или текста — с отступом. */
+.table-card + .page-grid,
+.policy-card + .page-grid,
+.table-wrap + .page-grid,
+.section + .page-grid {
+  margin-top: 48px;
+}
+
+/* Подпись пика была отцентрована узкой колонкой и съезжала вправо от метки. */
+.prediction-meter-caption {
+  max-width: 44rem;
+  margin-inline: 0;
+}
+
+/* Результат боя — отдельной строкой: у ничьей он сливался со ссылкой «Разбор боя». */
+.event-table-result {
+  display: block;
+}
+
+.button,
+.button-secondary,
+.button-ghost {
+  white-space: nowrap;
+}
+
+.policy-card ul + *,
+.table-card .table-wrap + *,
+.table-wrap + p {
+  margin-top: 14px;
+}
+
+.home-upcoming .home-up-meta {
+  font-size: var(--s-label);
+}
+
+/* Страницы политик: две равные колонки, а не «фильтры + список». */
+.page-grid.policy-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px 56px;
+}
+
+@media (max-width: 720px) {
+  .page-grid.policy-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

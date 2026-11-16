@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: locale === "ru" ? "Интервью и прямая речь UFC" : "UFC interviews and quotes",
       description:
         locale === "ru"
-          ? "Интервью, заявления и материалы FightBase Media, построенные вокруг прямой речи бойцов, тренеров и участников UFC-повестки."
+          ? "Интервью и заявления бойцов, тренеров и руководства UFC."
           : "FightBase Media interviews and reports centered on direct quotes from UFC fighters, coaches, and other participants."
     }),
     robots: totalCount
@@ -53,7 +53,7 @@ export default async function QuotesPage({
         title={locale === "ru" ? "Интервью и прямая речь" : "Interviews and direct quotes"}
         description={
           locale === "ru"
-            ? "Раздел для интервью, пресс-конференций и материалов, где особенно важны точные формулировки и смысл сказанного."
+            ? "Что говорят бойцы, тренеры и руководство UFC: интервью, пресс-конференции, заявления."
             : "A desk for interviews, press conferences, and quote-driven pieces where phrasing and meaning matter most."
         }
       />
@@ -96,7 +96,7 @@ export default async function QuotesPage({
           <h3>{locale === "ru" ? "Раздел интервью пока пуст" : "The interview desk is currently empty"}</h3>
           <p className="copy">
             {locale === "ru"
-              ? "После загрузки интервью и пресс-конференций они будут собираться здесь как отдельная редакционная витрина."
+              ? "Здесь будут интервью и заявления бойцов."
               : "Once interviews and press-conference coverage are published, they will appear here as a separate editorial desk."}
           </p>
         </section>

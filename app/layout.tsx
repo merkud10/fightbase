@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, Oswald, Russo_One } from "next/font/google";
+import { Inter, Oswald } from "next/font/google";
 
 import "./globals.css";
+import "./redesign.css";
 
 import { Footer } from "@/components/footer";
 import { FloatingSocialLinks } from "@/components/floating-social-links";
@@ -18,19 +19,13 @@ import { buildWebSiteJsonLd } from "@/lib/structured-data";
 const bodyFont = Inter({
   subsets: ["latin", "cyrillic"],
   variable: "--font-body",
-  weight: ["400", "500", "600", "700", "800"]
+  weight: ["400", "500", "600", "700"]
 });
 
 const headingFont = Oswald({
   subsets: ["latin", "cyrillic"],
   variable: "--font-heading",
-  weight: ["300", "400", "500"]
-});
-
-const navFont = Russo_One({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-nav",
-  weight: ["400"]
+  weight: ["500", "600"]
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -38,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const rootPath = localizePath("/", locale);
   const isRu = locale === "ru";
   const description = isRu
-    ? "FightBase Media - MMA-медиа о UFC: новости, прогнозы, турниры, бойцы, рейтинги и редакционные разборы боев."
+    ? "FightBase — новости UFC, прогнозы на бои, расписание турниров, рейтинги и карточки бойцов."
     : "FightBase Media is an MMA publication focused on UFC news, fight analysis, event pages, fighter profiles, rankings, and predictions.";
 
   return {
@@ -146,7 +141,7 @@ export default async function RootLayout({
           />
         ) : null}
       </head>
-      <body className={`${bodyFont.variable} ${headingFont.variable} ${navFont.variable}`}>
+      <body className={`${bodyFont.variable} ${headingFont.variable}`}>
         <a className="skip-link" href="#main-content">
           {locale === "ru" ? "Перейти к содержанию" : "Skip to content"}
         </a>

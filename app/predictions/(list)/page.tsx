@@ -141,8 +141,8 @@ export default async function PredictionsPage() {
       ) : null}
 
       {accuracy.favorite.percent !== null || accuracy.model.percent !== null ? (
-        <section className="policy-card" aria-label={locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}>
-          <p className="kicker">{locale === "ru" ? "Как отрабатывают прогнозы" : "Prediction track record"}</p>
+        <section className="policy-card" aria-label={locale === "ru" ? "Сколько прогнозов сбылось" : "Prediction track record"}>
+          <p className="kicker">{locale === "ru" ? "Сколько прогнозов сбылось" : "Prediction track record"}</p>
           {accuracy.model.percent !== null ? (
             <p className="copy">
               {locale === "ru"
@@ -177,10 +177,10 @@ export default async function PredictionsPage() {
 
       {eventsWithSnapshots.length === 0 ? (
         <section className="filter-empty-state">
-          <h3>{locale === "ru" ? "Прогнозные страницы пока не готовы" : "Prediction pages are not ready yet"}</h3>
+          <h3>{locale === "ru" ? "Прогнозов пока нет" : "Prediction pages are not ready yet"}</h3>
           <p className="copy">
             {locale === "ru"
-              ? "После ближайшего суточного обновления коэффициентов и snapshot-данных здесь появятся готовые превью боев UFC."
+              ? "Прогнозы появятся здесь после ближайшего обновления коэффициентов."
               : "Ready-made UFC fight previews will appear here after the next scheduled odds and snapshot update."}
           </p>
         </section>

@@ -371,7 +371,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
             heading={locale === "ru" ? "По этим фильтрам ничего не найдено" : "No events match these filters"}
             description={
               locale === "ru"
-                ? "По выбранным параметрам турниров не найдено. Сбросьте часть фильтров, чтобы увидеть больше событий."
+                ? "По этим фильтрам турниров нет. Уберите часть фильтров."
                 : "No events match the selected filters. Clear some filters to view a broader schedule."
             }
           />

@@ -28,7 +28,7 @@ export default async function PrivacyPolicyPage() {
         title={locale === "ru" ? "Политика конфиденциальности" : "Privacy policy"}
         description={
           locale === "ru"
-            ? "На этой странице описано, какие технические и пользовательские данные может получать FightBase Media, как они используются и как связаться с редакцией по вопросам обработки данных."
+            ? "Какие данные получает сайт, зачем они нужны и куда писать с вопросами."
             : "This page explains which technical and user data FightBase Media may receive, how it may be used, and how to contact the editorial team about data handling."
         }
       />
@@ -63,7 +63,7 @@ export default async function PrivacyPolicyPage() {
             </li>
             <li>
               {locale === "ru"
-                ? "Для редакционной аналитики: понимания, какие разделы и материалы наиболее полезны аудитории."
+                ? "Чтобы понимать, какие разделы и материалы читают чаще."
                 : "For editorial analytics to understand which sections and stories are most useful to readers."}
             </li>
             <li>
@@ -85,7 +85,7 @@ export default async function PrivacyPolicyPage() {
           <h3>{locale === "ru" ? "Контакты и обновления" : "Contact and updates"}</h3>
           <p>
             {locale === "ru"
-              ? "Политика может обновляться по мере развития сайта. Если у вас есть вопросы о конфиденциальности или обработке данных, используйте редакционные контакты, указанные на странице About."
+              ? "Политика может обновляться. С вопросами о данных пишите нам в Telegram или VK, ссылки есть на каждой странице."
               : "This policy may be updated as new site features are introduced. If you have privacy or data handling questions, use the editorial contacts listed on the About page."}
           </p>
         </article>

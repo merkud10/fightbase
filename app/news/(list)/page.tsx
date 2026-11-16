@@ -33,7 +33,7 @@ export async function generateMetadata({ searchParams }: NewsPageProps): Promise
   const title = locale === "ru" ? "Новости UFC" : "UFC News";
   const description =
     locale === "ru"
-      ? "Новости UFC от FightBase Media: главные события, подтвержденные анонсы, результаты и важные изменения по бойцам и турнирам."
+      ? "Новости UFC: анонсы боёв, результаты турниров, замены в кардах и заявления бойцов."
       : "UFC news from FightBase Media: major developments, confirmed announcements, results, and key fighter and event updates.";
 
   return {
@@ -116,7 +116,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
         title={locale === "ru" ? "Новости" : "News"}
         description={
           locale === "ru"
-            ? "Главная новостная лента FightBase Media с фильтрами по темам и привязкой к бойцам и турнирам UFC."
+            ? "Анонсы боёв, результаты турниров, замены в кардах и заявления бойцов."
             : "The main FightBase Media news feed with topic filters and links to UFC fighters and events."
         }
       />
@@ -171,7 +171,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <FilterEmptyState
             heading={locale === "ru" ? "По этим фильтрам ничего не найдено" : "No articles match these filters"}
             description={locale === "ru"
-              ? "По выбранным параметрам материалов не найдено. Сбросьте часть фильтров, чтобы расширить выборку."
+              ? "По этим фильтрам ничего не нашлось. Уберите часть фильтров."
               : "No stories match the selected filters. Clear some filters to broaden the list."}
           />
         )}

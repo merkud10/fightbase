@@ -9,8 +9,6 @@ import { isNavigationItemActive } from "@/lib/navigation";
 
 type HeaderNavigationProps = {
   homeHref: string;
-  brandTagline: string;
-  topline: string;
   navLabel: string;
   menuLabel: string;
   closeMenuLabel: string;
@@ -26,8 +24,6 @@ const navigationPanelId = "primary-navigation-panel";
 
 export function HeaderNavigation({
   homeHref,
-  brandTagline,
-  topline,
   navLabel,
   menuLabel,
   closeMenuLabel,
@@ -64,7 +60,6 @@ export function HeaderNavigation({
           <span className="brand-mark">FB</span>
           <span className="brand-copy">
             <span>FightBase</span>
-            <small>{brandTagline}</small>
           </span>
         </Link>
 
@@ -90,7 +85,6 @@ export function HeaderNavigation({
           data-open={menuOpen ? "true" : "false"}
         >
           <div className="header-nav-shell">
-            <span className="header-topline">{topline}</span>
             <nav className="nav-links" aria-label={navLabel}>
               {navItems.map((item) => {
                 const active = isNavigationItemActive(pathname, item.href);

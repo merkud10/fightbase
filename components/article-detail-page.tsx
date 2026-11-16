@@ -7,7 +7,6 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { AdSlot } from "@/components/ad-slot";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { JsonLd } from "@/components/json-ld";
-import { PageHero } from "@/components/page-hero";
 import { prepareArticleIntro } from "@/lib/article-intro";
 import { getArticleRouteBase, resolveMovedArticlePath } from "@/lib/article-routes";
 import { ArticleCard } from "@/components/cards";
@@ -150,6 +149,11 @@ export async function generateArticlePageMetadata(
   };
 }
 
+// Абзац, целиком состоящий из прямой речи, выносим врезкой.
+function isStandaloneQuote(paragraph: string) {
+  return /^«[^«»]{40,}»[.!?]?$/.test(paragraph.trim());
+}
+
 export async function ArticleDetailPage({
   slug,
   category
@@ -204,7 +208,22 @@ export async function ArticleDetailPage({
       dateStyle: "long",
       timeZone: "Europe/Moscow"
     }).format(date);
+  const formatDateTime = (date: Date) =>
+    new Intl.DateTimeFormat(dateLocale, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Moscow"
+    }).format(date);
+  // «Обновлено» показываем, только если материал правили заметно позже публикации.
+  const showUpdated = article.updatedAt.getTime() - article.publishedAt.getTime() > 60 * 60 * 1000;
   const labels = getSectionLabels(category, locale);
+  const rubric = [
+    labels.index,
+    ...article.tagMap.slice(0, 2).map(({ tag }) => formatArticleTagLabel(tag.slug || tag.label, locale))
+  ].join(" · ");
   const breadcrumbItems = [
     { label: locale === "ru" ? "Главная" : "Home", href: "/" },
     { label: labels.index, href: getArticleRouteBase(category) },
@@ -235,55 +254,49 @@ export async function ArticleDetailPage({
       <JsonLd data={breadcrumbJsonLd} />
       <JsonLd data={articleJsonLd} />
       <Breadcrumbs items={breadcrumbItems} locale={locale} />
-      <PageHero title={article.title} description={intro.lead} />
+      <section className="article-layout">
+        <article className="article-main">
+          <header className="article-head">
+            <p className="article-rubric">{rubric}</p>
+            <h1>{article.title}</h1>
+            {intro.lead ? <p className="article-lead">{intro.lead}</p> : null}
+            <p className="article-meta">
+              <time dateTime={article.publishedAt.toISOString()}>{formatDateTime(article.publishedAt)}</time>
+              {showUpdated ? (
+                <span>
+                  {locale === "ru" ? "обновлено " : "updated "}
+                  <time dateTime={article.updatedAt.toISOString()}>{formatDateTime(article.updatedAt)}</time>
+                </span>
+              ) : null}
+              {primarySource ? (
+                <span>
+                  {locale === "ru" ? "по материалу " : "via "}
+                  <a href={primarySource.url} target="_blank" rel="noopener noreferrer">
+                    {primarySource.label}
+                  </a>
+                </span>
+              ) : null}
+            </p>
+          </header>
 
-      <section className="policy-card" aria-label={locale === "ru" ? "Данные материала" : "Story details"}>
-        <p className="kicker">
-          {locale === "ru" ? "Автор" : "By"}: FightBase Media
-        </p>
-        <p className="copy">
-          {locale === "ru" ? "Опубликовано" : "Published"}: {" "}
-          <time dateTime={article.publishedAt.toISOString()}>{formatDate(article.publishedAt)}</time>
-          {" · "}
-          {locale === "ru" ? "Обновлено" : "Updated"}: {" "}
-          <time dateTime={article.updatedAt.toISOString()}>{formatDate(article.updatedAt)}</time>
-        </p>
-        {primarySource ? (
-          <p className="copy">
-            {locale === "ru" ? "Первоисточник" : "Original source"}: {" "}
-            <a href={primarySource.url} target="_blank" rel="noopener noreferrer">
-              {primarySource.label}
-            </a>
-          </p>
-        ) : null}
-        {article.tagMap.length > 0 ? (
-          <p className="copy">
-            {locale === "ru" ? "Темы" : "Topics"}: {" "}
-            {article.tagMap
-              .map(({ tag }) => formatArticleTagLabel(tag.slug || tag.label, locale))
-              .join(" · ")}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="detail-grid">
-        <article className="stack">
           {article.coverImageUrl ? (
-            <div className="article-cover-shell article-cover-shell--hero">
-              <Image
-                src={getDisplayImageUrl(article.coverImageUrl)}
-                alt={article.coverImageAlt || article.title}
-                fill
-                priority
-                className="article-cover-image"
-                sizes="(max-width: 1200px) 100vw, 1200px"
-              />
-            </div>
+            <figure className="article-figure">
+              <div className="article-cover-shell article-cover-shell--hero">
+                <Image
+                  src={getDisplayImageUrl(article.coverImageUrl)}
+                  alt={article.coverImageAlt || article.title}
+                  fill
+                  priority
+                  className="article-cover-image"
+                  sizes="(max-width: 760px) 100vw, 680px"
+                />
+              </div>
+            </figure>
           ) : null}
 
           <AdSlot placement="articleInline" locale={locale} />
 
-          <div className="policy-card">
+          <div className="article-body">
             {(() => {
               const mentionFighters = article.fighterMap.map(({ fighter }) => ({
                 slug: fighter.slug,
@@ -293,11 +306,13 @@ export async function ArticleDetailPage({
               const linkedFighters = new Set<string>();
 
               return intro.sections.filter((section) => section.body.trim()).map((section) => (
-                <div key={section.id} style={{ marginBottom: 22 }}>
-                  {section.heading && section.heading !== "AI draft" ? <h3>{section.heading}</h3> : null}
-                  <div className="article-copy-stack">
-                    {splitIntoParagraphs(section.body).map((paragraph, index) => (
-                      <p key={`${section.id}-${index}`} className="copy">
+                <div key={section.id} className="article-section">
+                  {section.heading && section.heading !== "AI draft" ? <h2>{section.heading}</h2> : null}
+                  {splitIntoParagraphs(section.body).map((paragraph, index) =>
+                    isStandaloneQuote(paragraph) ? (
+                      <blockquote key={`${section.id}-${index}`}>{paragraph.replace(/^«|»[.!?]?$/g, "")}</blockquote>
+                    ) : (
+                      <p key={`${section.id}-${index}`}>
                         {segmentFighterMentions(paragraph, mentionFighters, linkedFighters).map((segment, segmentIndex) =>
                           segment.type === "fighter" ? (
                             <Link
@@ -311,17 +326,17 @@ export async function ArticleDetailPage({
                           )
                         )}
                       </p>
-                    ))}
-                  </div>
+                    )
+                  )}
                 </div>
               ));
             })()}
           </div>
 
           {articleFights.length > 0 ? (
-            <div className="policy-card" aria-label={locale === "ru" ? "Прогнозы на бои из материала" : "Picks for fights in this story"}>
+            <div className="article-picks" aria-label={locale === "ru" ? "Прогнозы на бои из материала" : "Picks for fights in this story"}>
               <h3>{locale === "ru" ? "Прогноз FightBase на этот бой" : "FightBase pick for this fight"}</h3>
-              <ul className="event-side-list">
+              <ul>
                 {articleFights.map((fight) => {
                   const displayName = (fighter: { name: string; nameRu: string | null }) =>
                     (locale === "ru" ? fighter.nameRu : null) ?? fighter.name;
@@ -361,8 +376,7 @@ export async function ArticleDetailPage({
                       <Link href={localizePath(`/predictions/${fight.event.slug}/${fight.slug}`, locale)}>
                         {displayName(fight.fighterA)} — {displayName(fight.fighterB)}
                       </Link>
-                      <br />
-                      <span className="copy">{details.join(" · ")}</span>
+                      <span>{details.join(" · ")}</span>
                     </li>
                   );
                 })}
@@ -373,11 +387,11 @@ export async function ArticleDetailPage({
           <ShareButtons url={articleUrl} title={article.title} locale={locale} />
         </article>
 
-        <aside className="stack">
+        <aside className="article-aside">
           <AdSlot placement="articleSidebar" locale={locale} />
 
           {article.fighterMap.length > 0 ? (
-            <div className="policy-card">
+            <div className="aside-block">
               <h3>{locale === "ru" ? "Бойцы в материале" : "Fighters in this story"}</h3>
               <ul>
                 {article.fighterMap.map(({ fighter }) => (
@@ -392,15 +406,15 @@ export async function ArticleDetailPage({
           ) : null}
 
           {linkedEvent ? (
-            <div className="policy-card">
+            <div className="aside-block">
               <h3>{locale === "ru" ? "Связанный турнир" : "Linked event"}</h3>
-              <p className="copy">
+              <p>
                 <Link href={localizePath(`/events/${linkedEvent.slug}`, locale)}>{linkedEvent.name}</Link>
               </p>
             </div>
           ) : null}
 
-          <div className="policy-card">
+          <div className="aside-block">
             <h3>{locale === "ru" ? "Дальше в UFC" : "Next in the UFC"}</h3>
             <ul className="event-side-list">
               {nextEvent ? (
@@ -444,9 +458,9 @@ export async function ArticleDetailPage({
             </ul>
           </div>
 
-          {article.sourceMap.length > 0 ? (
-            <div className="policy-card">
-              <h3>{locale === "ru" ? "Источник" : "Source"}</h3>
+          {article.sourceMap.length > 1 ? (
+            <div className="aside-block">
+              <h3>{locale === "ru" ? "Источники" : "Sources"}</h3>
               <ul className="event-side-list">
                 {article.sourceMap.map(({ source }) => (
                   <li key={source.id}>

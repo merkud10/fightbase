@@ -93,13 +93,13 @@ export function PushSubscribeButton({ label, locale }: PushButtonProps) {
 
       setMessage(
         locale === "ru"
-          ? "Уведомления включены. Будем присылать важные обновления UFC."
+          ? "Уведомления включены. Пришлём прогнозы и напомним о турнире."
           : "Notifications enabled. We will send major UFC updates."
       );
     } catch {
       setMessage(
         locale === "ru"
-          ? "Не удалось подключить уведомления. Попробуй еще раз."
+          ? "Не удалось подключить уведомления. Попробуйте ещё раз."
           : "Could not enable notifications. Please try again."
       );
     } finally {

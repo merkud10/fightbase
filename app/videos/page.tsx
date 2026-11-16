@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: locale === "ru" ? "Видео UFC" : "UFC videos",
       description:
         locale === "ru"
-          ? "Раздел видео FightBase Media готовится к запуску и пока закрыт от индексации."
+          ? "Раздел видео ещё не открыт."
           : "The FightBase Media video section is being prepared for launch and is currently excluded from indexing."
     }),
     robots: {
@@ -36,7 +36,7 @@ export default async function VideosPage() {
         title={locale === "ru" ? "Видео" : "Videos"}
         description={
           locale === "ru"
-            ? "Раздел готовится как отдельная витрина для официальных фрагментов, медиа-дней, хайлайтов и встроенного видеоконтента вокруг главных событий UFC."
+            ? "Здесь будут хайлайты турниров, пресс-конференции и дуэли взглядов."
             : "This section is being prepared as a curated desk for official clips, media-day footage, highlights, and event-related video coverage."
         }
       />
@@ -47,7 +47,7 @@ export default async function VideosPage() {
           <h3>{locale === "ru" ? "Хайлайты, пресс-конференции и face-off" : "Highlights, press conferences, and face-offs"}</h3>
           <p className="copy">
             {locale === "ru"
-              ? "Когда раздел будет заполнен, он станет отдельной точкой входа в видеоповестку UFC, а не просто набором случайных роликов."
+              ? "Раздел откроется, когда наберётся достаточно видео."
               : "When it launches, the page will work as a structured UFC video desk rather than a loose list of clips."}
           </p>
         </article>

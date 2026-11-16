@@ -128,7 +128,7 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
         title={locale === "ru" ? "Бойцы" : "Fighters"}
         description={
           locale === "ru"
-            ? "Профили бойцов с фильтрами по статусам, весовым категориям и поиском по имени."
+            ? "Рекорды, статистика и последние бои. Ищите по имени на русском или английском."
             : "Fighter profiles with filters for statuses, weight classes, and name search."
         }
       />
@@ -218,7 +218,7 @@ export default async function FightersPage({ searchParams }: FightersPageProps) 
             heading={locale === "ru" ? "По этим параметрам ничего не найдено" : "No fighters match these filters"}
             description={
               locale === "ru"
-                ? "По выбранным параметрам или поисковому запросу бойцы не найдены. Сбросьте часть фильтров или измените запрос."
+                ? "Никого не нашли. Уберите часть фильтров или измените запрос."
                 : "No fighters match the selected filters or search query. Clear some filters or refine the query."
             }
           />

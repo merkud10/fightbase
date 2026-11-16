@@ -106,7 +106,7 @@ export default async function PredictionAccuracyPage() {
         title={locale === "ru" ? "Точность прогнозов FightBase" : "FightBase prediction accuracy"}
         description={
           locale === "ru"
-            ? "Открытая статистика: перед каждым турниром пики фиксируются в снапшоте и после боёв сверяются с результатами. Здесь вся история — включая промахи."
+            ? "Перед каждым турниром мы записываем пик модели на каждый бой, а после сверяем его с результатом. Здесь вся история, включая промахи."
             : "An open track record: picks are locked in a snapshot before each event and checked against the results. The full history lives here — misses included."
         }
       />

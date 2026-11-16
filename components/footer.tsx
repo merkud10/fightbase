@@ -11,12 +11,11 @@ export async function Footer() {
     <footer className="site-footer">
       <div className="container site-footer-inner">
         <div className="footer-brand-block">
-          <span className="footer-kicker">{locale === "ru" ? "UFC-медиа" : "UFC media"}</span>
-          <strong>FightBase Media</strong>
+          <strong>FightBase</strong>
           <p className="muted">
             {locale === "ru"
-              ? "Новости UFC, аналитика, турнирные страницы, рейтинги и профили бойцов в одной аккуратной редакционной системе."
-              : "UFC news, analysis, event pages, rankings, and fighter profiles in one streamlined editorial system."}
+              ? "Новости, прогнозы и статистика UFC."
+              : "UFC news, picks, and statistics."}
           </p>
         </div>
 
@@ -32,6 +31,7 @@ export async function Footer() {
           <Link href={localizePath("/about", locale)}>{t.nav.about}</Link>
           <Link href={localizePath("/analysis", locale)}>{locale === "ru" ? "Аналитика" : "Analysis"}</Link>
           <Link href={localizePath("/quotes", locale)}>{t.nav.quotes}</Link>
+          <Link href={localizePath("/compare", locale)}>{t.nav.compare}</Link>
           <Link href={localizePath("/sources-policy", locale)}>
             {locale === "ru" ? "Политика источников" : "Sources policy"}
           </Link>

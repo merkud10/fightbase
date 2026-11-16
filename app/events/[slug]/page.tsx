@@ -480,7 +480,7 @@ export default async function EventPage({
             </div>
           ) : null}
           <div className="policy-card">
-            <h3>{locale === "ru" ? "Быстрые переходы к прогнозам" : "Quick prediction links"}</h3>
+            <h3>{locale === "ru" ? "Прогнозы на бои турнира" : "Quick prediction links"}</h3>
             <ul className="event-side-list">
               {orderedFights
                 .filter((fight) => fight.predictionSnapshot && fight.slug)

@@ -264,7 +264,6 @@ export default async function FightPredictionPage({
             <div className="prediction-hero-photo prediction-hero-photo--placeholder">{fighterAName.charAt(0)}</div>
           )}
           <div>
-            <span className="prediction-hero-label">{locale === "ru" ? "Сторона A" : "Side A"}</span>
             <h3>{fighterAName}</h3>
             <p className="copy">{fight.fighterA.record || "-"}</p>
           </div>
@@ -330,7 +329,7 @@ export default async function FightPredictionPage({
           {snapshot.source === "heuristic" ? (
             <p className="copy prediction-meter-caption">
               {locale === "ru"
-                ? "Снимок прогноза собран по рекорду, текущей форме и доступной статистике бойцов."
+                ? "Коэффициентов на этот бой нет, поэтому проценты рассчитаны по рекорду, форме и статистике бойцов."
                 : "This prediction snapshot is built from fighter record, current form, and available stats."}
             </p>
           ) : null}
@@ -350,7 +349,6 @@ export default async function FightPredictionPage({
             <div className="prediction-hero-photo prediction-hero-photo--placeholder">{fighterBName.charAt(0)}</div>
           )}
           <div>
-            <span className="prediction-hero-label">{locale === "ru" ? "Сторона B" : "Side B"}</span>
             <h3>{fighterBName}</h3>
             <p className="copy">{fight.fighterB.record || "-"}</p>
           </div>
@@ -413,7 +411,7 @@ export default async function FightPredictionPage({
               <p className="kicker">{locale === "ru" ? "Апсет: фаворит проиграл" : "Upset: the favorite lost"}</p>
             ) : (
               <p className="kicker">
-                {locale === "ru" ? "Без чистого победителя — оценка не засчитана" : "No clean winner — not scored"}
+                {locale === "ru" ? "Победителя нет — прогноз не засчитан" : "No clean winner — not scored"}
               </p>
             )}
             {(() => {
@@ -464,12 +462,12 @@ export default async function FightPredictionPage({
                     )}
                     className="event-table-link"
                   >
-                    {locale === "ru" ? "Открыть полный материал" : "Open full article"}
+                    {locale === "ru" ? "Читать полностью" : "Open full article"}
                   </Link>
                 </p>
                 {fightPredictionArticle.sections.map((section) => (
                   <div key={section.id} className="prediction-article-section">
-                    {section.heading ? <h4 className="prediction-article-heading">{section.heading}</h4> : null}
+                    {section.heading && section.heading !== "AI draft" ? <h4 className="prediction-article-heading">{section.heading}</h4> : null}
                     {splitIntoParagraphs(section.body).map((paragraph, index) => (
                       <p key={`${section.id}-${index}`} className="copy">
                         {paragraph}
@@ -623,11 +621,11 @@ export default async function FightPredictionPage({
                 .join(" · ")}
             </p>
             <Link href={localizePath(`/events/${fight.event.slug}`, locale)} className="event-table-link">
-              {locale === "ru" ? "Открыть карточку турнира" : "Open event card"}
+              {locale === "ru" ? "Кард турнира" : "Open event card"}
             </Link>
           </div>
           <div className="policy-card">
-            <h3>{locale === "ru" ? "Что еще открыть" : "What to open next"}</h3>
+            <h3>{locale === "ru" ? "Бойцы и турнир" : "What to open next"}</h3>
             <ul className="event-side-list">
               <li>
                 <Link href={localizePath(`/fighters/${fight.fighterA.slug}`, locale)}>{fighterAName}</Link>

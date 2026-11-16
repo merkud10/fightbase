@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: locale === "ru" ? "Аналитика UFC" : "UFC analysis",
     description:
       locale === "ru"
-        ? "Редакционные разборы FightBase Media: превью боёв UFC, стилистические матчапы и аналитические материалы по главным темам недели."
+        ? "Превью турниров UFC и разборы боёв: расклады перед турниром и итоги после него."
         : "FightBase Media editorial analysis: UFC fight previews, stylistic matchups, and in-depth coverage of the week’s key topics."
   });
 }
@@ -73,39 +73,16 @@ export default async function AnalysisPage({
         title={locale === "ru" ? "Аналитика" : "Analysis"}
         description={
           locale === "ru"
-            ? "Отдельный раздел для редакционных разборов: превью боев, стилистические конфликты, значение результата для дивизиона и более длинные тексты, чем в ленте новостей."
+            ? "Превью турниров и разборы боёв: что стоит на кону перед турниром и что изменилось после."
             : "A dedicated desk for fight previews, stylistic breakdowns, divisional context, and longer-form analysis."
         }
       />
-
-      <section className="feature-grid">
-        <article className="feature-card editorial-card">
-          <p className="eyebrow">{locale === "ru" ? "Разделение форматов" : "Format split"}</p>
-          <h3>{locale === "ru" ? "Не лента прогнозов, а архив аналитики" : "Not a prediction feed, but an analysis archive"}</h3>
-          <p className="copy">
-            {locale === "ru"
-              ? "В разделе собраны материалы, которые живут дольше одного предматчевого цикла: большие разборы, контекст по дивизионам и тексты, к которым удобно возвращаться."
-              : "This section keeps the editorial pieces that outlive a single fight week: longer breakdowns, divisional context, and evergreen analysis."}
-          </p>
-        </article>
-        <article className="feature-card editorial-card">
-          <p className="eyebrow">{locale === "ru" ? "Навигация" : "Navigation"}</p>
-          <h3>{locale === "ru" ? "Прогнозы остаются в отдельном разделе" : "Predictions remain a separate desk"}</h3>
-          <p className="copy">
-            {locale === "ru"
-              ? "Короткие snapshot-прогнозы и карточки боев живут в разделе прогнозов, а здесь остаются только редакционные тексты и более обстоятельная аналитика."
-              : "Snapshot fight previews stay in Predictions, while this page focuses on editorial analysis and longer reads."}
-          </p>
-          <Link href={localizePath("/predictions", locale)}>{locale === "ru" ? "Открыть раздел прогнозов" : "Open predictions"}</Link>
-        </article>
-      </section>
 
       {articles.length > 0 ? (
         <section className="section">
           <div className="section-head">
             <div>
-              <p className="eyebrow">{locale === "ru" ? "Материалы" : "Stories"}</p>
-              <h2>{locale === "ru" ? "Редакционные разборы" : "Editorial analysis"}</h2>
+              <h2>{locale === "ru" ? "Превью и разборы" : "Editorial analysis"}</h2>
             </div>
           </div>
           <div className="story-grid">
@@ -122,10 +99,10 @@ export default async function AnalysisPage({
         </section>
       ) : (
         <section className="filter-empty-state">
-          <h3>{locale === "ru" ? "Раздел аналитики пока пуст" : "The analysis desk is currently empty"}</h3>
+          <h3>{locale === "ru" ? "Материалов пока нет" : "The analysis desk is currently empty"}</h3>
           <p className="copy">
             {locale === "ru"
-              ? "После публикации больших разборов и превью они будут появляться здесь отдельным архивом, без смешения с лентой новостей."
+              ? "Превью и разборы появятся перед ближайшим турниром."
               : "Longer breakdowns and feature previews will appear here once they are published."}
           </p>
         </section>
