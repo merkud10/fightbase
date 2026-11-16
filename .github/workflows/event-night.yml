@@ -1,8 +1,9 @@
 name: Event night sync
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # Schedule moved to server crontab — see scripts/cron-tasks.sh (event-night).
+  # GitHub запускал */15 раз в 2–3 часа, а в ночь UFC 334 не пришёл совсем.
+  # Ручной запуск оставлен как запасной путь.
   workflow_dispatch:
     inputs:
       force:

@@ -14,6 +14,7 @@
 #   indexnow       — сообщить Яндексу (IndexNow) об изменённых страницах
 #   localize-upcoming — русское имя и биография новичкам ближайших турниров
 #   retry-predictions — догенерировать пики, которые не сделал утренний sync-odds
+#   event-night    — в окне турнирной ночи: результаты боёв и ревалидация страниц
 # =============================================================
 set -euo pipefail
 
@@ -471,8 +472,63 @@ case "${TASK}" in
     log "telegram-picks HTTP ${http_code}: ${body}"
     ;;
 
+  event-night)
+    # Каждые 15 минут: в окне турнирной ночи подтянуть результаты боёв и
+    # ревалидировать страницы. Раньше это делал GitHub Actions по расписанию
+    # */15, но GitHub режет частые запуски: на UFC 334 (15.11.2026) workflow
+    # пришёл в 20:07 и 23:56 UTC и больше ни разу, результаты появились только
+    # с утренним sync-odds в 06:00 UTC.
+    # Окно — то же, что в lib/event-night.ts. Вне окна выходим молча, без
+    # строки в логе.
+    db_url="$(grep -E '^DATABASE_URL=' "${APP_DIR}/.env" | head -n1 | cut -d= -f2- | tr -d "\"'")"
+    db_url="${db_url%%\?*}"
+    slugs=$(psql "${db_url}" -t -A -c "SELECT slug FROM \"Event\" WHERE status IN ('upcoming','live') AND now() BETWEEN coalesce(\"earlyPrelimsAt\", \"prelimsAt\", \"mainCardAt\", date - interval '3 hours') - interval '3 hours' AND coalesce(\"mainCardAt\", \"prelimsAt\", \"earlyPrelimsAt\", date + interval '24 hours') + interval '6 hours';" 2>/dev/null) || {
+      log "event-night FAILED: запрос окна турнирной ночи к базе"
+      exit 1
+    }
+    slugs="$(echo "${slugs}" | tr -d '\r' | grep -v '^$' || true)"
+    if [ -z "${slugs}" ] && [ "${EVENT_NIGHT_FORCE:-}" != "1" ]; then
+      exit 0
+    fi
+    log "Starting event-night: $(echo "${slugs:-force}" | tr '\n' ' ')"
+
+    # Скрипты зовём напрямую, а не задачей sync-odds: та каждый раз ходит в
+    # The Odds API, а у него 500 запросов в месяц — 15-минутный шаг съел бы их
+    # за три-четыре турнира. Результатам коэффициенты не нужны.
+    failed_marker="${LOG_DIR}/event-night.failed"
+    output=$(cd "${APP_DIR}" && node scripts/sync-upcoming-events.js 2>&1 && node scripts/sync-event-fights.js 2>&1) || {
+      log "event-night sync FAILED: $(echo "${output}" | tail -n 5 | tr '\n' ' ')"
+      # Один алерт на серию сбоев, а не каждые 15 минут всю ночь.
+      if [ ! -f "${failed_marker}" ]; then
+        : > "${failed_marker}"
+        send_tg_alert "❌ Турнирная ночь: сбой синхронизации результатов, см. cron.log"
+      fi
+      exit 1
+    }
+    rm -f "${failed_marker}"
+    log "event-night sync: $(echo "${output}" | tail -n 1)"
+
+    # Коэффициенты — раз в час: до начала карда линия ещё двигается, а с его
+    # началом sync-fight-odds её замораживает.
+    if [ "$((10#$(date '+%M')))" -lt 15 ]; then
+      odds_output=$(cd "${APP_DIR}" && node scripts/sync-fight-odds.js 2>&1) || true
+      log "event-night odds: $(echo "${odds_output}" | tail -n 1)"
+    fi
+
+    paths='"/events/[slug]","/predictions/[eventSlug]/[fightSlug]","/predictions","/events","/results","/"'
+    for slug in ${slugs}; do
+      paths="${paths},\"/events/${slug}\""
+    done
+    response=$(call_api "/api/cron/revalidate" "{\"paths\":[${paths}]}") || {
+      rc=$?
+      log "event-night revalidate FAILED ($(describe_curl_failure "${rc}"))"
+      exit 1
+    }
+    log "event-night revalidate HTTP $(echo "$response" | tail -n1)"
+    ;;
+
   *)
-    echo "Usage: $0 {drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check|retry-predictions|telegram-picks}"
+    echo "Usage: $0 {event-night|drip-social|sync-news|sync-odds|sync-roster|sync-roster-upcoming|sync-photos-upcoming|sync-fight-history|sync-bio-records|localize-upcoming|indexnow|silence-check|bridge-check|retry-predictions|telegram-picks}"
     exit 1
     ;;
 esac
