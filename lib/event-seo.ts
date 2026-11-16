@@ -55,6 +55,18 @@ export function buildUpcomingEventTitle(eventName: string, main: MainEvent) {
   return `${buildEventSeoName(eventName, main)}: кард участников, дата и время по Москве`;
 }
 
+// H1 предстоящего турнира. Google берёт заголовок сниппета из H1, когда тот
+// расходится с <title>: 16.11.2026 в выдаче по «юфс 335 кард» стояло «UFC 335
+// (ЮФС 335) Оливейра — Лопес» — дословно H1, без слова «кард» из title. Поэтому
+// у номерного турнира H1 повторяет начало title.
+export function buildUpcomingEventHeading(eventName: string, main: MainEvent) {
+  const numbered = eventName.match(/^UFC\s+(\d+)\b/i);
+  if (numbered && isRealMainEvent(main)) {
+    return `UFC ${numbered[1]} (ЮФС ${numbered[1]}) кард: ${surname(main.a.name)} — ${surname(main.b.name)}`;
+  }
+  return buildEventSeoName(eventName, main);
+}
+
 // Пары после главного боя для описания: конкуренты в сниппете перечисляют
 // громкие бои карда («Павлович — Перейра, Морено — Джонсон»), а у нас было
 // только «Кард из 6 боёв».

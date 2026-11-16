@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildCardHighlights, buildEventSeoName, buildUpcomingEventTitle, isRealMainEvent, surname } from "../lib/event-seo";
+import { buildCardHighlights, buildEventSeoName, buildUpcomingEventHeading, buildUpcomingEventTitle,isRealMainEvent, surname } from "../lib/event-seo";
 
 const real = { a: { slug: "ciryl-gane", name: "Сирил Ган" }, b: { slug: "josh-hokit", name: "Джош Хокит" } };
 const tba = { a: { slug: "opponent-tba", name: "Opponent TBA" }, b: { slug: "tba", name: "TBA" } };
@@ -40,6 +40,10 @@ test("без главного боя или без «vs» в названии и
 test("заголовок номерного турнира ставит «кард» сразу после номера", () => {
   assert.equal(buildUpcomingEventTitle("UFC 334: Gane vs. Hokit", real), "UFC 334 (ЮФС 334) кард: Ган — Хокит, дата и время по Москве");
   assert.equal(buildUpcomingEventTitle("UFC 335", tba), "UFC 335 (ЮФС 335): кард участников, дата и время по Москве");
+  // H1 повторяет начало title, иначе Google ставит в сниппет H1 без «кард».
+  assert.equal(buildUpcomingEventHeading("UFC 334: Gane vs. Hokit", real), "UFC 334 (ЮФС 334) кард: Ган — Хокит");
+  assert.ok(buildUpcomingEventTitle("UFC 334: Gane vs. Hokit", real).startsWith(buildUpcomingEventHeading("UFC 334: Gane vs. Hokit", real)));
+  assert.equal(buildUpcomingEventHeading("UFC 335", tba), "UFC 335 (ЮФС 335)");
   const main = { a: { slug: "renato-moicano", name: "Ренато Мойкано" }, b: { slug: "tom-nolan", name: "Том Нолан" } };
   assert.equal(buildUpcomingEventTitle("UFC Fight Night: Moicano vs. Nolan", main), "UFC Fight Night: Мойкано — Нолан: кард участников, дата и время по Москве");
 });

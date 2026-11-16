@@ -13,7 +13,7 @@ import { buildPairSlug } from "@/lib/compare-pairs";
 import { getEventPageData, getScheduleHubData, resolveEventSlugRedirect } from "@/lib/db";
 import { describeFightPick, isPickPending, pickPendingText, summarizeEventPicks } from "@/lib/event-picks";
 import { buildNearbyEvents } from "@/lib/event-schedule";
-import { buildCardHighlights, buildEventSeoName, buildUpcomingEventTitle, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
+import { buildCardHighlights, buildEventSeoName, buildUpcomingEventHeading, buildUpcomingEventTitle, isRealMainEvent, type MainEvent } from "@/lib/event-seo";
 import { formatCardNightLabel, formatCardTime, hasCardTimes } from "@/lib/event-time";
 import { formatEventLocation, formatFightMethod, formatFightStage, formatFightStatus, formatWeightClass, getDisplayName, isUsablePhoto } from "@/lib/display";
 import { formatWinnerlessFightResult, sortFightsForCard } from "@/lib/fight-card";
@@ -189,7 +189,7 @@ export default async function EventPage({
   // а английское «UFC Fight Night: Buckley vs. Malott» этим запросам не отвечает.
   const heroTitle =
     locale === "ru" && leadFight
-      ? buildEventSeoName(event.name, {
+      ? (isCompleted ? buildEventSeoName : buildUpcomingEventHeading)(event.name, {
           a: { slug: leadFight.fighterA.slug, name: getDisplayName(leadFight.fighterA, "ru") },
           b: { slug: leadFight.fighterB.slug, name: getDisplayName(leadFight.fighterB, "ru") }
         })
