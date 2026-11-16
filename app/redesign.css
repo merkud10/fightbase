@@ -2080,7 +2080,10 @@ td .event-table-link,
   display: block;
   font-weight: 500;
   color: var(--text-2);
-  overflow-wrap: anywhere;
+}
+
+.pstats-xlabels .pstats-x-compact {
+  display: none;
 }
 
 .pstats-bank strong {
@@ -2267,6 +2270,26 @@ td .event-table-link,
 
   .pstats-bar {
     width: 16px;
+  }
+
+  /* Под узким столбиком полное название рвалось посреди слова. */
+  .pstats-chart,
+  .pstats-xlabels {
+    gap: 4px;
+    padding-left: 32px;
+  }
+
+  .pstats-chart::before,
+  .pstats-chart::after {
+    left: 32px;
+  }
+
+  .pstats-xlabels .pstats-x-full {
+    display: none;
+  }
+
+  .pstats-xlabels .pstats-x-compact {
+    display: block;
   }
 
   .ptabs {

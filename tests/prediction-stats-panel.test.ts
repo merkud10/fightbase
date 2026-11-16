@@ -40,8 +40,8 @@ test("the panel shows the headline number, both strategies and five events", asy
   assert.match(html, /Фаворит по линии<\/span><b>69%<\/b>/);
   assert.equal(html.match(/class="pstats-group"/g)?.length, 5);
   assert.match(html, /height:83%[^>]*><em>10\/12<\/em>/);
-  assert.match(html, /<b>UFC 334<\/b>15\.11/);
-  assert.match(html, /<b>Cortes Acosta — Walker<\/b>08\.11/);
+  assert.match(html, /<b class="pstats-x-full">UFC 334<\/b><b class="pstats-x-compact">UFC 334<\/b>15\.11/);
+  assert.match(html, /<b class="pstats-x-full">Cortes Acosta — Walker<\/b><b class="pstats-x-compact">Cortes Acosta<\/b>08\.11/);
   assert.match(html, /class="is-up">\+4,58<\/strong>/);
   assert.match(html, /Модель, ROI<\/dt><dd>\+8%<\/dd>/);
   assert.match(html, /Статистика ведётся с 30 сентября 2026 года\. Прогноз — не совет делать ставки\./);

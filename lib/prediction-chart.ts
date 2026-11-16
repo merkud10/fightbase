@@ -12,6 +12,12 @@ export function shortEventLabel(eventName: string) {
   return (afterColon || eventName).replace(/\s+vs\.?\s+/i, " — ");
 }
 
+// Подпись для узкого экрана: под столбиком шириной около 50px «Moicano — Nolan»
+// рвалось посреди слова. Оставляем номер турнира или первого бойца главного боя.
+export function compactEventLabel(eventName: string) {
+  return shortEventLabel(eventName).split(" — ")[0] ?? eventName;
+}
+
 // Название турнира на вкладке страницы прогнозов: по-русски, если известен главный бой.
 export function tabEventLabel(eventName: string, main: MainEvent | null, locale: string) {
   if (locale !== "ru" || !main) return shortEventLabel(eventName);

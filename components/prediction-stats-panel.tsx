@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import type { Locale } from "@/lib/locale-config";
 import { localizePath } from "@/lib/locale-path";
-import { barHeightPercent, shortEventLabel } from "@/lib/prediction-chart";
+import { barHeightPercent, compactEventLabel, shortEventLabel } from "@/lib/prediction-chart";
 
 type Tally = { correct: number; judged: number; percent: number | null };
 
@@ -35,6 +35,7 @@ export function PredictionStatsPanel({
     .map((event) => ({
       ...event,
       label: shortEventLabel(event.name),
+      compactLabel: compactEventLabel(event.name),
       dateLabel: new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(event.date)),
       modelHeight: barHeightPercent(event.model),
       favoriteHeight: barHeightPercent(event.favorite)
@@ -145,7 +146,8 @@ export function PredictionStatsPanel({
             <div className="pstats-xlabels" style={{ gridTemplateColumns: `repeat(${chartEvents.length}, minmax(0, 1fr))` }} aria-hidden="true">
               {chartEvents.map((event) => (
                 <span key={event.slug}>
-                  <b>{event.label}</b>
+                  <b className="pstats-x-full">{event.label}</b>
+                  <b className="pstats-x-compact">{event.compactLabel}</b>
                   {event.dateLabel}
                 </span>
               ))}
