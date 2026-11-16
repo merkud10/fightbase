@@ -269,7 +269,7 @@ function summarizeRecentForm(fighter, locale) {
   const recent = (fighter.recentFights || []).slice(0, 3);
   if (recent.length === 0) {
     return locale === "ru"
-      ? `${getDisplayName(fighter, locale)}: последние бои ещё не добавлены в профиль FightBase.`
+      ? `${getDisplayName(fighter, locale)}: данных о последних боях пока нет.`
       : `${getDisplayName(fighter, locale)}: recent bouts have not been added to the FightBase profile yet.`;
   }
 
@@ -278,7 +278,7 @@ function summarizeRecentForm(fighter, locale) {
   const latest = recent[0];
 
   if (locale === "ru") {
-    return `${getDisplayName(fighter, locale)}: в последних ${recent.length} боях по базе ${wins}-${losses}. Последний соперник: ${latest.opponentNameRu || latest.opponentName}.`;
+    return `${getDisplayName(fighter, locale)}: в последних боях побед — ${wins}, поражений — ${losses}. Последний соперник — ${latest.opponentNameRu || latest.opponentName}.`;
   }
 
   return `${getDisplayName(fighter, locale)} is ${wins}-${losses} across the last ${recent.length} logged fights. Latest opponent: ${latest.opponentName}.`;
@@ -374,19 +374,21 @@ function buildSnapshotCopy(locale, fight) {
   // конструкции вида «у {имя} есть…» дают «у Ислам Махачев есть…».
   const overview =
     locale === "ru"
-      ? `${favoriteName} подходит к бою с небольшим преимуществом по общей картине матча. Это не гарантирует исход: ${underdogName} сохраняет рабочие пути к победе.`
+      ? source === "odds"
+        ? `Фаворит по коэффициентам — ${favoriteName}, ${underdogName} идёт андердогом.`
+        : `По рекорду и статистике преимущество у бойца ${favoriteName}.`
       : `${favoriteName} appears to hold a slight edge in the overall matchup picture. That is not a guarantee, and ${underdogName} still has viable paths to win.`;
   const keyEdge =
     source === "odds"
       ? locale === "ru"
-        ? `${favoriteName} выходит на бой с небольшим преимуществом по котировкам, но ключевым фактором все равно остается сам матчап.`
+        ? `Шансы по линии букмекеров: ${fighterAName} — ${percentA}%, ${fighterBName} — ${percentB}%.`
         : `${favoriteName} may carry a slight edge before the opening bell, but the matchup itself remains the key factor.`
       : locale === "ru"
-        ? `Оцениваем бой по рекорду, текущей форме и UFC-статистике, где она заполнена.`
+        ? `Коэффициентов на бой пока нет, оценка построена по рекорду, форме и статистике бойцов.`
         : `We evaluate the fight through record, current form, and UFC stats where available.`;
   const fightScript =
     locale === "ru"
-      ? `Ключевой вопрос этого боя — кто навяжет темп и удобную дистанцию. ${favoriteName} сильнее в привычном ритме, тогда как ${underdogName} будет искать бой с резкими сменами эпизодов и тяжелыми моментами.`
+      ? `Разбор боя выйдет за два-три дня до турнира вместе с прогнозом модели.`
       : `The key question is who imposes pace and range. ${favoriteName} benefits from a familiar rhythm, while ${underdogName} needs disruption and heavier moments.`;
 
   const eventDate = new Date(fight.event.date).toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", {

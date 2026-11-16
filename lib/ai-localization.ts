@@ -559,6 +559,24 @@ $response | ConvertTo-Json -Depth 100
   return stdout;
 }
 
+// Что выдаёт машинный пересказ. Раньше инструкция требовала текст «не короче
+// источника, лучше длиннее» и одновременно запрещала выдумывать — модель добирала
+// объём абзацами о том, чего в источнике нет («в представленном сообщении не
+// уточняется…»), оговорками и подводками вроде «таким образом».
+const NEWSROOM_VOICE_RULES = [
+  "VOICE (STRICT):",
+  "- Write as a staff reporter who knows the sport. The reader must never sense that a source text is being retold",
+  "- NEVER mention the source material, the original article, the report, or what it does or does not say. Banned: «источник», «в исходном материале», «в представленном сообщении», «в публикации не уточняется», «не указано», «не называют», «по данным материала»",
+  "- If a detail is missing, leave it out silently. Do not write that something is unknown, unconfirmed, or not specified unless a named person said so",
+  "- No disclaimers or legal-sounding caveats: «нельзя считать», «оснований нет», «это не означает», «официально это не подтверждено» (unless it is the news itself)",
+  "- No summarising or signposting phrases: «таким образом», «в итоге», «в целом», «стоит отметить», «важно подчеркнуть», «отдельной темой стал», «ещё одним эпизодом стал», «остаётся открытым вопросом», «остаётся следить»",
+  "- No filler that restates the previous sentence, no arithmetic on facts already given, no closing paragraph that recaps the article",
+  "- No empty praise or drama: «яркий», «громкий», «впечатляющий», «по-настоящему», «не только…, но и»",
+  "- Plain verbs and concrete facts: who did what, when, with what result. One fact per sentence",
+  "- Direct quotes stay exact, in «ёлочках», with the speaker named. A long quote goes in its own paragraph",
+  "- The last paragraph ends on a fact (next fight, date, record), never on a conclusion or a moral"
+];
+
 function buildPrompt(input: IngestDraftInput) {
   const nameGuide = buildUfcNameGuide();
   const glossaryHints = buildGlossaryHints(input);
@@ -581,19 +599,16 @@ function buildPrompt(input: IngestDraftInput) {
     "- Avoid copying the original phrasing or paragraph order",
     "- Ensure the final text is clearly distinct from the source",
     "",
-    "LENGTH & DEPTH:",
-    "- The article must be at least as detailed as the source and preferably longer",
-    "- Target: 6-10 meaningful paragraphs",
-    "- Maintain high informational density (no fluff, no filler)",
-    "- Expand the article by adding relevant context where appropriate",
+    "LENGTH:",
+    "- Match the amount of information in the source. A short source gives a short article: 2-4 paragraphs is normal",
+    "- Never pad. If the facts are told, stop",
+    "- Cover every fact, number, name and quote the source contains",
     "",
-    "CONTEXT ENRICHMENT (IMPORTANT):",
-    "When possible, naturally add:",
-    "- Fighter context (recent fights, win/loss streak, career trajectory)",
-    "- Importance of the fight or news (title implications, rankings, division impact)",
-    "- Event context (position on card, relevance of the matchup)",
-    "- Brief analytical angle (why this matters, possible consequences)",
-    "Do NOT invent new facts. Only use logical, widely known or directly implied context.",
+    "CONTEXT:",
+    "- Add background only when the source itself gives it (previous fight, streak, ranking, title picture)",
+    "- Do not add analysis, forecasts or consequences of your own",
+    "",
+    ...NEWSROOM_VOICE_RULES,
     "",
     "STYLE:",
     "- Professional MMA journalism",
@@ -610,9 +625,9 @@ function buildPrompt(input: IngestDraftInput) {
     nameGuide.fullNameLine,
     "",
     "STRUCTURE:",
-    "1. Headline: strong, clear, editorial — not copied from the source",
-    "2. Lead (first paragraph): 1-2 sentences — what happened and why it matters",
-    "3. Body: 6-14 paragraphs, logically structured and expanded, no markdown",
+    "1. Headline: one factual sentence saying what happened — not copied from the source, no colon-plus-teaser constructions",
+    "2. Lead (first paragraph): 1-2 sentences — what happened, to whom, when",
+    "3. Body: as many paragraphs as the facts need, no markdown",
     "",
     "QUALITY CONTROL:",
     "- If the text feels too close to the source, rewrite it to improve originality",
@@ -672,6 +687,7 @@ function buildRedFlagRepairPrompt(
     nameGuide.fullNameLine,
     "Do not invent details and do not summarize aggressively.",
     "Remove malformed names, raw English fragments, mixed-language output, and awkward literal calques.",
+    "If machine_voice is among the detected issues: delete every sentence that refers to the source text or to details it lacks, every disclaimer, and every summarising phrase such as «таким образом». Do not replace them with anything.",
     "Return strict JSON with keys headline and body.",
     "",
     `Detected issues: ${flags.join(", ")}`,
@@ -720,8 +736,10 @@ function buildRewritePrompt(input: IngestDraftInput) {
     "Change sentence structure, wording, and phrasing while keeping the same meaning.",
     "Preserve ALL facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly.",
     "Do not add any information that is not in the original article.",
-    "Do not aggressively summarize — keep the same informational density.",
+    "Do not aggressively summarize — keep the same informational density, but never pad.",
     "Output must be in natural Russian only.",
+    "",
+    ...NEWSROOM_VOICE_RULES,
     "",
     "Also rate how interesting this news is for MMA fans (interestScore, 1-10).",
     "HIGH (7-10): fights, results, injuries, title shots, trash talk, weight misses, dramatic events, fighter statements, comebacks, retirements.",
@@ -819,7 +837,7 @@ async function localizeWithOpenAiCompatible(
     apiKey,
     model,
     systemPrompt:
-      "You are an MMA editor for a Russian-language media outlet focused on UFC. Translate and fully rewrite source material into a high-quality, original Russian editorial article. The text must read as a native Russian sports article, not a translation. Preserve all facts, names, records, dates, promotions, and uncertainty. Do NOT invent or hallucinate any facts. Do NOT perform a literal translation — restructure and rewrite. Expand with relevant context (fighter trajectory, division impact, event significance) using only widely known or directly implied information. Use correct Russian MMA terminology, do not distort fighter names, do not leave raw English terms. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; MEDIUM 4-6 for rankings/event changes/undercard; LOW 1-3 for business deals/sponsorships/broadcast partnerships/organizational changes. Output strict JSON with keys headline, body, and interestScore. Target 8-12 substantive paragraphs (roughly 2500-3500 characters) without markdown. Keep the informational density of the source: cover every fact, number, name, and quote it contains, each in its own sentence or paragraph rather than compressing them. Never invent quotes, records, dates, results, or career details that are absent from the source; add only widely known background and state uncertainty where the source is uncertain. Use one consistent Russian transliteration for each fighter name throughout the text.",
+      "You are an MMA editor for a Russian-language media outlet focused on UFC. Translate and fully rewrite source material into a high-quality, original Russian editorial article. The text must read as a native Russian sports article, not a translation. Preserve all facts, names, records, dates, promotions, and uncertainty. Do NOT invent or hallucinate any facts. Do NOT perform a literal translation — restructure and rewrite. Do not add analysis or background that the source does not contain. Use correct Russian MMA terminology, do not distort fighter names, do not leave raw English terms. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; MEDIUM 4-6 for rankings/event changes/undercard; LOW 1-3 for business deals/sponsorships/broadcast partnerships/organizational changes. Output strict JSON with keys headline, body, and interestScore. No markdown. Match the length of the source: a short source gives a short article, never pad. Cover every fact, number, name, and quote the source contains. Never invent quotes, records, dates, results, or career details that are absent from the source. Never mention the source text or what it omits: if a detail is missing, leave it out silently. No disclaimers, no summarising phrases such as «таким образом» or «в итоге», no closing recap. Use one consistent Russian transliteration for each fighter name throughout the text.",
     userPrompt: buildPrompt(input)
   });
   const interestScore = initialResponse.interestScore;
@@ -934,7 +952,7 @@ async function rewriteWithOpenAiCompatible(
     apiKey,
     model,
     systemPrompt:
-      "You are a Russian-language MMA news editor. Rewrite the article in your own words so the result is unique and not a copy of the original. Change sentence structure, wording, and phrasing while keeping the same meaning. Preserve all facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly. Do not add any information that is not in the original article. Do not aggressively summarize. Output natural Russian only. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; LOW 1-3 for business deals/sponsorships/organizational changes. Return strict JSON with keys headline, body, and interestScore.",
+      "You are a Russian-language MMA news editor. Rewrite the article in your own words so the result is unique and not a copy of the original. Change sentence structure, wording, and phrasing while keeping the same meaning. Preserve all facts, fighter names, records, dates, organizations, weight classes, and direct quotes exactly. Do not add any information that is not in the original article. Do not aggressively summarize and never pad. Never mention the source text or what it omits; no disclaimers, no «таким образом», no closing recap. Output natural Russian only. Also rate how interesting this news is for MMA fans (interestScore 1-10): HIGH 7-10 for fights/results/injuries/title shots/trash talk/dramatic events; LOW 1-3 for business deals/sponsorships/organizational changes. Return strict JSON with keys headline, body, and interestScore.",
     userPrompt: buildRewritePrompt(rewriteInput),
     temperature: 0.2
   });

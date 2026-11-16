@@ -101,6 +101,14 @@ export function buildMmaGlossaryHints(sourceText: string) {
   ];
 }
 
+// Машинный пересказ: текст ссылается на источник и на то, чего в нём нет,
+// оговаривается и подводит итог канцеляритом. Такой черновик уходит на правку.
+MMA_EDITORIAL_RED_FLAG_RULES.push({
+  label: "machine_voice",
+  pattern:
+    /в (?:исходном|представленном) (?:материале|сообщении|тексте)|(?:^|[^а-яё])источник (?:не |выделяет|приводит|отмечает|уточняет)|таким образом|нельзя считать/iu
+});
+
 export function collectMmaEditorialRedFlags(value: string) {
   return MMA_EDITORIAL_RED_FLAG_RULES.filter((rule) => rule.pattern.test(value)).map((rule) => rule.label);
 }
