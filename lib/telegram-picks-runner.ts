@@ -1,6 +1,7 @@
 // Исполнение постов ИИ-модели в Telegram-канале (решение и текст — lib/telegram-picks.ts).
 // Каждый прогон сначала публикует итоги прошедших турниров ответом на их пост с
-// пиками, затем ведёт пост с пиками ближайшего: отправка, правка до начала турнира,
+// пиками — картинкой-сводкой с подписью, а если картинку собрать не удалось, обычным
+// текстом, — затем ведёт пост с пиками ближайшего: отправка, правка до начала турнира,
 // закреп нового поста и снятие закрепа с прошлого. Id сообщений сохраняются сразу
 // после отправки, поэтому сбой закрепа или записи не приводит к повторной отправке.
 
@@ -8,18 +9,20 @@ import { createHash } from "node:crypto";
 
 import { getPredictionAccuracy } from "@/lib/db/events";
 import { isContenderSeries } from "@/lib/event-results";
+import { buildModelSummary } from "@/lib/model-summary";
+import { renderModelSummaryPng } from "@/lib/model-summary-image";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
 import { getTelegramApiBase } from "@/lib/social-publish";
 import { recordSystemEvent } from "@/lib/system-events";
 import {
   buildTelegramPicksPost,
+  buildTelegramResultsCaption,
   buildTelegramResultsPost,
   decideTelegramPicksAction,
   decideTelegramResultsAction,
   type TelegramPicksAction,
   type TelegramPicksEvent,
-  type TelegramResultsAccuracy,
   type TelegramResultsAction
 } from "@/lib/telegram-picks";
 
@@ -28,6 +31,10 @@ export type TelegramResultsRun = {
   eventSlug: string;
   text?: string;
   messageId?: number;
+  withImage?: boolean;
+  // Только в пробном прогоне: размер собранной картинки или причина, по которой её нет.
+  imageBytes?: number;
+  imageError?: string;
 };
 
 export type TelegramPicksRunResult = {
@@ -55,7 +62,7 @@ class TelegramApiError extends Error {
 
 const fighterSelect = { id: true, name: true, nameRu: true } as const;
 
-const eventSelect = {
+export const picksEventSelect = {
   id: true,
   slug: true,
   name: true,
@@ -92,17 +99,17 @@ const eventSelect = {
   }
 } as const;
 
-async function loadNextEvent(): Promise<TelegramPicksEvent | null> {
+export async function loadNextPicksEvent(): Promise<TelegramPicksEvent | null> {
   const events = await prisma.event.findMany({
     where: { status: "upcoming" },
     orderBy: { date: "asc" },
     take: 5,
-    select: eventSelect
+    select: picksEventSelect
   });
   return events.find((event) => !isContenderSeries(event.name)) ?? null;
 }
 
-function hashText(text: string) {
+export function hashText(text: string) {
   return createHash("sha256").update(text).digest("hex");
 }
 
@@ -113,12 +120,13 @@ function resolveChatId() {
   return process.env.TELEGRAM_PICKS_ENABLED === "1" && process.env.TELEGRAM_BOT_TOKEN && chatId ? chatId : null;
 }
 
-async function callBot(method: string, body: Record<string, unknown>) {
+// Обычные методы идут JSON-ом, отправка файла — формой.
+async function callBot(method: string, body: Record<string, unknown> | FormData) {
+  const isForm = body instanceof FormData;
   const response = await fetch(`${getTelegramApiBase()}/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20_000)
+    ...(isForm ? { body } : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(isForm ? 45_000 : 20_000)
   });
   const payload = (await response.json().catch(() => null)) as { ok?: boolean; result?: unknown; description?: string } | null;
   if (!response.ok || !payload?.ok) {
@@ -171,10 +179,10 @@ async function runResultsStep({
     select: { eventId: true, messageId: true }
   });
   const results: TelegramResultsRun[] = [];
-  let accuracy: TelegramResultsAccuracy | null = null;
+  let accuracy: Awaited<ReturnType<typeof getPredictionAccuracy>> | null = null;
 
   for (const post of pending) {
-    const event = await prisma.event.findUnique({ where: { id: post.eventId }, select: eventSelect });
+    const event = await prisma.event.findUnique({ where: { id: post.eventId }, select: picksEventSelect });
     if (!event) continue;
     const action = decideTelegramResultsAction({ event, hasResultsPost: false, now });
     if (action !== "post") {
@@ -184,8 +192,18 @@ async function runResultsStep({
 
     accuracy ??= await getPredictionAccuracy();
     const text = buildTelegramResultsPost(event, accuracy, siteUrl);
+    const caption = buildTelegramResultsCaption(event, accuracy, siteUrl);
+    let png: Buffer | null = null;
+    let imageError: string | undefined;
+    try {
+      // Без единого засчитанного пика картинка пустая — тогда итоги идут текстом.
+      const summary = buildModelSummary(event, accuracy);
+      png = summary.model.judged > 0 ? await renderModelSummaryPng(summary) : null;
+    } catch (error) {
+      imageError = error instanceof Error ? error.message : String(error);
+    }
     if (dryRun) {
-      results.push({ action, eventSlug: event.slug, text });
+      results.push({ action, eventSlug: event.slug, text: png ? caption : text, imageBytes: png?.length, imageError });
       continue;
     }
     if (!chatId) {
@@ -194,17 +212,44 @@ async function runResultsStep({
     }
 
     try {
-      const sent = (await callBot("sendMessage", {
+      const replyParameters = { message_id: post.messageId, allow_sending_without_reply: true };
+      let sent: { message_id: number } | null = null;
+      if (png) {
+        const form = new FormData();
+        form.append("chat_id", chatId);
+        form.append("photo", new Blob([png], { type: "image/png" }), "summary.png");
+        form.append("caption", caption);
+        form.append("reply_parameters", JSON.stringify(replyParameters));
+        try {
+          sent = (await callBot("sendPhoto", form)) as { message_id: number };
+        } catch (error) {
+          // 400 — Telegram не принял саму картинку или подпись; итоги уйдут текстом.
+          // Остальные сбои (сеть, лимиты) повторит следующий прогон.
+          if (!(error instanceof TelegramApiError && error.status === 400)) throw error;
+          imageError = error.message;
+        }
+      }
+      if (imageError) {
+        await recordSystemEvent({
+          level: "warn",
+          category: "telegram.results",
+          message: `Итоги ушли без картинки: ${imageError}`,
+          source: "api/cron/telegram-picks",
+          meta: { eventSlug: event.slug }
+        });
+      }
+      const withImage = Boolean(sent);
+      sent ??= (await callBot("sendMessage", {
         chat_id: chatId,
         text,
         link_preview_options: { is_disabled: true },
-        reply_parameters: { message_id: post.messageId, allow_sending_without_reply: true }
+        reply_parameters: replyParameters
       })) as { message_id: number };
       await prisma.telegramEventPost.update({
         where: { eventId: event.id },
         data: { resultsMessageId: sent.message_id, resultsPostedAt: new Date() }
       });
-      results.push({ action, eventSlug: event.slug, messageId: sent.message_id });
+      results.push({ action, eventSlug: event.slug, messageId: sent.message_id, withImage });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await recordSystemEvent({
@@ -232,7 +277,7 @@ async function runPicksStep({
   siteUrl: string;
   chatId: string | null;
 }): Promise<TelegramPicksRunResult> {
-  const event = await loadNextEvent();
+  const event = await loadNextPicksEvent();
   if (!event) return { action: "none" };
 
   const post = await prisma.telegramEventPost.findUnique({ where: { eventId: event.id } });
@@ -276,6 +321,13 @@ async function runPicksStep({
     });
     throw error;
   }
+}
+
+// Картинка-сводка турнира без публикации — чтобы посмотреть её на настоящих данных.
+export async function renderEventSummaryPreview(eventSlug: string): Promise<Buffer | null> {
+  const event = await prisma.event.findUnique({ where: { slug: eventSlug }, select: picksEventSelect });
+  if (!event) return null;
+  return renderModelSummaryPng(buildModelSummary(event, await getPredictionAccuracy()));
 }
 
 export async function runTelegramPicks({ now = new Date(), dryRun = false } = {}): Promise<TelegramPicksRunResult> {

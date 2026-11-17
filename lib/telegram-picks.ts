@@ -1,12 +1,14 @@
-// Посты ИИ-модели FightBase для Telegram-канала: пики на весь кард до турнира и
-// итоги после него — когда их публиковать и что в них писать. Bot API и база —
-// в lib/telegram-picks-runner.ts, здесь только чистые функции. Пики и вердикты
+// Посты ИИ-модели FightBase для Telegram-канала и сообщества VK: пики на весь кард
+// до турнира и итоги после него — когда их публиковать и что в них писать. Bot API,
+// VK API и база — в lib/telegram-picks-runner.ts и lib/vk-picks-runner.ts, здесь
+// только чистые функции. Пики и вердикты
 // считают те же функции, что сайт, чтобы канал и страницы не расходились.
 
 import { getDisplayName } from "@/lib/display";
 import { buildCampaignUrl } from "@/lib/campaign-url";
 import { describeFightPick } from "@/lib/event-picks";
 import { formatCardNightLabel, formatCardTime } from "@/lib/event-time";
+import { surname } from "@/lib/event-seo";
 import { sortFightsForCard, type FightCardSortable } from "@/lib/fight-card";
 import { resolveValuePick, resolveValueUnits } from "@/lib/prediction-value";
 import { resolveAiPickVerdict, resolvePredictionVerdict } from "@/lib/prediction-verdict";
@@ -20,6 +22,11 @@ export const PARTIAL_POST_HOURS = 36;
 export const RESULTS_FALLBACK_HOURS = 18;
 export const RESULTS_STALE_HOURS = 7 * 24;
 export const TELEGRAM_TEXT_MAX = 4096;
+// Подпись под картинкой в Telegram короче обычного сообщения.
+export const TELEGRAM_CAPTION_MAX = 1024;
+
+// Канал нужен только для метки в ссылке: тексты в Telegram и VK одинаковые.
+export type PicksChannel = "telegram" | "vk";
 
 const HOUR_MS = 3_600_000;
 
@@ -174,11 +181,15 @@ function formatPickLine(fight: TelegramPicksFight) {
   return `• ${nameA} — ${nameB} → ${verdict}`;
 }
 
-export function buildTelegramPicksPost(event: TelegramPicksEvent, siteUrl: string) {
+export function buildEventPageUrl(event: Pick<TelegramPicksEvent, "slug">, siteUrl: string, channel: PicksChannel, campaign: string) {
+  return buildCampaignUrl(`${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`, channel, campaign);
+}
+
+export function buildTelegramPicksPost(event: TelegramPicksEvent, siteUrl: string, channel: PicksChannel = "telegram") {
   const fights = event.fights.filter((fight) => fight.status === "scheduled");
   const head = `🥊 Пики ИИ-модели FightBase: ${event.name}\n${formatEventDateLine(event)}`;
   const cardBlocks = buildCardBlocks(fights, formatPickLine);
-  const link = `Все разборы: ${buildCampaignUrl(`${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`, "telegram", "event_picks")}`;
+  const link = `Все разборы: ${buildEventPageUrl(event, siteUrl, channel, "event_picks")}`;
   const valueLines = sortFightsForCard(fights).flatMap((fight) => {
     const valuePick = resolveFightValuePick(fight);
     return valuePick ? [formatValuePickLabel(fight, valuePick)] : [];
@@ -255,12 +266,17 @@ function formatAccuracyLine(accuracy: TelegramResultsAccuracy) {
   return `${formatEventsCount(accuracy.eventsCount)}: ${accuracy.model.percent}% (${accuracy.model.correct} из ${accuracy.model.judged})${favoritePart}`;
 }
 
-export function buildTelegramResultsPost(event: TelegramPicksEvent, accuracy: TelegramResultsAccuracy, siteUrl: string) {
+export function buildTelegramResultsPost(
+  event: TelegramPicksEvent,
+  accuracy: TelegramResultsAccuracy,
+  siteUrl: string,
+  channel: PicksChannel = "telegram"
+) {
   const fights = event.fights.filter((fight) => fight.status === "completed");
   const head = `📊 Итоги ИИ-модели FightBase: ${event.name}\n${formatEventScoreLine(fights)}`;
   const cardBlocks = buildCardBlocks(fights, formatResultLine);
   const accuracyLine = formatAccuracyLine(accuracy);
-  const footer = [accuracyLine, `Результаты и разборы: ${buildCampaignUrl(`${siteUrl.replace(/\/$/, "")}/ru/events/${event.slug}`, "telegram", "event_results")}`]
+  const footer = [accuracyLine, `Результаты и разборы: ${buildEventPageUrl(event, siteUrl, channel, "event_results")}`]
     .filter(Boolean)
     .join("\n");
   const valueLines = sortFightsForCard(fights).flatMap((fight) => {
@@ -274,4 +290,29 @@ export function buildTelegramResultsPost(event: TelegramPicksEvent, accuracy: Te
     (lines) => [head, ...cardBlocks, ...(lines.length > 0 ? [lines.join("\n")] : []), footer].join("\n\n"),
     valueLines
   );
+}
+
+// Строка боя для подписи под картинкой: только фамилии и отметка.
+function formatShortResultLine(fight: TelegramPicksFight) {
+  const { nameA, nameB } = fighterNames(fight);
+  const pair = `${surname(nameA)} — ${surname(nameB)}`;
+  if (fight.resultType !== "win" || !fight.winnerFighterId) return `➖ ${pair}`;
+  const pickId = fight.predictionSnapshot?.aiPickFighterId;
+  if (!pickId || (pickId !== fight.fighterAId && pickId !== fight.fighterBId)) return `▫️ ${pair}`;
+  return `${pickId === fight.winnerFighterId ? "✅" : "❌"} ${pair}`;
+}
+
+// Итоги как подпись к картинке-сводке: полный текст, если он помещается в лимит
+// подписи; иначе бои одной строкой с фамилиями; в крайнем случае без списка боёв.
+export function buildTelegramResultsCaption(event: TelegramPicksEvent, accuracy: TelegramResultsAccuracy, siteUrl: string) {
+  const full = buildTelegramResultsPost(event, accuracy, siteUrl);
+  if (full.length <= TELEGRAM_CAPTION_MAX) return full;
+
+  const fights = event.fights.filter((fight) => fight.status === "completed");
+  const head = `📊 Итоги ИИ-модели FightBase: ${event.name}\n${formatEventScoreLine(fights)}`;
+  const footer = [formatAccuracyLine(accuracy), `Результаты и разборы: ${buildEventPageUrl(event, siteUrl, "telegram", "event_results")}`]
+    .filter(Boolean)
+    .join("\n");
+  const short = [head, ...buildCardBlocks(fights, formatShortResultLine), footer].join("\n\n");
+  return short.length <= TELEGRAM_CAPTION_MAX ? short : [head, footer].join("\n\n");
 }

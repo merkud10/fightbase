@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   buildTelegramPicksPost,
+  buildTelegramResultsCaption,
   buildTelegramResultsPost,
   decideTelegramPicksAction,
   decideTelegramResultsAction,
   resolveEventStart,
+  TELEGRAM_CAPTION_MAX,
   TELEGRAM_TEXT_MAX,
   type TelegramPicksEvent,
   type TelegramPicksFight
@@ -247,4 +249,44 @@ test("buildTelegramResultsPost reports value picks and handles thin accuracy dat
   );
   assert.match(empty, /^📊 Итоги ИИ-модели FightBase: UFC 334: Gane vs\. Hokit\nПики модели в этом турнире в зачёт не попали\n/);
   assert.ok(!empty.includes("За последн"));
+});
+
+test("VK posts carry the same text with the VK campaign label", () => {
+  const upcoming = event([fight("f1")]);
+  const done = event([settled("f1")], { status: "completed" });
+  const picks = buildTelegramPicksPost(upcoming, "https://fightbase.ru", "vk");
+  const results = buildTelegramResultsPost(done, accuracy, "https://fightbase.ru", "vk");
+
+  assert.match(picks, /utm_source=vk&utm_medium=social&utm_campaign=event_picks$/);
+  assert.match(results, /utm_source=vk&utm_medium=social&utm_campaign=event_results$/);
+  assert.equal(picks.replace("utm_source=vk", "utm_source=telegram"), buildTelegramPicksPost(upcoming, "https://fightbase.ru"));
+  assert.equal(results.replace("utm_source=vk", "utm_source=telegram"), buildTelegramResultsPost(done, accuracy, "https://fightbase.ru"));
+});
+
+test("buildTelegramResultsCaption keeps the full text while it fits under the image", () => {
+  const done = event([settled("f1"), settled("f2", { winnerFighterId: "f2-b" })], { status: "completed" });
+  assert.equal(buildTelegramResultsCaption(done, accuracy, "https://fightbase.ru"), buildTelegramResultsPost(done, accuracy, "https://fightbase.ru"));
+});
+
+test("buildTelegramResultsCaption shortens a full card to surnames and marks", () => {
+  const long = (id: string, overrides: Partial<TelegramPicksFight> = {}) =>
+    settled(id, {
+      fighterA: { id: `${id}-a`, name: `${id} Alpha`, nameRu: `Александр-Константин ${id}ов` },
+      fighterB: { id: `${id}-b`, name: `${id} Beta`, nameRu: `Максимилиан-Фердинанд ${id}ин` },
+      ...overrides
+    });
+  const fights = [
+    long("main", { isMainEvent: true }),
+    long("miss", { boutOrder: 2, winnerFighterId: "miss-b" }),
+    long("draw", { boutOrder: 3, resultType: "draw", winnerFighterId: null }),
+    ...Array.from({ length: 10 }, (_, index) => long(`p${index}`, { stage: "prelims", boutOrder: index + 1 }))
+  ];
+  const done = event(fights, { status: "completed" });
+  assert.ok(buildTelegramResultsPost(done, accuracy, "https://fightbase.ru").length > TELEGRAM_CAPTION_MAX);
+
+  const caption = buildTelegramResultsCaption(done, accuracy, "https://fightbase.ru");
+  assert.ok(caption.length <= TELEGRAM_CAPTION_MAX);
+  assert.match(caption, /^📊 Итоги ИИ-модели FightBase: UFC 334: Gane vs\. Hokit\nУгадала 11 из 12 \(92%\)/);
+  assert.match(caption, /\nОсновной кард\n✅ mainов — mainин\n❌ missов — missин\n➖ drawов — drawин\n\nПрелимы\n✅ p0ов — p0ин\n/);
+  assert.match(caption, /\n\nЗа последние 5 турниров: 55% \(43 из 78\), фаворит — 65%\nРезультаты и разборы: https:\/\/fightbase\.ru\/ru\/events\/ufc-334\?utm_source=telegram/);
 });

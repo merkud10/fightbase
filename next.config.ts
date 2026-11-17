@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Шрифты картинки-сводки читаются с диска при рендере (lib/model-summary-image.tsx).
+  outputFileTracingIncludes: {
+    "/api/cron/telegram-picks": ["./assets/fonts/*.woff"]
+  },
   poweredByHeader: false,
   reactStrictMode: true,
   images: {

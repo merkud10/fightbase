@@ -459,8 +459,9 @@ case "${TASK}" in
     ;;
 
   telegram-picks)
-    # Раз в час: пост с пиками ближайшего турнира в Telegram-канал, правка до
-    # начала турнира и закреп до следующего (lib/telegram-picks-runner.ts).
+    # Раз в час: пост с пиками ближайшего турнира в Telegram-канал и сообщество VK,
+    # правка до начала турнира, закреп, а после турнира — итоги с картинкой-сводкой
+    # (lib/telegram-picks-runner.ts, lib/vk-picks-runner.ts).
     log "Starting telegram-picks"
     response=$(call_api "/api/cron/telegram-picks") || {
       rc=$?

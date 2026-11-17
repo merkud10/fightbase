@@ -201,6 +201,7 @@ model Event {
   articles    Article[]
   slugAliases EventSlugAlias[]
   telegramPost TelegramEventPost?
+  vkPost VkEventPost?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -588,5 +589,20 @@ model TelegramEventPost {
   event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([unpinnedAt])
+  @@index([resultsPostedAt])
+}
+
+// Посты ИИ-модели в сообществе VK: пики до турнира и итоги после него.
+model VkEventPost {
+  eventId    String    @id
+  postId     Int
+  textHash   String
+  postedAt   DateTime  @default(now())
+  pinnedAt   DateTime?
+  resultsPostId   Int?
+  resultsPostedAt DateTime?
+  updatedAt  DateTime  @updatedAt
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
   @@index([resultsPostedAt])
 }

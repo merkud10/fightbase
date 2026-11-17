@@ -313,7 +313,7 @@ async function vkApiMethod<T>(method: string, params: Record<string, string | nu
   return json.response as T;
 }
 
-async function vkApiMethodPost<T>(method: string, params: Record<string, string | number>): Promise<T> {
+export async function vkApiMethodPost<T>(method: string, params: Record<string, string | number>): Promise<T> {
   const body = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     body.set(key, String(value));
@@ -478,9 +478,25 @@ async function vkUploadWallPhotoFromUrl(
   groupId: string,
   imageUrl: string
 ): Promise<string> {
-  const gid = String(groupId).replace(/^-+/, "");
   const downloaded = await downloadImageBuffer(imageUrl);
   const { buffer, contentType } = await convertToJpegIfNeeded(downloaded.buffer, downloaded.contentType, imageUrl);
+  return vkUploadWallPhoto(token, apiVersion, groupId, buffer, contentType, imageUrl);
+}
+
+/**
+ * Загружает готовую картинку на стену группы VK и возвращает строку вложения для wall.post.
+ * `label` — только для журнала (адрес или имя картинки).
+ */
+export async function vkUploadWallPhoto(
+  token: string,
+  apiVersion: string,
+  groupId: string,
+  buffer: Buffer,
+  contentType: string,
+  label: string
+): Promise<string> {
+  const gid = String(groupId).replace(/^-+/, "");
+  const imageUrl = label;
   const ext = contentType.includes("png") ? "png" : "jpeg";
   let lastError: Error | null = null;
 
@@ -535,7 +551,7 @@ async function vkUploadWallPhotoFromUrl(
   throw lastError ?? new Error("VK photo upload failed");
 }
 
-async function vkWallPost(
+export async function vkWallPost(
   token: string,
   apiVersion: string,
   groupId: string,
