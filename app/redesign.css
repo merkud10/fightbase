@@ -2301,3 +2301,99 @@ td .event-table-link,
     display: none !important;
   }
 }
+
+/* ── КАРТОЧКА БОЙЦА: следующий бой и продолжение ── */
+
+.fighter-next {
+  margin: 0 0 32px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.fighter-next .kicker {
+  margin: 0 0 8px;
+  color: var(--red);
+  text-transform: uppercase;
+}
+
+.fighter-next-title {
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-size: var(--s-h2);
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.fighter-next-vs {
+  font-size: var(--s-h3);
+  color: var(--muted);
+}
+
+.fighter-next-record {
+  font-family: var(--font-body), sans-serif;
+  font-size: var(--s-small);
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.fighter-next-meta {
+  margin: 8px 0 0;
+  font-size: var(--s-small);
+  color: var(--muted);
+}
+
+.fighter-next-meta a:hover,
+.fighter-next-title a:hover,
+.fighter-where-next a:hover {
+  color: var(--red);
+}
+
+.fighter-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 16px 0 0;
+  font-size: var(--s-body);
+}
+
+.fighter-next-actions .action-link {
+  font-weight: 600;
+  color: var(--red);
+}
+
+.fighter-next-actions .action-link:hover {
+  text-decoration: underline;
+}
+
+.fighter-next-secondary {
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+}
+
+.fighter-where-next {
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.fighter-where-next h3 {
+  margin: 0 0 4px;
+}
+
+.fighter-where-next ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fighter-where-next li {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.fighter-where-next li:first-child {
+  border-top: 0;
+}

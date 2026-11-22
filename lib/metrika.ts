@@ -3,7 +3,8 @@
 // push_subscribe_click, social_telegram_click, social_vk_click,
 // share_telegram, share_vk, share_copy, prediction_telegram_click,
 // home_prediction_click, home_event_click,
-// event_prediction_click, prediction_next_click (нажатия, не подтверждённые загрузки).
+// event_prediction_click, prediction_next_click,
+// fighter_prediction_click, fighter_event_click (нажатия, не подтверждённые загрузки).
 
 import { METRIKA_ID } from "./metrika-config";
 

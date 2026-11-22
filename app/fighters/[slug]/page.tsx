@@ -7,6 +7,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 export const revalidate = 3600;
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { buildFighterStatRows, FighterNextFight, FighterWhereNext } from "@/components/fighter-next-fight";
 import { JsonLd } from "@/components/json-ld";
 import { PageHero } from "@/components/page-hero";
 import { getArticleHref } from "@/lib/article-routes";
@@ -497,18 +498,8 @@ export default async function FighterPage({
 
   const hasVitals = Boolean(fighter.age || fighter.heightCm || fighter.reachCm || fighter.country);
   const hasProfileRecentFights = profileRecentFights.length > 0;
-  const hasOfficialStats =
-    fighter.sigStrikesLandedPerMin != null ||
-    fighter.strikeAccuracy != null ||
-    fighter.sigStrikesAbsorbedPerMin != null ||
-    fighter.strikeDefense != null ||
-    fighter.takedownAveragePer15 != null ||
-    fighter.takedownAccuracy != null ||
-    fighter.takedownDefense != null ||
-    fighter.submissionAveragePer15 != null ||
-    fighter.winsByKnockout != null ||
-    fighter.winsBySubmission != null ||
-    fighter.winsByDecision != null;
+  const statRows = buildFighterStatRows(fighter, locale);
+  const hasOfficialStats = statRows.length > 0;
 
   // Только курируемые пары: остальные страницы сравнения закрыты от индексации,
   // и ссылки на них лили бы вес в никуда.
@@ -545,28 +536,14 @@ export default async function FighterPage({
         </nav>
       ) : null}
 
-      {nextFight && nextFightOpponent ? (
-        <section className="policy-card" aria-label={locale === "ru" ? "Следующий бой" : "Next fight"}>
-          <p className="kicker">{locale === "ru" ? "Следующий бой" : "Next fight"}</p>
-          <p className="copy">
-            {locale === "ru" ? "Соперник" : "Opponent"}: {" "}
-            <Link href={localizePath(`/fighters/${nextFightOpponent.slug}`, locale)}>
-              {getDisplayName(nextFightOpponent, locale)}
-            </Link>
-            {" · "}
-            {nextFightDateLabel}
-            {" · "}
-            <Link href={localizePath(`/events/${nextFight.event.slug}`, locale)}>{nextFight.event.name}</Link>
-            {nextFight.predictionSnapshot && nextFight.slug ? (
-              <>
-                {" · "}
-                <Link href={localizePath(`/predictions/${nextFight.event.slug}/${nextFight.slug}`, locale)}>
-                  {locale === "ru" ? "Прогноз на бой" : "Fight prediction"}
-                </Link>
-              </>
-            ) : null}
-          </p>
-        </section>
+      {nextFight && nextFightOpponent && nextFightDateLabel ? (
+        <FighterNextFight
+          locale={locale}
+          opponent={{ name: getDisplayName(nextFightOpponent, locale), slug: nextFightOpponent.slug, record: nextFightOpponent.record }}
+          dateLabel={nextFightDateLabel}
+          event={{ name: nextFight.event.name, slug: nextFight.event.slug }}
+          predictionPath={nextFight.predictionSnapshot && nextFight.slug ? `/predictions/${nextFight.event.slug}/${nextFight.slug}` : null}
+        />
       ) : null}
 
       <section className="detail-grid">
@@ -662,6 +639,8 @@ export default async function FighterPage({
               ) : null}
             </div>
           ) : null}
+
+          {!nextFight ? <FighterWhereNext locale={locale} weightClass={fighter.weightClass} /> : null}
         </article>
 
         <aside className="stack">
@@ -691,54 +670,12 @@ export default async function FighterPage({
             <div className="policy-card" id="fighter-stats" tabIndex={-1}>
               <h3>{locale === "ru" ? "Официальная статистика UFC" : "Official UFC stats"}</h3>
               <div className="recent-fight-grid">
-                <div>
-                  <span className="eyebrow">SLpM</span>
-                  <p className="copy">{fighter.sigStrikesLandedPerMin ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Точность ударов" : "Strike accuracy"}</span>
-                  <p className="copy">{fighter.strikeAccuracy != null ? `${fighter.strikeAccuracy}%` : "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">SApM</span>
-                  <p className="copy">{fighter.sigStrikesAbsorbedPerMin ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Защита в стойке" : "Strike defense"}</span>
-                  <p className="copy">{fighter.strikeDefense != null ? `${fighter.strikeDefense}%` : "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Тейкдауны / 15 мин" : "TD avg / 15 min"}</span>
-                  <p className="copy">{fighter.takedownAveragePer15 ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Точность тейкдаунов" : "TD accuracy"}</span>
-                  <p className="copy">{fighter.takedownAccuracy != null ? `${fighter.takedownAccuracy}%` : "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Защита от тейкдаунов" : "TD defense"}</span>
-                  <p className="copy">{fighter.takedownDefense != null ? `${fighter.takedownDefense}%` : "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Сабмишены / 15 мин" : "Sub avg / 15 min"}</span>
-                  <p className="copy">{fighter.submissionAveragePer15 ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Побед KO/TKO" : "Wins by KO/TKO"}</span>
-                  <p className="copy">{fighter.winsByKnockout ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Побед сабмишеном" : "Wins by submission"}</span>
-                  <p className="copy">{fighter.winsBySubmission ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Побед решением" : "Wins by decision"}</span>
-                  <p className="copy">{fighter.winsByDecision ?? "—"}</p>
-                </div>
-                <div>
-                  <span className="eyebrow">{locale === "ru" ? "Среднее время боя" : "Average fight time"}</span>
-                  <p className="copy">{fighter.averageFightTime ?? "—"}</p>
-                </div>
+                {statRows.map((row) => (
+                  <div key={row.label}>
+                    <span className="eyebrow">{row.label}</span>
+                    <p className="copy">{row.value}</p>
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}
