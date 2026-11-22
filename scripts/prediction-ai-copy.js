@@ -98,7 +98,7 @@ function buildMarketFacts(fight) {
   };
 }
 
-function buildFightFactPack(fight) {
+function buildFightFactPack(fight, { market: includeMarket = true } = {}) {
   const pack = {
     eventName: String(fight.event?.name || "").trim(),
     eventDate: fight.event?.date
@@ -109,7 +109,7 @@ function buildFightFactPack(fight) {
     cardSlot: describeCardSlot(fight),
     fighters: [buildFighterFacts(fight.fighterA, fight.event), buildFighterFacts(fight.fighterB, fight.event)]
   };
-  const market = buildMarketFacts(fight);
+  const market = includeMarket ? buildMarketFacts(fight) : null;
   if (market) pack.market = market;
   return pack;
 }
@@ -124,10 +124,27 @@ function computeAiContentHash(fight, percents) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
-function buildPrompt(pack, { webSearch = false } = {}) {
-  const system = [
+// Ранний разбор (preview): бой только появился в карде, до турнира недели. Текст
+// нейтральный, без победителя: пик и оценка шансов выходят позже, в окне перед
+// турниром, из отдельного ответа модели. Нужен, чтобы страница прогноза с первого
+// дня была разбором, а не шаблоном: шаблон Яндекс помечает как малоценную страницу
+// и потом переоценивает её 1–2 недели, уже после боя.
+const PREVIEW_HEAD = [
+  "Ты — редактор русскоязычного MMA-медиа. Пишешь сухой, точный предварительный разбор боя UFC задолго до турнира.",
+  "Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: overview, keyEdge, fightScript, pathA, pathB.",
+  "Победителя не называй и не намекай на него: прогноз редакция опубликует позже отдельно. Запрещены слова «фаворит», «андердог», «аутсайдер», «победит», «должен выиграть» и оценки шансов. Разбирай обоих бойцов на равных: чем силён каждый и при каких условиях бой складывается в его пользу."
+];
+const PREVIEW_VERDICT_LEXICON = /фаворит|андердог|аутсайдер|(?:^|[^\p{L}])победит(?![\p{L}])|долж(?:ен|на) (?:выиграть|побеждать|победить)|выбираю|мой выбор/iu;
+
+function buildPrompt(pack, { webSearch = false, preview = false } = {}) {
+  if (preview) webSearch = false;
+  const head = preview ? PREVIEW_HEAD : [
     "Ты — редактор русскоязычного MMA-медиа. Пишешь сухие, точные редакционные разборы боев UFC и делаешь собственный прогноз победителя.",
-    `Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: pick, winChanceA, pickReason, overview, keyEdge, fightScript, pathA, pathB${webSearch ? ", research" : ""}.`,
+    `Верни СТРОГО валидный JSON без пояснений и markdown, с ключами: pick, winChanceA, pickReason, overview, keyEdge, fightScript, pathA, pathB${webSearch ? ", research" : ""}.`
+  ];
+  const system = [
+    ...head,
+    ...(preview ? [] : [
     'pick — строго "A" (первый боец в списке) или "B" (второй): кто, по твоему анализу, победит. Решай по статистике, форме, стилям и последним боям.',
     "winChanceA — целое число от 1 до 99: твоя оценка вероятности победы бойца A в процентах. Она должна согласовываться с pick: больше 50 — pick A, меньше 50 — pick B. Оценивай честно и калиброванно: из боёв, которым ты даешь 70, боец должен выигрывать примерно 7 из 10.",
     ...(webSearch
@@ -146,7 +163,8 @@ function buildPrompt(pack, { webSearch = false } = {}) {
           "В текстах не упоминай рынок, линию, шансы по ставкам и проценты из market."
         ]
       : []),
-    "pickReason — 1-2 предложения (15-30 слов) на русском: главная причина выбора.",
+    "pickReason — 1-2 предложения (15-30 слов) на русском: главная причина выбора."
+    ]),
     "Остальные значения — строки на русском языке.",
     "Имена бойцов пиши по-русски естественно и склоняй по правилам русского языка: мужские фамилии на согласный склоняются («победа Хукера», «против Парнасса»), женские фамилии на согласный и фамилии на -о, -е, -и не склоняются («против Дельфин Бенуаиш», «у Марио Пинто»). Не искажай написание имени из входных данных: меняй только окончание.",
     "Статус боя в карде бери из поля cardSlot дословно, не переименовывай его (не называй бой «со-главным», если это не указано).",
@@ -168,7 +186,9 @@ function buildPrompt(pack, { webSearch = false } = {}) {
   const targetWords = pack.isHeadliner ? "40-80" : "25-50";
   const user = [
     `Ориентир для каждого текстового поля: ${targetWords} слов; при нехватке фактов допустимо 10-25 слов. Не повторяй оговорку о неполных данных во всех разделах.`,
-    "Поля: overview — общая картина матчапа; keyEdge — главное преимущество и за кем оно; fightScript — вероятное развитие боя; pathA — путь к победе первого бойца; pathB — путь к победе второго.",
+    preview
+      ? "Поля: overview — общая картина матчапа; keyEdge — ключевой вопрос боя: в чём сильнее первый боец и в чём второй; fightScript — возможные сценарии развития боя; pathA — путь к победе первого бойца; pathB — путь к победе второго."
+      : "Поля: overview — общая картина матчапа; keyEdge — главное преимущество и за кем оно; fightScript — вероятное развитие боя; pathA — путь к победе первого бойца; pathB — путь к победе второго.",
     "",
     webSearch ? "Факты из базы редакции (дополни их поиском):" : "Факты (используй только их):",
     JSON.stringify(pack, null, 1)
@@ -194,19 +214,23 @@ function normalizeResearch(value) {
     .slice(0, MAX_RESEARCH_ITEMS);
 }
 
-function validateAiCopy(parsed, pack, { webSearch = false } = {}) {
+function validateAiCopy(parsed, pack, { webSearch = false, preview = false } = {}) {
   if (!parsed || typeof parsed !== "object") return { ok: false, reason: "not_an_object" };
   const research = webSearch ? normalizeResearch(parsed.research) : [];
   const researchText = research.map((item) => item.fact).join("\n");
 
-  const pick = parsed.pick === "A" || parsed.pick === "B" ? parsed.pick : null;
-  if (!pick) return { ok: false, reason: "invalid_pick" };
-  const winChanceA = Number(parsed.winChanceA);
-  if (!Number.isInteger(winChanceA) || winChanceA < 1 || winChanceA > 99) return { ok: false, reason: "invalid_win_chance" };
-  if ((winChanceA > 50 && pick !== "A") || (winChanceA < 50 && pick !== "B")) return { ok: false, reason: "pick_contradicts_win_chance" };
-  const pickReason =
-    typeof parsed.pickReason === "string" ? enforceNameCorrections(parsed.pickReason.trim()) : "";
-  if (!pickReason) return { ok: false, reason: "empty_pick_reason" };
+  let pick = null;
+  let winChanceA = null;
+  let pickReason = "";
+  if (!preview) {
+    pick = parsed.pick === "A" || parsed.pick === "B" ? parsed.pick : null;
+    if (!pick) return { ok: false, reason: "invalid_pick" };
+    winChanceA = Number(parsed.winChanceA);
+    if (!Number.isInteger(winChanceA) || winChanceA < 1 || winChanceA > 99) return { ok: false, reason: "invalid_win_chance" };
+    if ((winChanceA > 50 && pick !== "A") || (winChanceA < 50 && pick !== "B")) return { ok: false, reason: "pick_contradicts_win_chance" };
+    pickReason = typeof parsed.pickReason === "string" ? enforceNameCorrections(parsed.pickReason.trim()) : "";
+    if (!pickReason) return { ok: false, reason: "empty_pick_reason" };
+  }
 
   const copy = {};
   for (const field of COPY_FIELDS) {
@@ -215,7 +239,8 @@ function validateAiCopy(parsed, pack, { webSearch = false } = {}) {
     copy[field] = value;
   }
 
-  const combined = [...COPY_FIELDS.map((field) => copy[field]), pickReason].join("\n");
+  const combined = [...COPY_FIELDS.map((field) => copy[field]), pickReason].filter(Boolean).join("\n");
+  if (preview && PREVIEW_VERDICT_LEXICON.test(combined)) return { ok: false, reason: "preview_names_winner" };
   // У проспектов имя пока может быть только латиницей. Имя из факт-пакета
   // не является непереведённым текстом: вырезаем и полное имя, и каждое его
   // слово по отдельности (модель пишет «Moreno», «Isaac Moreno's»), остальная
@@ -303,14 +328,16 @@ function parseModelJson(content) {
   }
 }
 
-async function generateAiPredictionCopy({ fight, config, fetchImpl = fetch }) {
+async function generateAiPredictionCopy({ fight, config, preview = false, fetchImpl = fetch }) {
   if (isPlaceholderFight(fight)) {
     return null;
   }
 
-  const pack = buildFightFactPack(fight);
-  const webSearch = Boolean(config.webSearch);
-  const prompt = buildPrompt(pack, { webSearch });
+  // Ранний разбор идёт без линии (чтобы текст не клонился к фавориту рынка) и без
+  // веб-поиска: это короткий дешёвый вызов, свежие новости учтёт прогноз в окне.
+  const pack = buildFightFactPack(fight, { market: !preview });
+  const webSearch = !preview && Boolean(config.webSearch);
+  const prompt = buildPrompt(pack, { webSearch, preview });
   let correction = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -347,7 +374,7 @@ async function generateAiPredictionCopy({ fight, config, fetchImpl = fetch }) {
 
     const payload = await response.json();
     const parsed = parseModelJson(payload?.choices?.[0]?.message?.content);
-    const verdict = validateAiCopy(parsed, pack, { webSearch });
+    const verdict = validateAiCopy(parsed, pack, { webSearch, preview });
     if (!verdict.ok) {
       console.warn(`[ai-copy] rejected (${verdict.reason}): ${pack.fighters[0]?.name} vs ${pack.fighters[1]?.name}`);
       correction = verdict.reason;

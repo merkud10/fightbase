@@ -106,20 +106,47 @@ function hasAiCopyForLineup(existing, fight) {
   );
 }
 
+// Ранний разбор пика не содержит, поэтому состав, для которого он написан,
+// помечаем в aiContentHash: при замене соперника или перестановке бойцов
+// (pathA/pathB привязаны к порядку) разбор пишется заново.
+function previewKey(fight) {
+  return `preview:${fight.fighterAId}:${fight.fighterBId}`;
+}
+
+function hasPreviewForLineup(existing, fight) {
+  return Boolean(existing?.aiGeneratedAt && !existing.aiPickFighterId && existing.aiContentHash === previewKey(fight));
+}
+
+// Сколько ранних разборов писать за один прогон: sync-odds ограничен по времени,
+// а после первой выкладки без разбора стоят все будущие бои сразу. Ближайшие
+// турниры идут первыми, остальные дойдут в следующие дни.
+const DEFAULT_AI_PREVIEW_LIMIT = 15;
+
+function getAiPreviewLimit() {
+  const limit = Number(readEnv("PREDICTION_AI_PREVIEW_LIMIT", String(DEFAULT_AI_PREVIEW_LIMIT)));
+  return limit >= 0 ? limit : DEFAULT_AI_PREVIEW_LIMIT;
+}
+
 /**
  * Что делать с текстом и пиком боя:
- *   generate — звать модель: --regenerate, либо бой в окне перед турниром, а
- *              разбора для этого состава, сделанного уже в окне, ещё нет;
- *   reuse    — оставить готовый разбор: вне окна модель не зовём, а в окне
- *              разбор делается один раз и потом не меняется, даже если сдвинулась линия;
- *   template — шаблонный текст без пика, модель позовём, когда бой войдёт в окно.
+ *   generate — звать модель за прогнозом: --regenerate, либо бой в окне перед
+ *              турниром, а прогноза для этого состава, сделанного уже в окне, ещё нет;
+ *   preview  — до окна у боя нет никакого разбора: зовём модель за ранним
+ *              нейтральным разбором без пика (без линии и веб-поиска);
+ *   reuse    — оставить готовый текст: ранний разбор живёт до окна, а в окне
+ *              прогноз делается один раз и потом не меняется, даже если сдвинулась линия;
+ *   template — шаблонный текст: турнир уже начался, модель не зовём.
  */
 function planAiCopy({ fight, existing, windowHours, regenerate = false, now = new Date() }) {
   if (regenerate) return "generate";
   const hasCopy = hasAiCopyForLineup(existing, fight);
   const windowStart = new Date(getEventStart(fight.event)).getTime() - windowHours * 3600 * 1000;
-  const inWindow = canRegeneratePrediction(fight, now) && now.getTime() >= windowStart;
-  if (!inWindow) return hasCopy ? "reuse" : "template";
+  const upcoming = canRegeneratePrediction(fight, now);
+  const inWindow = upcoming && now.getTime() >= windowStart;
+  if (!inWindow) {
+    if (hasCopy || hasPreviewForLineup(existing, fight)) return "reuse";
+    return upcoming ? "preview" : "template";
+  }
   return hasCopy && new Date(existing.aiGeneratedAt).getTime() >= windowStart ? "reuse" : "generate";
 }
 
@@ -536,6 +563,9 @@ async function main() {
   if (options.regenerate && !aiConfig) throw new Error("AI configuration is required for --regenerate");
   if (options.aiOnly && !aiConfig) throw new Error("AI configuration is required for --ai-only");
   const aiWindowHours = getAiWindowHours();
+  const aiPreviewLimit = getAiPreviewLimit();
+  let aiPreviewCount = 0;
+  let aiPreviewAttempts = 0;
   let aiGeneratedCount = 0;
   let aiReusedCount = 0;
   let aiFallbackCount = 0;
@@ -577,8 +607,10 @@ async function main() {
       const odds = { oddsA: fight.oddsA ?? null, oddsB: fight.oddsB ?? null };
       const percents = getFightWinPercentages(fight.fighterA, fight.fighterB, odds);
       const nextHash = computeAiContentHash(fight, percents);
-      const plan = planAiCopy({ fight, existing, windowHours: aiWindowHours, regenerate: options.regenerate });
+      let plan = planAiCopy({ fight, existing, windowHours: aiWindowHours, regenerate: options.regenerate });
       if (options.aiOnly && plan !== "generate") continue;
+      // Сверх лимита прогона бой остаётся на шаблоне до следующего запуска.
+      if (plan === "preview" && aiPreviewAttempts >= aiPreviewLimit) plan = "template";
       const reuseExisting = () => {
         ru = {
           ...baseRu,
@@ -598,6 +630,28 @@ async function main() {
         aiReusedCount += 1;
       } else if (plan === "template") {
         aiDeferredCount += 1;
+      } else if (plan === "preview") {
+        aiPreviewAttempts += 1;
+        const generated = await generateAiPredictionCopy({
+          fight,
+          preview: true,
+          config: { ...aiConfig, webSearch: false, timeoutMs: Math.min(aiConfig.timeoutMs ?? 60000, 120000) }
+        });
+        if (generated) {
+          const fighterAName = getDisplayName(fight.fighterA, "ru");
+          const fighterBName = getDisplayName(fight.fighterB, "ru");
+          ru = normalizeRuSnapshot({
+            ...baseRu,
+            ...generated.copy,
+            excerpt: `Разбор боя ${fighterAName} — ${fighterBName}: ${generated.copy.overview}`
+          });
+          aiContentHash = previewKey(fight);
+          aiGeneratedAt = new Date();
+          aiPreviewCount += 1;
+        } else {
+          // Шаблон остаётся, следующий прогон попробует ещё раз.
+          console.warn(`[ai-copy] preview failed, template kept: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
+        }
       } else {
         const generated = await generateAiPredictionCopy({ fight, config: aiConfig });
         if (generated) {
@@ -629,7 +683,7 @@ async function main() {
           }
           // Дозапуск не откатывает снапшот к шаблону: попробуем в следующий раз.
           if (options.aiOnly) continue;
-          if (hasAiCopyForLineup(existing, fight)) {
+          if (hasAiCopyForLineup(existing, fight) || hasPreviewForLineup(existing, fight)) {
             reuseExisting();
             console.warn(`[ai-copy] generation failed, earlier copy kept: ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}`);
           } else {
@@ -694,7 +748,7 @@ async function main() {
 
     if (options.dryRun) {
       console.log(
-        `[dry-run] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}${aiGeneratedAt ? " | AI" : " | template"}`
+        `[dry-run] ${fight.event.slug} | ${fight.fighterA.name} vs ${fight.fighterB.name}${aiGeneratedAt ? (aiPickFighterId ? " | AI" : " | AI preview") : " | template"}`
       );
       if (aiGeneratedAt) {
         if (aiPickFighterId) {
@@ -742,6 +796,7 @@ async function main() {
 
   const aiAttempted = aiGeneratedCount + aiFallbackCount;
   if (aiConfig) {
+    console.log(`AI previews: written ${aiPreviewCount} of ${aiPreviewAttempts} attempted (limit ${aiPreviewLimit} per run)`);
     console.log(`AI copy: generated ${aiGeneratedCount}, reused ${aiReusedCount}, fallback ${aiFallbackCount}, deferred until ${aiWindowHours}h window ${aiDeferredCount}`);
   }
   if (!options.dryRun && aiAttempted > 0 && aiFallbackCount / aiAttempted > 0.2) {

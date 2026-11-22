@@ -8,7 +8,7 @@ const scriptUrl = new URL("../scripts/generate-prediction-snapshots.js", import.
 const scriptRequire = createRequire(scriptUrl);
 const source = readFileSync(scriptUrl, "utf8");
 
-function harness({ regenerate = true, generated = true, startedDuringRun = false, args = [] as string[], eventDate = new Date("2099-01-01"), existingOverride = undefined as any } = {}) {
+function harness({ regenerate = true, generated = true, startedDuringRun = false, args = [] as string[], eventDate = new Date("2099-01-01"), existingOverride = undefined as any, env = {} as Record<string, string> } = {}) {
   const fight = {
     id: "fight", slug: "a-vs-b", status: "scheduled", eventId: "event", fighterAId: "a", fighterBId: "b",
     weightClass: "Lightweight", oddsA: 3, oddsB: 1.5,
@@ -20,23 +20,24 @@ function harness({ regenerate = true, generated = true, startedDuringRun = false
   const snapshots = existingOverride === undefined ? [existing] : existingOverride ? [existingOverride] : [];
   const writes: any[] = [];
   let generations = 0;
+  const calls: any[] = [];
   const db = {
     fight: { findMany: async () => [fight], findUnique: async () => startedDuringRun ? { ...fight, status: "live" } : fight },
     fightPredictionSnapshot: { findMany: async () => snapshots, upsert: async (args: any) => writes.push(args) },
     systemEvent: { create: async () => ({}) }, $disconnect: async () => {}
   };
-  const mockProcess = { argv: ["node", "script", ...(regenerate ? ["--regenerate"] : []), ...args], exitCode: 0, env: { PREDICTION_AI_COPY: "1", AI_PROVIDER: "deepseek", DEEPSEEK_API_KEY: "test", DEEPSEEK_BASE_URL: "https://example.test", DEEPSEEK_MODEL: "test", PREDICTION_AI_TIMEOUT_MS: "100" } };
+  const mockProcess = { argv: ["node", "script", ...(regenerate ? ["--regenerate"] : []), ...args], exitCode: 0, env: { PREDICTION_AI_COPY: "1", AI_PROVIDER: "deepseek", DEEPSEEK_API_KEY: "test", DEEPSEEK_BASE_URL: "https://example.test", DEEPSEEK_MODEL: "test", PREDICTION_AI_TIMEOUT_MS: "100", ...env } };
   const module = { exports: {} as any };
   const mockRequire = (name: string) => {
     if (name === "@prisma/client") return { PrismaClient: function () { return db; } };
     if (name === "./prediction-ai-copy") return {
       ...scriptRequire(name), computeAiContentHash: () => "same-hash",
-      generateAiPredictionCopy: async () => { generations++; return generated ? { pick: "B", pickReason: "Новый прогноз", copy: { overview: "Новый обзор", keyEdge: "Новое преимущество", fightScript: "Сценарий", pathA: "Путь А", pathB: "Путь Б" } } : null; }
+      generateAiPredictionCopy: async (call: any) => { generations++; calls.push(call); if (call.preview) return generated ? { pick: null, pickReason: "", copy: { overview: "Ранний обзор", keyEdge: "Ключевой вопрос", fightScript: "Сценарии", pathA: "Путь А", pathB: "Путь Б" } } : null; return generated ? { pick: "B", pickReason: "Новый прогноз", copy: { overview: "Новый обзор", keyEdge: "Новое преимущество", fightScript: "Сценарий", pathA: "Путь А", pathB: "Путь Б" } } : null; }
     };
     return scriptRequire(name);
   };
   vm.runInNewContext(source, { require: mockRequire, module, process: mockProcess, console: { log() {}, warn() {} }, Date });
-  return { ...module.exports, fight, writes, mockProcess, generations: () => generations };
+  return { ...module.exports, fight, writes, mockProcess, calls, generations: () => generations };
 }
 
 test("explicit regeneration bypasses cached copy and refreshes the pick and its odds", async () => {
@@ -87,9 +88,15 @@ test("the expensive model runs only inside the window before the event, once per
   const plan = (existing: unknown, now: Date, regenerate = false) => h.planAiCopy({ fight, existing, windowHours: 48, now, regenerate });
   const copy = (generatedAt: Date, pick = "a") => ({ aiGeneratedAt: generatedAt, aiPickFighterId: pick });
 
-  // Вне окна модель не зовём: нет разбора — шаблон, есть — оставляем как есть.
-  assert.equal(plan(undefined, hoursBefore(72)), "template");
+  const preview = (generatedAt: Date, key = "preview:a:b") => ({ aiGeneratedAt: generatedAt, aiPickFighterId: null, aiContentHash: key });
+  // До окна прогноз не зовём: нет текста — пишем ранний разбор без пика, есть — оставляем как есть.
+  assert.equal(plan(undefined, hoursBefore(72)), "preview");
   assert.equal(plan(copy(hoursBefore(700)), hoursBefore(72)), "reuse");
+  assert.equal(plan(preview(hoursBefore(700)), hoursBefore(72)), "reuse");
+  // Ранний разбор для другого состава или другого порядка бойцов не годится.
+  assert.equal(plan(preview(hoursBefore(700), "preview:b:a"), hoursBefore(72)), "preview");
+  // В окне ранний разбор уступает место прогнозу с пиком.
+  assert.equal(plan(preview(hoursBefore(700)), hoursBefore(40)), "generate");
   // В окне: первый разбор или разбор, сделанный задолго до турнира, генерируем заново...
   assert.equal(plan(undefined, hoursBefore(40)), "generate");
   assert.equal(plan(copy(hoursBefore(700)), hoursBefore(40)), "generate");
@@ -97,11 +104,65 @@ test("the expensive model runs only inside the window before the event, once per
   assert.equal(plan(copy(hoursBefore(40)), hoursBefore(16)), "reuse");
   // Замена соперника: старый пик не относится к новому составу.
   assert.equal(plan(copy(hoursBefore(40), "someone-else"), hoursBefore(16)), "generate");
-  assert.equal(plan(copy(hoursBefore(700), "someone-else"), hoursBefore(72)), "template");
+  assert.equal(plan(copy(hoursBefore(700), "someone-else"), hoursBefore(72)), "preview");
   // После начала турнира пик не меняется.
   assert.equal(plan(undefined, hoursBefore(-1)), "template");
   // Ручная перегенерация окно не учитывает.
   assert.equal(plan(copy(hoursBefore(40)), hoursBefore(16), true), "generate");
+});
+
+test("a fight far from the event gets an early breakdown without a pick, market or web search", async () => {
+  const h = harness({ regenerate: false, existingOverride: null });
+  await h.main();
+  assert.equal(h.generations(), 1);
+  assert.equal(h.calls[0].preview, true);
+  assert.equal(h.calls[0].config.webSearch, false);
+  const written = h.writes[0].create;
+  assert.equal(written.overviewRu, "Ранний обзор");
+  assert.equal(written.aiPickFighterId, null);
+  assert.equal(written.aiWinChanceA, null);
+  assert.equal(written.aiContentHash, "preview:a:b");
+  assert.ok(written.aiGeneratedAt);
+  assert.match(written.excerptRu, /^Разбор боя/);
+});
+
+test("an early breakdown is written once and then reused until the window", async () => {
+  const early = { fightId: "fight", aiContentHash: "preview:a:b", aiGeneratedAt: new Date("2026-01-01"), aiPickFighterId: null, overviewRu: "Ранний обзор", keyEdgeRu: "К", fightScriptRu: "С", pathARu: "А", pathBRu: "Б", excerptRu: "Разбор боя" };
+  const h = harness({ regenerate: false, existingOverride: early });
+  await h.main();
+  assert.equal(h.generations(), 0);
+  assert.equal(h.writes[0].update.overviewRu, "Ранний обзор");
+  assert.equal(h.writes[0].update.aiContentHash, "preview:a:b");
+  assert.equal(h.writes[0].update.aiPickFighterId, null);
+});
+
+test("inside the window an early breakdown is replaced by the prediction, and survives a failed call", async () => {
+  const soon = new Date(Date.now() + 24 * 3600 * 1000);
+  const early = { fightId: "fight", aiContentHash: "preview:a:b", aiGeneratedAt: new Date("2026-01-01"), aiPickFighterId: null, overviewRu: "Ранний обзор", keyEdgeRu: "К", fightScriptRu: "С", pathARu: "А", pathBRu: "Б", excerptRu: "Разбор боя" };
+  const ok = harness({ regenerate: false, eventDate: soon, existingOverride: early });
+  await ok.main();
+  assert.equal(ok.calls[0].preview, undefined);
+  assert.equal(ok.writes[0].update.aiPickFighterId, "b");
+  assert.equal(ok.writes[0].update.overviewRu, "Новый обзор");
+  const failed = harness({ regenerate: false, generated: false, eventDate: soon, existingOverride: early });
+  await failed.main();
+  assert.equal(failed.writes[0].update.overviewRu, "Ранний обзор");
+  assert.equal(failed.writes[0].update.aiPickFighterId, null);
+});
+
+test("a failed early breakdown leaves the template and no AI marker", async () => {
+  const h = harness({ regenerate: false, generated: false, existingOverride: null });
+  await h.main();
+  assert.equal(h.generations(), 1);
+  assert.equal(h.writes[0].create.aiGeneratedAt, null);
+  assert.equal(h.writes[0].create.aiContentHash, null);
+});
+
+test("early breakdowns per run are capped by PREDICTION_AI_PREVIEW_LIMIT", async () => {
+  const h = harness({ regenerate: false, existingOverride: null, env: { PREDICTION_AI_PREVIEW_LIMIT: "0" } });
+  await h.main();
+  assert.equal(h.generations(), 0);
+  assert.equal(h.writes[0].create.aiGeneratedAt, null);
 });
 
 test("--ai-only generates a missing pick inside the window and writes only that fight", async () => {

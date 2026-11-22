@@ -502,3 +502,49 @@ test("the model sees decimal odds, but they never reach the published text", () 
   assert.ok(buildPrompt(pack).system.includes("oddsA"));
   assert.equal(validateAiCopy({ ...validCopy(), keyEdge: validCopy().keyEdge + " Цена 3.6 завышена." }, pack).ok, false);
 });
+
+test("early breakdown: the prompt asks for a neutral text without a pick, market or search", () => {
+  const withMarket = makeFight({ oddsA: 1.3, oddsB: 3.6 });
+  assert.equal("market" in buildFightFactPack(withMarket, { market: false }), false);
+  const prompt = buildPrompt(buildFightFactPack(withMarket, { market: false }), { preview: true, webSearch: true });
+  assert.ok(prompt.system.includes("Победителя не называй"));
+  assert.equal(prompt.system.includes("winChanceA"), false);
+  assert.equal(prompt.system.includes("pickReason"), false);
+  assert.equal(prompt.system.includes("веб-поиск"), false);
+  assert.equal(prompt.system.includes("market"), false);
+});
+
+test("early breakdown: validation needs no pick and rejects a text that names the winner", () => {
+  const pack = buildFightFactPack(makeFight(), { market: false });
+  const { pick: _pick, winChanceA: _chance, pickReason: _reason, ...rest } = validCopy();
+  const neutral = { ...rest, overview: rest.overview.replace("подходит к бою фаворитом за счет", "строит бой за счет") };
+  const verdict = validateAiCopy(neutral, pack, { preview: true });
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.pick, null);
+  assert.equal(verdict.winChanceA, null);
+  // Тот же текст без пика обычную проверку не проходит.
+  assert.equal(validateAiCopy(neutral, pack).reason, "invalid_pick");
+  for (const leak of ["Махачев здесь фаворит.", "Махачев победит решением.", "Гарри должен выиграть в стойке."]) {
+    assert.equal(validateAiCopy({ ...neutral, overview: `${neutral.overview} ${leak}` }, pack, { preview: true }).reason, "preview_names_winner");
+  }
+});
+
+test("early breakdown: the request goes without web search and without the market", async () => {
+  const { pick: _pick, winChanceA: _chance, pickReason: _reason, ...rest } = validCopy();
+  const neutral = { ...rest, overview: rest.overview.replace("подходит к бою фаворитом за счет", "строит бой за счет") };
+  const bodies: any[] = [];
+  const fetchImpl = async (_url: string, init: any) => {
+    bodies.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(neutral) } }] }) };
+  };
+  const result = await generateAiPredictionCopy({
+    fight: makeFight({ oddsA: 1.3, oddsB: 3.6 }),
+    preview: true,
+    config: { baseUrl: "https://example.test", apiKey: "k", model: "m", webSearch: true, retryDelayMs: 1 },
+    fetchImpl
+  });
+  assert.equal(result.pick, null);
+  assert.equal(result.copy.overview, neutral.overview);
+  assert.equal("web_search" in bodies[0], false);
+  assert.equal(bodies[0].messages[1].content.includes("oddsA"), false);
+});
