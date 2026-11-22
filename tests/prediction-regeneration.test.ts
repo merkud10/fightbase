@@ -36,8 +36,10 @@ function harness({ regenerate = true, generated = true, startedDuringRun = false
     };
     return scriptRequire(name);
   };
-  vm.runInNewContext(source, { require: mockRequire, module, process: mockProcess, console: { log() {}, warn() {} }, Date });
-  return { ...module.exports, fight, writes, mockProcess, calls, generations: () => generations };
+  const revalidations: any[] = [];
+  const mockFetch = async (url: string, init: any) => { revalidations.push({ url, auth: init.headers.Authorization, body: JSON.parse(init.body) }); return { ok: true, status: 200 }; };
+  vm.runInNewContext(source, { require: mockRequire, module, process: mockProcess, console: { log() {}, warn() {} }, Date, fetch: mockFetch, AbortSignal });
+  return { ...module.exports, fight, writes, mockProcess, calls, revalidations, generations: () => generations };
 }
 
 test("explicit regeneration bypasses cached copy and refreshes the pick and its odds", async () => {
@@ -197,4 +199,24 @@ test("confidence labels: clear edge from 70/30, moderate from 58/42", () => {
   assert.equal(label(0.28), "умеренное преимущество");
   assert.equal(label(0.2), "умеренное преимущество");
   assert.equal(label(0.1), "очень близкий бой");
+});
+
+test("new texts drop the day-long page cache; a run that wrote nothing new does not", async () => {
+  const env = { INTERNAL_API_SECRET: "s3" };
+  const wrote = harness({ regenerate: false, existingOverride: null, env });
+  await wrote.main();
+  assert.equal(wrote.revalidations.length, 1);
+  assert.equal(wrote.revalidations[0].url, "http://localhost:3000/api/cron/revalidate");
+  assert.equal(wrote.revalidations[0].auth, "Bearer s3");
+  assert.ok(wrote.revalidations[0].body.paths.includes("/predictions/[eventSlug]/[fightSlug]"));
+  const reused = harness({ regenerate: false, env });
+  await reused.main();
+  assert.equal(reused.revalidations.length, 0);
+  const dry = harness({ regenerate: false, existingOverride: null, env, args: ["--dry-run"] });
+  await dry.main();
+  assert.equal(dry.revalidations.length, 0);
+  // Без секрета в окружении запрос не отправляем.
+  const noSecret = harness({ regenerate: false, existingOverride: null });
+  await noSecret.main();
+  assert.equal(noSecret.revalidations.length, 0);
 });

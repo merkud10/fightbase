@@ -484,6 +484,28 @@ function normalizeRuSnapshot(copy) {
   );
 }
 
+// Страницы прогнозов кэшируются на сутки (revalidate = 86400). После новых
+// текстов или пиков сбрасываем кэш сами, иначе разбор доходит до сайта и до
+// поисковых роботов с опозданием до суток. Сбой не роняет прогон: данные уже в базе.
+async function revalidatePredictionPages(fetchImpl = typeof fetch === "function" ? fetch : null) {
+  const secret = readEnv("INTERNAL_API_SECRET") || readEnv("INGEST_CRON_SECRET");
+  if (!fetchImpl || !secret) return false;
+  const baseUrl = readEnv("INGEST_BASE_URL", "http://localhost:3000").replace(/\/+$/, "");
+  try {
+    const response = await fetchImpl(`${baseUrl}/api/cron/revalidate`, {
+      method: "POST",
+      signal: AbortSignal.timeout(30000),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ paths: ["/predictions/[eventSlug]/[fightSlug]", "/predictions", "/events/[slug]", "/"] })
+    });
+    console.log(`Revalidate prediction pages: HTTP ${response.status}`);
+    return response.ok;
+  } catch (error) {
+    console.warn(`Revalidate prediction pages failed: ${error.message || error}`);
+    return false;
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
 
@@ -798,6 +820,9 @@ async function main() {
   if (aiConfig) {
     console.log(`AI previews: written ${aiPreviewCount} of ${aiPreviewAttempts} attempted (limit ${aiPreviewLimit} per run)`);
     console.log(`AI copy: generated ${aiGeneratedCount}, reused ${aiReusedCount}, fallback ${aiFallbackCount}, deferred until ${aiWindowHours}h window ${aiDeferredCount}`);
+  }
+  if (!options.dryRun && aiGeneratedCount + aiPreviewCount > 0) {
+    await revalidatePredictionPages();
   }
   if (!options.dryRun && aiAttempted > 0 && aiFallbackCount / aiAttempted > 0.2) {
     await prisma.systemEvent
