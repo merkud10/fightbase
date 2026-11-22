@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { PrismaClient } = require("@prisma/client");
 const ufcNameDictionary = require("../lib/ufc-name-dictionary.json");
+const { fighterNameKey } = require("./fighter-name-matching");
 
 const prisma = new PrismaClient();
 
@@ -484,6 +485,32 @@ function normalizeRuSnapshot(copy) {
   );
 }
 
+// История боёв хранит соперника строкой с побуквенной транслитерацией синка
+// («Макс Холлоуаи», «Стеве Гаркиа»). Сайт подставляет имя из карточки соперника
+// (lib/fighter-name-index.ts), а модель получала сырое значение и переносила
+// кривое имя в текст разбора. Подставляем имена из карточек тем же ключом.
+function buildProfileNameIndex(fighters) {
+  const index = new Map();
+  for (const fighter of fighters) {
+    const key = fighterNameKey(fighter.name);
+    if (!key || !fighter.nameRu) continue;
+    // Два профиля с одним ключом — имя неоднозначно, оставляем как в истории.
+    index.set(key, index.has(key) ? null : fighter.nameRu);
+  }
+  return index;
+}
+
+function withProfileOpponentNames(fight, index) {
+  const fix = (fighter) => ({
+    ...fighter,
+    recentFights: (fighter.recentFights || []).map((entry) => ({
+      ...entry,
+      opponentNameRu: index.get(fighterNameKey(entry.opponentName)) || entry.opponentNameRu
+    }))
+  });
+  return { ...fight, fighterA: fix(fight.fighterA), fighterB: fix(fight.fighterB) };
+}
+
 // Страницы прогнозов кэшируются на сутки (revalidate = 86400). После новых
 // текстов или пиков сбрасываем кэш сами, иначе разбор доходит до сайта и до
 // поисковых роботов с опозданием до суток. Сбой не роняет прогон: данные уже в базе.
@@ -551,6 +578,8 @@ async function main() {
     take: options.limit
   });
 
+  const profileNames = buildProfileNameIndex(await prisma.fighter.findMany({ select: { name: true, nameRu: true } }));
+
   // Снапшоты завершённых боёв НЕ удаляем: это архив прогнозов с результатом
   // и источник статистики точности. Снапшоты отменённых боёв уходят каскадом
   // вместе с Fight (onDelete: Cascade).
@@ -596,7 +625,8 @@ async function main() {
   let upserted = 0;
   let skipped = 0;
 
-  for (const fight of fights) {
+  for (const rawFight of fights) {
+    const fight = withProfileOpponentNames(rawFight, profileNames);
     if (options.regenerate && !canRegeneratePrediction(fight)) {
       skipped += 1;
       console.log(`[skipped] event already started: ${fight.event.slug}`);
@@ -838,7 +868,7 @@ async function main() {
   }
 }
 
-module.exports = { parseArgs, canRegeneratePrediction, planAiCopy, buildConfidenceLabel, buildSnapshotCopy, normalizeRuSnapshot, main };
+module.exports = { buildProfileNameIndex, withProfileOpponentNames, parseArgs, canRegeneratePrediction, planAiCopy, buildConfidenceLabel, buildSnapshotCopy, normalizeRuSnapshot, main };
 
 if (require.main === module) main()
   .catch((error) => {

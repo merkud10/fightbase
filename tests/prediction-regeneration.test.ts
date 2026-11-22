@@ -22,6 +22,7 @@ function harness({ regenerate = true, generated = true, startedDuringRun = false
   let generations = 0;
   const calls: any[] = [];
   const db = {
+    fighter: { findMany: async () => [{ name: "Max Holloway", nameRu: "Макс Холлоуэй" }] },
     fight: { findMany: async () => [fight], findUnique: async () => startedDuringRun ? { ...fight, status: "live" } : fight },
     fightPredictionSnapshot: { findMany: async () => snapshots, upsert: async (args: any) => writes.push(args) },
     systemEvent: { create: async () => ({}) }, $disconnect: async () => {}
@@ -219,4 +220,25 @@ test("new texts drop the day-long page cache; a run that wrote nothing new does 
   const noSecret = harness({ regenerate: false, existingOverride: null });
   await noSecret.main();
   assert.equal(noSecret.revalidations.length, 0);
+});
+
+test("the model gets opponent names from their profiles, not the raw transliteration", async () => {
+  const h = harness();
+  const index = h.buildProfileNameIndex([
+    { name: "Max Holloway", nameRu: "Макс Холлоуэй" },
+    { name: "Bruno Silva", nameRu: "Бруно Силва" },
+    { name: "Bruno Silva", nameRu: "Бруно Сильва" }
+  ]);
+  const fight = {
+    fighterA: { recentFights: [
+      { opponentName: "Max Holloway", opponentNameRu: "Макс Холлоуаи" },
+      { opponentName: "Steve Garcia", opponentNameRu: "Стеве Гаркиа" },
+      { opponentName: "Bruno Silva", opponentNameRu: "Бруно Силва" }
+    ] },
+    fighterB: { recentFights: [] }
+  };
+  const fixed = h.withProfileOpponentNames(fight, index);
+  assert.deepEqual(fixed.fighterA.recentFights.map((entry: any) => entry.opponentNameRu), ["Макс Холлоуэй", "Стеве Гаркиа", "Бруно Силва"]);
+  // Исходный объект боя не меняется.
+  assert.equal(fight.fighterA.recentFights[0]?.opponentNameRu, "Макс Холлоуаи");
 });
