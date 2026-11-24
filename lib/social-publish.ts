@@ -7,6 +7,7 @@ import { buildPublicArticleImageWhere, hasRenderablePublicArticleImage } from "@
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { getSiteUrl } from "@/lib/site";
+import { buildVkPostMessage, getVkThrottleReason, pickVkCandidate, VK_DUPLICATE_WINDOW_MS } from "@/lib/vk-post";
 
 type PublishTarget = "telegram" | "vk";
 const SOCIAL_PUBLISH_TIME_ZONE = process.env.SOCIAL_PUBLISH_TIME_ZONE || "Europe/Moscow";
@@ -64,8 +65,12 @@ function getTodayPublishWindow(timeZone: string): { start: Date; end: Date } {
 /** Telegram Bot API: максимум ~4096 символов на сообщение (UTF-16). */
 const TELEGRAM_MESSAGE_MAX = 4090;
 
-/** VK wall.post: лимит текста (с запасом). */
-const VK_MESSAGE_MAX = 65000;
+/** Пауза между автопостами в ВК и потолок за сутки; 0 выключает ограничение. */
+function readVkLimit(name: string, fallback: number) {
+  const raw = process.env[name]?.trim();
+  const value = Number(raw);
+  return raw && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
 
 const GENERIC_SECTION_HEADINGS = new Set(["ai draft", "main section", "основной раздел"]);
 
@@ -90,6 +95,7 @@ type ArticleSocialPayload = {
   meaning: string;
   sections: { heading: string; body: string; sortOrder: number }[];
   telegramDigest: string | null;
+  event: { name: string } | null;
 };
 
 export async function getPublishableArticle(articleId: string) {
@@ -107,6 +113,7 @@ export async function getPublishableArticle(articleId: string) {
       coverImageUrl: true,
       meaning: true,
       telegramDigest: true,
+      event: { select: { name: true } },
       sections: {
         orderBy: { sortOrder: "asc" },
         select: { heading: true, body: true, sortOrder: true }
@@ -724,15 +731,6 @@ function clampPlainTelegramDigest(text: string): string {
   return `${t.slice(0, TELEGRAM_DIGEST_MAX - 1).trimEnd()}…`;
 }
 
-function buildVkFullMessage(article: ArticleSocialPayload): string {
-  const full = composeFullArticlePlainText(article);
-  if (full.length <= VK_MESSAGE_MAX) {
-    return full;
-  }
-
-  return `${full.slice(0, VK_MESSAGE_MAX - 40).trimEnd()}…\n\n[Текст обрезан по лимиту VK API]`;
-}
-
 export async function publishArticleToTelegram(articleId: string) {
   const article = await getPublishableArticle(articleId);
 
@@ -861,7 +859,7 @@ export async function publishArticleToVk(articleId: string) {
     throw new Error(`Article ${article.id} has no renderable cover image (${payload.coverImageUrl || "empty"}) — skipping VK post.`);
   }
 
-  const vkMessage = buildVkFullMessage(payload);
+  const vkMessage = buildVkPostMessage({ ...article, eventName: article.event?.name }, getSiteUrl().origin);
   const coverUrl = resolveCoverImageUrlForSocial(payload.coverImageUrl);
   console.log(`[VK] Article ${article.id} | coverImageUrl raw: "${payload.coverImageUrl}" | resolved: "${coverUrl}"`);
 
@@ -969,6 +967,80 @@ type SocialDripCandidate = {
   coverImageUrl: string | null;
 };
 
+/**
+ * Очередь ВК живёт по своим правилам: не чаще раза в несколько часов, не больше
+ * нескольких постов в сутки, самая свежая статья вперёд, повторы темы пропускаются.
+ * Лента из десяти постов в день с тремя новостями об одном бое отпугивает подписчиков.
+ */
+async function findVkDripCandidate(window: { start: Date; end: Date }): Promise<SocialDripCandidate | null> {
+  const now = new Date();
+  const dayStart = new Date(window.end.getTime() - 24 * 3_600_000);
+
+  const [lastPosted, postedToday] = await Promise.all([
+    prisma.article.findFirst({
+      where: { vkPostedAt: { not: null } },
+      orderBy: { vkPostedAt: "desc" },
+      select: { vkPostedAt: true }
+    }),
+    prisma.article.count({ where: { vkPostedAt: { gte: dayStart } } })
+  ]);
+
+  const throttleReason = getVkThrottleReason({
+    now,
+    lastPostedAt: lastPosted?.vkPostedAt ?? null,
+    postedToday,
+    minIntervalMinutes: readVkLimit("VK_MIN_POST_INTERVAL_MINUTES", 180),
+    dailyLimit: readVkLimit("VK_DAILY_POST_LIMIT", 5)
+  });
+
+  if (throttleReason) {
+    logger.info("Drip social: VK skipped", { reason: throttleReason });
+    return null;
+  }
+
+  const dedupSelect = {
+    id: true,
+    title: true,
+    coverImageUrl: true,
+    publishedAt: true,
+    fighterMap: { select: { fighterId: true } }
+  } as const;
+
+  const [candidates, posted] = await Promise.all([
+    prisma.article.findMany({
+      where: {
+        status: "published",
+        vkPostedAt: null,
+        ...buildPublicArticleImageWhere(),
+        publishedAt: { gte: window.start, lt: window.end }
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 40,
+      select: dedupSelect
+    }),
+    prisma.article.findMany({
+      where: {
+        vkPostedAt: { not: null },
+        publishedAt: { gte: new Date(window.start.getTime() - VK_DUPLICATE_WINDOW_MS) }
+      },
+      select: dedupSelect
+    })
+  ]);
+
+  const toDedup = (row: (typeof candidates)[number]) => ({
+    ...row,
+    fighterIds: row.fighterMap.map((link) => link.fighterId)
+  });
+
+  const picked = pickVkCandidate(candidates.map(toDedup), posted.map(toDedup));
+
+  if (!picked && candidates.length > 0) {
+    logger.info("Drip social: VK skipped", { reason: "all pending articles repeat recent posts", pending: candidates.length });
+  }
+
+  return picked ? { id: picked.id, title: picked.title, coverImageUrl: picked.coverImageUrl } : null;
+}
+
 export async function dripPublishNextArticle(): Promise<{
   processed: boolean;
   telegram: { sent: boolean; articleId: string | null; title: string | null };
@@ -990,19 +1062,7 @@ export async function dripPublishNextArticle(): Promise<{
       orderBy: { publishedAt: "asc" },
       select: { id: true, title: true, coverImageUrl: true }
     }),
-    prisma.article.findFirst({
-      where: {
-        status: "published",
-        vkPostedAt: null,
-        ...buildPublicArticleImageWhere(),
-        publishedAt: {
-          gte: todayWindow.start,
-          lt: todayWindow.end
-        }
-      },
-      orderBy: { publishedAt: "asc" },
-      select: { id: true, title: true, coverImageUrl: true }
-    })
+    findVkDripCandidate(todayWindow)
   ]);
 
   if (!telegramCandidate && !vkCandidate) {

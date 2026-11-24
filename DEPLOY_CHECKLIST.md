@@ -67,6 +67,8 @@ Set these in the host environment, Docker `--env-file`, or your platform’s sec
 | `VK_USER_TOKEN` | Optional user OAuth token used for VK photo upload; recommended when `photos.getWallUploadServer` fails with group auth |
 | `VK_GROUP_ID` | Numeric group id |
 | `VK_API_VERSION` | Default `5.199` if unset |
+| `VK_MIN_POST_INTERVAL_MINUTES` | Minimum gap between auto-posts to VK; default `180`, `0` disables |
+| `VK_DAILY_POST_LIMIT` | Max auto-posts to VK per day (Moscow time); default `5`, `0` disables |
 
 ### Public links (optional UI)
 
