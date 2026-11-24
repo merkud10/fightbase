@@ -414,7 +414,7 @@ function resolvePredictionAiConfig(readEnv) {
       provider,
       baseUrl,
       apiKey,
-      model: modelOverride || readEnv("CODEX_BRIDGE_MODEL", "gpt-5.3-codex-spark").trim(),
+      model: modelOverride || readEnv("CODEX_BRIDGE_MODEL", "gpt-6.2-sol").trim(),
       timeoutMs,
       ...(webSearch ? { webSearch } : {})
     };

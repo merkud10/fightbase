@@ -35,7 +35,7 @@ const defaultOllamaUrl = "http://127.0.0.1:11434/api/generate";
 const defaultOllamaModel = "aya:8b-23";
 const defaultAlibabaBaseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 const defaultAlibabaModel = "qwen-flash";
-const defaultCodexBridgeModel = "gpt-6.1-sol";
+const defaultCodexBridgeModel = "gpt-6.2-sol";
 const execFileAsync = promisify(execFile);
 
 type OpenAiCompatibleProvider = {
@@ -118,8 +118,8 @@ function providerModelLabel(provider: OpenAiCompatibleProvider) {
 
 /**
  * Порядок провайдеров. Явное переопределение — ровно один провайдер без фолбэка
- * (нужно скрипту сравнения). Без него: AI_PROVIDER=codex → только мост (с октября
- * 2026 всё на gpt-6.1-sol, решение пользователя); DeepSeek запасным — лишь при
+ * (нужно скрипту сравнения). Без него: AI_PROVIDER=codex → только мост (с ноября
+ * 2026 всё на gpt-6.2-sol, решение пользователя); DeepSeek запасным — лишь при
  * AI_DEEPSEEK_FALLBACK=1. AI_PROVIDER=deepseek или пусто → DeepSeek.
  */
 function resolveOpenAiCompatibleProviders(override?: LocalizationProviderOverride): OpenAiCompatibleProvider[] {
@@ -326,7 +326,7 @@ function clampTelegramDigest(text: string) {
 
 /**
  * Сжимает материал для поста в Telegram (≤1024 символов) тем же провайдером, что и
- * локализация (мост → gpt-6.1-sol). Без провайдера возвращает null.
+ * локализация (мост → gpt-6.2-sol). Без провайдера возвращает null.
  * Короткие тексты возвращает без дополнительного запроса.
  */
 export async function generateTelegramDigestForArticle(title: string, body: string): Promise<string | null> {

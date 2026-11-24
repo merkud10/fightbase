@@ -51,6 +51,14 @@ ssh -i ~/.ssh/fightbase_deploy root@179.254.164.181 'sudo -H -u codexbridge code
 `CODEX_BRIDGE_DEFAULT_MODEL`, затем `systemctl restart codex-bridge`. На проде
 `CODEX_BRIDGE_MODEL` в `/opt/fightbase/.env` и `systemctl restart fightbase`.
 
+Новые модели подписка отдаёт только свежему клиенту: на Codex 0.159.0
+`gpt-6.2-sol` отвечала 400 `model_not_found`, на 0.172.0 заработала (24.11.2026).
+Если модель «не поддерживается», сначала поднять `CODEX_VERSION` в
+`/etc/codex-bridge/env` и обновить оба бинарника (`codex` и
+`codex-code-mode-host`). Проверять новый бинарник лучше из отдельной папки с тем
+же `~/.codex`, не трогая `/usr/local/bin/codex`. Прежняя версия и env лежат в
+`/root/backups/codex-0.159.0-20261124` на VPS.
+
 ## Откат
 
 ```bash

@@ -279,13 +279,13 @@ function inferContentTypeHeuristically(input) {
 }
 
 // Классификатор ходит туда же, куда и локализация: при AI_PROVIDER=codex — мост
-// (gpt-6.1-sol по CODEX_BRIDGE_MODEL), иначе DeepSeek.
+// (gpt-6.2-sol по CODEX_BRIDGE_MODEL), иначе DeepSeek.
 function getClassifierProvider() {
   if (getAiProvider() === "codex") {
     const baseUrl = readEnv("CODEX_BRIDGE_URL");
     const apiKey = readEnv("CODEX_BRIDGE_TOKEN");
     if (!baseUrl || !apiKey) return null;
-    return { name: "codex", baseUrl, apiKey, model: readEnv("CODEX_BRIDGE_MODEL", "gpt-6.1-sol") };
+    return { name: "codex", baseUrl, apiKey, model: readEnv("CODEX_BRIDGE_MODEL", "gpt-6.2-sol") };
   }
   const apiKey = getDeepSeekApiKey();
   if (!apiKey) return null;

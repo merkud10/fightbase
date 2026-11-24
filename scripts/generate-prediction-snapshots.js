@@ -89,7 +89,7 @@ function canRegeneratePrediction(fight, now = new Date()) {
   return fight.status === "scheduled" && event?.status === "upcoming" && new Date(getEventStart(event)).getTime() > now.getTime();
 }
 
-// Модель прогнозов дорогая (gpt-6.1-sol с веб-поиском), поэтому зовём её только
+// Модель прогнозов дорогая (gpt-6.2-sol с веб-поиском), поэтому зовём её только
 // в последние PREDICTION_AI_WINDOW_HOURS до начала турнира: sync-odds идёт раз в
 // сутки в 06:00 UTC, и окно в 72 часа ловит прогон за 2–3 дня до турнира (для
 // субботнего — в четверг): поисковый спрос на «X Y прогноз» начинается раньше накануне.

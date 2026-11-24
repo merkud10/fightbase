@@ -21,7 +21,7 @@
 // кроме шаблонной биографии (isTemplateBio): её меняем на текст модели.
 // Ежедневный крон: cron-tasks.sh localize-upcoming.
 //
-// Модель — та же, что у прогнозов: gpt-6.1-sol через мост Codex с веб-поиском
+// Модель — та же, что у прогнозов: gpt-6.2-sol через мост Codex с веб-поиском
 // (FIGHTER_AI_MODEL переопределяет). Поиск нужен, чтобы взять написание имени из
 // русскоязычных СМИ, а не транскрибировать «Suyoung You» буква в букву.
 
@@ -91,7 +91,7 @@ async function localizeWithBridge(fighter) {
     signal: AbortSignal.timeout(450_000),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      model: readEnv("FIGHTER_AI_MODEL", "gpt-6.1-sol").trim(),
+      model: readEnv("FIGHTER_AI_MODEL", "gpt-6.2-sol").trim(),
       temperature: 0.2,
       web_search: true,
       messages: [
